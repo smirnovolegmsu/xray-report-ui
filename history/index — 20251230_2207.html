@@ -1,0 +1,1528 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Xray Usage</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+  <style>
+    :root{
+      --bg: #0b0d12;
+      --panel: rgba(255,255,255,.06);
+      --panel2: rgba(255,255,255,.09);
+      --stroke: rgba(255,255,255,.12);
+      --text: rgba(255,255,255,.95);
+      --muted: rgba(255,255,255,.74);
+      --muted2: rgba(255,255,255,.52);
+      --accent: #8ab4ff;
+      --accent2: #a4c2ff;
+
+      --ok: #26c281;
+      --danger: #ff5d5d;
+      --warn: #ffcc66;
+
+      --shadow: 0 12px 30px rgba(0,0,0,.38);
+      --radius2: 22px;
+
+      --h1: 18px;
+      --txt2: 12px;
+
+      --gap: 12px;
+      --top: 56px;
+    }
+
+    [data-theme="light"]{
+      --bg: #f5f6f8;
+      --panel: rgba(0,0,0,.04);
+      --panel2: rgba(0,0,0,.06);
+      --stroke: rgba(0,0,0,.10);
+      --text: rgba(0,0,0,.90);
+      --muted: rgba(0,0,0,.62);
+      --muted2: rgba(0,0,0,.44);
+      --accent: #0a84ff;
+      --accent2: #3ea0ff;
+
+      --ok: #137a35;
+      --danger: #b42318;
+      --warn: #9a6b00;
+
+      --shadow: 0 12px 30px rgba(0,0,0,.10);
+    }
+
+    *{ box-sizing: border-box; }
+    html, body{ height: 100%; }
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    .topbar{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+      background: color-mix(in srgb, var(--bg) 75%, transparent);
+      border-bottom: 1px solid var(--stroke);
+    }
+    .topbar-inner{
+      max-width: 1680px;
+      margin: 0 auto;
+      padding: 10px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      height: var(--top);
+    }
+    .brand{ display:flex; align-items:center; gap: 10px; min-width: 220px; }
+    .dot{
+      width:10px;height:10px;border-radius:999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+    .brand h1{ font-size: 14px; margin:0; font-weight: 700; letter-spacing: .2px; }
+    .sub{ font-size: 12px; color: var(--muted); margin-left: 2px; white-space: nowrap; }
+
+    .controls{ display:flex; align-items:center; gap:8px; flex-wrap: wrap; justify-content:flex-end; }
+
+    select, input[type="text"]{
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      padding: 8px 10px;
+      outline: none;
+      font-size: var(--txt2);
+    }
+    select{ cursor: pointer; }
+
+    .btn{
+      border: 1px solid var(--stroke);
+      background: var(--panel);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: var(--txt2);
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      user-select: none;
+      transition: transform .05s ease, background .15s ease, border-color .15s ease;
+    }
+    .btn:hover{ background: var(--panel2); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{ border-color: color-mix(in srgb, var(--accent) 55%, var(--stroke)); }
+    .btn.danger{ border-color: color-mix(in srgb, var(--danger) 55%, var(--stroke)); }
+
+    .seg{
+      display:inline-flex;
+      border: 1px solid var(--stroke);
+      background: var(--panel);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .seg button{
+      border:0;
+      background: transparent;
+      color: var(--muted);
+      padding: 8px 10px;
+      cursor:pointer;
+      font-size: var(--txt2);
+    }
+    .seg button.active{
+      color: var(--text);
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+    }
+
+    .wrap{
+      max-width: 1680px;
+      margin: 0 auto;
+      padding: 16px;
+      display:flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+
+    .grid{ display:grid; gap: var(--gap); }
+    .kpis{ grid-template-columns: repeat(6, minmax(0,1fr)); }
+    @media (max-width: 1500px){ .kpis{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
+    @media (max-width: 900px){ .kpis{ grid-template-columns: repeat(2, minmax(0,1fr)); } .brand{ min-width: unset; } }
+
+    .card{
+      background: var(--panel);
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius2);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .hd{
+      padding: 12px 14px 10px 14px;
+      display:flex;
+      align-items:flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--stroke);
+    }
+    .card .hd h2{ margin:0; font-size: var(--h1); font-weight: 700; letter-spacing:.1px; }
+    .card .hd .meta{ font-size: var(--txt2); color: var(--muted); margin-top: 2px; line-height: 1.25; }
+    .card .bd{ padding: 12px 14px 14px 14px; }
+
+    .kpi-title{ font-size: var(--txt2); color: var(--muted); margin-bottom: 8px; display:flex; align-items:center; gap: 8px; }
+    .kpi-val{ font-size: 22px; font-weight: 800; letter-spacing: .2px; line-height: 1.05; }
+    .kpi-list{ font-size: 13px; font-weight: 800; line-height: 1.35; }
+    .kpi-list .mutedline{ color: var(--muted); font-weight: 700; font-size: 12px; }
+    .kpi-sub{
+      margin-top: 8px;
+      font-size: var(--txt2);
+      color: var(--muted);
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .delta{
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--stroke);
+      background: color-mix(in srgb, var(--panel2) 60%, transparent);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .delta.up{ color: var(--ok); border-color: color-mix(in srgb, var(--ok) 55%, var(--stroke)); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+    .delta.down{ color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, var(--stroke)); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+
+    .two-col{ grid-template-columns: 1.1fr .9fr; }
+    @media (max-width: 1200px){ .two-col{ grid-template-columns: 1fr; } }
+
+    .mini-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+    @media (max-width: 1200px){ .mini-grid{ grid-template-columns: 1fr; } }
+
+    .chartbox{ height: 240px; position: relative; }
+    .chartbox.small{ height: 210px; }
+    .chartbox.tiny{ height: 170px; }
+    .chartbox.spark{ height: 120px; }
+
+    .table{ width:100%; border-collapse: collapse; font-size: var(--txt2); }
+    .table th, .table td{ border-bottom: 1px solid var(--stroke); padding: 7px 6px; vertical-align: top; }
+    .table th{ text-align:left; color: var(--muted); font-weight: 800; font-size: 11.5px; letter-spacing: .2px; }
+    .table td.num{ text-align:right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .table td.pct{ text-align:right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid var(--stroke);
+      background: var(--panel);
+      border-radius: 999px;
+      cursor:pointer;
+      user-select:none;
+      font-size: var(--txt2);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .pill.on{
+      color: var(--text);
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--stroke));
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+    .pill .mini{ width:8px;height:8px;border-radius:999px;background: var(--muted2); }
+    .pill.on .mini{ background: var(--accent); }
+
+    .filters{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 14px 12px 14px;
+      border-bottom: 1px solid var(--stroke);
+    }
+
+    .users-grid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--gap); }
+    @media (max-width: 1200px){ .users-grid{ grid-template-columns: 1fr; } }
+
+    .user-hd{ display:flex; align-items:flex-start; justify-content: space-between; gap: 10px; }
+    .user-name{ font-weight: 900; font-size: 14px; margin: 0; line-height: 1.05; }
+    .user-sub{ margin-top: 6px; font-size: 12px; color: var(--muted); line-height: 1.25; display:flex; gap: 10px; flex-wrap: wrap; }
+
+    .tag{
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--stroke);
+      background: color-mix(in srgb, var(--panel2) 65%, transparent);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      font-weight: 800;
+      color: var(--muted);
+    }
+    .tag.bad{ border-color: color-mix(in srgb, var(--danger) 55%, var(--stroke)); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+    .tag.good{ border-color: color-mix(in srgb, var(--ok) 55%, var(--stroke)); color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+
+    .tooltip{
+      position: relative;
+      display:inline-block;
+      cursor: help;
+      color: inherit;
+      text-decoration: underline dotted;
+      text-underline-offset: 3px;
+    }
+    .tooltip .tip{
+      position:absolute;
+      left: 0;
+      top: 22px;
+      min-width: 260px;
+      max-width: 340px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--stroke);
+      background: color-mix(in srgb, var(--bg) 92%, transparent);
+      box-shadow: var(--shadow);
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.35;
+      display:none;
+      z-index: 10;
+    }
+    .tooltip:hover .tip{ display:block; }
+
+    .notice{ padding: 12px 14px; color: var(--muted); font-size: var(--txt2); border-top: 1px solid var(--stroke); }
+
+    .row{ display:flex; gap: 10px; flex-wrap: wrap; align-items:center; }
+    .muted{ color: var(--muted); }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    .modal{
+      position: fixed;
+      inset: 0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background: rgba(0,0,0,.45);
+      z-index: 100;
+      padding: 16px;
+    }
+    .modal.on{ display:flex; }
+    .modal-card{
+      width: min(1100px, 100%);
+      max-height: min(86vh, 900px);
+      overflow:auto;
+      background: var(--bg);
+      border: 1px solid var(--stroke);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+    .modal-hd{
+      position: sticky;
+      top: 0;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(10px);
+      padding: 12px 14px;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--stroke);
+    }
+    .modal-hd h3{ margin:0; font-size: 14px; font-weight: 900; }
+    .modal-bd{ padding: 14px; }
+
+    pre{
+      margin: 0;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--stroke);
+      background: var(--panel);
+      overflow:auto;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .toastwrap{
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 200;
+      display:flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast{
+      pointer-events: none;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--stroke);
+      background: color-mix(in srgb, var(--bg) 92%, transparent);
+      box-shadow: var(--shadow);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+      max-width: 360px;
+    }
+    .toast.ok{ border-color: color-mix(in srgb, var(--ok) 55%, var(--stroke)); }
+    .toast.bad{ border-color: color-mix(in srgb, var(--danger) 55%, var(--stroke)); }
+    .bar{
+      height: 8px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--accent) 20%, transparent);
+      overflow:hidden;
+      border: 1px solid var(--stroke);
+    }
+    .bar > div{
+      height: 100%;
+      background: color-mix(in srgb, var(--accent) 70%, transparent);
+      width: 0%;
+    }
+
+    .heat{
+      display:grid;
+      gap: 1px;
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      overflow:hidden;
+      background: var(--panel);
+    }
+    .heat > div{ height: 10px; background: color-mix(in srgb, var(--panel2) 70%, transparent); }
+    .heat > div.on{ background: color-mix(in srgb, var(--accent) 60%, transparent); }
+    .heat-legend{ display:flex; justify-content: space-between; color: var(--muted); font-size: 11.5px; margin-top: 6px; }
+
+    .errbox{
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--stroke));
+      background: color-mix(in srgb, var(--danger) 10%, transparent);
+      color: var(--danger);
+      font-weight: 900;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+  </style>
+</head>
+<body>
+  <div class="toastwrap" id="toasts"></div>
+
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="dot"></div>
+        <div>
+          <h1>Xray Usage</h1>
+          <div class="sub" id="uiStamp">—</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <select id="dateSel" title="Дата (to)"></select>
+
+        <div class="seg" title="Тренды">
+          <button id="segDaily">Daily</button>
+          <button id="segCum">Cumulative</button>
+        </div>
+
+        <div class="seg" title="Тема">
+          <button id="segDark">Dark</button>
+          <button id="segLight">Light</button>
+        </div>
+
+        <div class="seg" title="Единицы">
+          <button id="segGB">GB</button>
+          <button id="segMB">MB</button>
+        </div>
+
+        <button class="btn" id="btnStatus" title="systemctl status xray">⚙️ Status</button>
+        <button class="btn" id="btnRestart" title="systemctl restart xray">⟳ Restart</button>
+        <button class="btn" id="btnJournal" title="journalctl -u xray">🧾 Journal</button>
+
+        <button class="btn primary" id="btnAdmin">🧑‍💻 Управление</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="grid kpis" id="kpiGrid"></div>
+
+    <div class="grid two-col">
+      <div class="card">
+        <div class="hd">
+          <div>
+            <h2>Тренды (7 дней)</h2>
+            <div class="meta">Переключай в шапке: Daily / Cumulative (мгновенно)</div>
+          </div>
+        </div>
+        <div class="bd">
+          <div class="mini-grid">
+            <div class="chartbox small"><canvas id="chTraffic"></canvas></div>
+            <div class="chartbox small"><canvas id="chConns"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd">
+          <div>
+            <h2>Топ домены (7 дней)</h2>
+            <div class="meta">Топ-10 по трафику и по подключениям</div>
+          </div>
+        </div>
+        <div class="bd">
+          <div class="mini-grid">
+            <div>
+              <div class="kpi-title">По трафику</div>
+              <table class="table" id="tblTopTraffic"></table>
+            </div>
+            <div>
+              <div class="kpi-title">По подключениям</div>
+              <table class="table" id="tblTopConns"></table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hd">
+        <div>
+          <h2>Пользователи</h2>
+          <div class="meta">Фильтр сохраняется. Если выбрать слишком много — не уместится без скролла (и это нормально).</div>
+        </div>
+        <div class="row">
+          <div class="seg" title="Сравнение пользователей">
+            <button id="segCmpTraffic">Traffic</button>
+            <button id="segCmpConns">Conns</button>
+          </div>
+          <div class="seg" title="Мини-график в карточках">
+            <button id="segMiniTraffic">Mini: Traffic</button>
+            <button id="segMiniConns">Mini: Conns</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="filters" id="userFilters"></div>
+
+      <div class="bd">
+        <div class="mini-grid">
+          <div class="chartbox tiny"><canvas id="chUsersCmp"></canvas></div>
+          <div class="chartbox tiny"><canvas id="chUsersDom"></canvas></div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="users-grid" id="usersGrid"></div>
+      </div>
+
+      <div class="notice" id="usersNotice" style="display:none"></div>
+    </div>
+
+    <div class="card" id="sessionsCard">
+      <div class="hd">
+        <div>
+          <h2>Онлайн по времени</h2>
+          <div class="meta">Оценка по access.log: «был трафик в интервале / не было»</div>
+        </div>
+        <div class="row">
+          <select id="sessDateSel" title="Дата"></select>
+          <div class="seg" title="Интервал">
+            <button id="segGran5">5m</button>
+            <button id="segGran10">10m</button>
+          </div>
+          <button class="btn" id="btnSessToggle">Показать</button>
+        </div>
+      </div>
+      <div class="bd" id="sessionsBody" style="display:none">
+        <div class="muted" id="sessNote" style="margin-bottom:10px">—</div>
+
+        <div class="mini-grid" style="align-items:start">
+          <div>
+            <div class="kpi-title">Top users by time</div>
+            <table class="table" id="sessTopTbl"></table>
+          </div>
+          <div>
+            <div class="kpi-title">Что означает</div>
+            <div class="muted" style="font-size:12px;line-height:1.35">
+              Это “activity heatmap”: если в интервале был запрос — слот помечается как онлайн.
+              <br/>Кнопка <b>Kick</b> = Reset UUID (человека выбьет, пока не вставит новую ссылку).
+            </div>
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+        <div id="sessLines"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal">
+    <div class="modal-card">
+      <div class="modal-hd">
+        <h3 id="modalTitle">—</h3>
+        <button class="btn" id="modalClose">Закрыть</button>
+      </div>
+      <div class="modal-bd" id="modalBody"></div>
+    </div>
+  </div>
+
+<script>
+  const LS = {
+    theme: 'xray_ui_theme_v2',
+    unit:  'xray_ui_unit_v1',
+    date:  'xray_ui_date_v1',
+    users: 'xray_ui_selected_users_v3',
+    trends:'xray_ui_trends_mode_v1',
+    cmp:   'xray_ui_cmp_mode_v1',
+    mini:  'xray_ui_user_mini_mode_v1',
+    sessOpen: 'xray_ui_sessions_open_v1',
+    sessGran: 'xray_ui_sessions_gran_v1',
+    sessDate: 'xray_ui_sessions_date_v1'
+  };
+
+  const state = {
+    theme: localStorage.getItem(LS.theme) || 'dark',
+    unit:  localStorage.getItem(LS.unit) || 'GB',
+    date:  localStorage.getItem(LS.date) || '',
+    trends: localStorage.getItem(LS.trends) || 'daily',
+    cmp: localStorage.getItem(LS.cmp) || 'traffic',
+    mini: localStorage.getItem(LS.mini) || 'traffic',
+    selectedUsers: (() => { try { return JSON.parse(localStorage.getItem(LS.users) || '[]'); } catch { return []; } })(),
+    sessOpen: (localStorage.getItem(LS.sessOpen) || '0') === '1',
+    sessGran: parseInt(localStorage.getItem(LS.sessGran) || '5', 10),
+    sessDate: localStorage.getItem(LS.sessDate) || ''
+  };
+
+  let dashCache = null;
+
+  function persist(){
+    localStorage.setItem(LS.theme, state.theme);
+    localStorage.setItem(LS.unit, state.unit);
+    localStorage.setItem(LS.date, state.date);
+    localStorage.setItem(LS.trends, state.trends);
+    localStorage.setItem(LS.cmp, state.cmp);
+    localStorage.setItem(LS.mini, state.mini);
+    localStorage.setItem(LS.users, JSON.stringify(state.selectedUsers));
+    localStorage.setItem(LS.sessOpen, state.sessOpen ? '1':'0');
+    localStorage.setItem(LS.sessGran, String(state.sessGran));
+    localStorage.setItem(LS.sessDate, state.sessDate);
+  }
+
+  const nf0 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
+  const nf2 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
+  const nfp = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+
+  function el(id){ return document.getElementById(id); }
+
+  function toast(msg, kind='ok'){
+    const w = el('toasts');
+    const t = document.createElement('div');
+    t.className = `toast ${kind}`;
+    t.textContent = msg;
+    w.appendChild(t);
+    setTimeout(()=>{ t.remove(); }, 1600);
+  }
+
+  function fmtMMDD(ymd){
+    if(!ymd) return '—';
+    const [y,m,d] = ymd.split('-');
+    return `${m}.${d}`;
+  }
+  function bytesTo(bytes, unit){
+    const div = unit === 'MB' ? (1024*1024) : (1024*1024*1024);
+    return bytes / div;
+  }
+  function fmtBytes(bytes){
+    const v = bytesTo(bytes, state.unit);
+    return `${nf2.format(v)} ${state.unit}`;
+  }
+  function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
+  function avg(arr){ return arr.length ? sum(arr)/arr.length : 0; }
+  function pctDelta(val, base){ if(!base) return null; return (val - base) / base * 100.0; }
+
+  function shortK(n){
+    const a = Math.abs(n);
+    if(a >= 1e6) return (n/1e6).toFixed(1)+'M';
+    if(a >= 1e3) return (n/1e3).toFixed(1)+'k';
+    return nf2.format(n);
+  }
+
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll('&','&amp;').replaceAll('<','&lt;')
+      .replaceAll('>','&gt;').replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+  }
+
+  function setTheme(){
+    document.documentElement.dataset.theme = state.theme;
+    el('segDark').classList.toggle('active', state.theme==='dark');
+    el('segLight').classList.toggle('active', state.theme==='light');
+  }
+  function setUnit(){
+    el('segGB').classList.toggle('active', state.unit==='GB');
+    el('segMB').classList.toggle('active', state.unit==='MB');
+  }
+  function setTrends(){
+    el('segDaily').classList.toggle('active', state.trends==='daily');
+    el('segCum').classList.toggle('active', state.trends==='cum');
+  }
+  function setCmp(){
+    el('segCmpTraffic').classList.toggle('active', state.cmp==='traffic');
+    el('segCmpConns').classList.toggle('active', state.cmp==='conns');
+  }
+  function setMini(){
+    el('segMiniTraffic').classList.toggle('active', state.mini==='traffic');
+    el('segMiniConns').classList.toggle('active', state.mini==='conns');
+  }
+  function setSessGran(){
+    el('segGran5').classList.toggle('active', state.sessGran===5);
+    el('segGran10').classList.toggle('active', state.sessGran===10);
+  }
+
+  function openModal(title, bodyNode){
+    el('modalTitle').textContent = title;
+    const mb = el('modalBody');
+    mb.innerHTML = '';
+    if(typeof bodyNode === 'string') mb.innerHTML = bodyNode;
+    else mb.appendChild(bodyNode);
+    el('modal').classList.add('on');
+  }
+  function closeModal(){ el('modal').classList.remove('on'); }
+  el('modalClose').onclick = closeModal;
+  el('modal').addEventListener('click', (e)=>{ if(e.target === el('modal')) closeModal(); });
+
+  Chart.register(ChartDataLabels);
+  Chart.defaults.font.family = 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
+
+  const charts = {};
+  function destroyChart(k){ if(charts[k]){ charts[k].destroy(); delete charts[k]; } }
+
+  function axisCfg(isFloat){
+    const stroke = getComputedStyle(document.documentElement).getPropertyValue('--stroke');
+    const muted2 = getComputedStyle(document.documentElement).getPropertyValue('--muted2');
+    return {
+      grid: { color: stroke, drawBorder: false },
+      ticks: {
+        color: muted2,
+        callback: (v)=> isFloat ? nf2.format(v) : nf0.format(v)
+      }
+    };
+  }
+
+  function mkBar(canvasId, labels, data, title, isFloat, tooltipFmt){
+    destroyChart(canvasId);
+    const ctx = el(canvasId).getContext('2d');
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+    const text = getComputedStyle(document.documentElement).getPropertyValue('--text');
+    charts[canvasId] = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{
+        label: title,
+        data,
+        borderRadius: 10,
+        backgroundColor: `color-mix(in srgb, ${accent} 60%, transparent)`,
+        borderColor: `color-mix(in srgb, ${accent} 90%, transparent)`,
+        borderWidth: 1
+      }]},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display:false },
+          tooltip: { callbacks: { label: (ctx) => tooltipFmt(ctx.raw) } },
+          datalabels: {
+            color: text,
+            anchor: 'end',
+            align: 'start',
+            offset: 2,
+            clamp: true,
+            formatter: (v) => (v===0 ? '' : (isFloat ? nf2.format(v) : shortK(v))),
+            font: { weight: '800', size: 11 }
+          }
+        },
+        scales: { x: axisCfg(false), y: axisCfg(isFloat) }
+      }
+    });
+  }
+
+  function mkLine(canvasId, labels, data, title, isFloat, tooltipFmt){
+    destroyChart(canvasId);
+    const ctx = el(canvasId).getContext('2d');
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+    const text = getComputedStyle(document.documentElement).getPropertyValue('--text');
+    charts[canvasId] = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets: [{
+        label: title,
+        data,
+        tension: 0.25,
+        borderColor: `color-mix(in srgb, ${accent} 90%, transparent)`,
+        pointRadius: 3,
+        pointHoverRadius: 4,
+        pointBackgroundColor: `color-mix(in srgb, ${accent} 90%, transparent)`,
+        fill: true,
+        backgroundColor: `color-mix(in srgb, ${accent} 12%, transparent)`
+      }]},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display:false },
+          tooltip: { callbacks: { label: (ctx) => tooltipFmt(ctx.raw) } },
+          datalabels: {
+            color: text,
+            align: 'top',
+            anchor: 'end',
+            formatter: (v) => (v===0 ? '' : (isFloat ? nf2.format(v) : shortK(v))),
+            font: { weight: '800', size: 11 }
+          }
+        },
+        scales: { x: axisCfg(false), y: axisCfg(isFloat) }
+      }
+    });
+  }
+
+  function mkSpark(canvasId, labels, data, isFloat, tooltipFmt){
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+    charts[canvasId] = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets: [{
+        data,
+        tension: 0.25,
+        borderColor: `color-mix(in srgb, ${accent} 92%, transparent)`,
+        pointRadius: 0,
+        fill: true,
+        backgroundColor: `color-mix(in srgb, ${accent} 10%, transparent)`
+      }]},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display:false },
+          tooltip: { callbacks: { label: (ctx) => tooltipFmt(ctx.raw) } },
+          datalabels: { display:false }
+        },
+        scales: {
+          x: { display:false },
+          y: { display:false }
+        }
+      }
+    });
+  }
+
+  function renderKpis(dash){
+    const g = dash.global;
+    const days = dash.meta.days;
+    const lastIdx = days.length - 1;
+
+    const tTodayB = g.daily_traffic_bytes[lastIdx] || 0;
+    const cToday  = g.daily_conns[lastIdx] || 0;
+
+    const tAvgB = avg(g.daily_traffic_bytes || []);
+    const cAvg  = avg(g.daily_conns || []);
+
+    const t7B = sum(g.daily_traffic_bytes || []);
+    const c7  = sum(g.daily_conns || []);
+
+    const topT = (g.top_domains_traffic || []).slice(0,3).map(x=>x.domain);
+    const topC = (g.top_domains_conns || []).slice(0,3).map(x=>x.domain);
+
+    const tToday = bytesTo(tTodayB, state.unit);
+    const tAvg   = bytesTo(tAvgB, state.unit);
+
+    const kpis = [
+      {title:`Today traffic (${state.unit})`, html: `<div class="kpi-val">${nf2.format(tToday)} ${state.unit}</div>`, base: tAvg, raw: tToday},
+      {title:`Today conns`, html: `<div class="kpi-val">${nf0.format(cToday)}</div>`, base: cAvg, raw: cToday},
+      {title:`7d total traffic (${state.unit})`, html: `<div class="kpi-val">${nf2.format(bytesTo(t7B, state.unit))} ${state.unit}</div>`, base: null, raw: null},
+      {title:`7d total conns`, html: `<div class="kpi-val">${nf0.format(c7)}</div>`, base: null, raw: null},
+      {
+        title:'Top domains (7d) — traffic',
+        html: `<div class="kpi-list">
+          ${topT.map(d=>`<div>${escapeHtml(d)}</div>`).join('') || '—'}
+          <div class="mutedline">top-3</div>
+        </div>`,
+        base:null, raw:null
+      },
+      {
+        title:'Top domains (7d) — conns',
+        html: `<div class="kpi-list">
+          ${topC.map(d=>`<div>${escapeHtml(d)}</div>`).join('') || '—'}
+          <div class="mutedline">top-3</div>
+        </div>`,
+        base:null, raw:null
+      },
+    ];
+
+    const grid = el('kpiGrid');
+    grid.innerHTML = '';
+    for(const k of kpis){
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      const delta = (k.base !== null) ? pctDelta(k.raw, k.base) : null;
+      const deltaStr = (delta === null) ? '—' : `${delta>=0?'+':''}${nfp.format(delta)}%`;
+      const deltaClass = (delta === null) ? '' : (delta>=0?'up':'down');
+      const baseStr = (k.base!==null) ? `avg7d: ${nf2.format(k.base)}` : '';
+
+      card.innerHTML = `
+        <div class="bd">
+          <div class="kpi-title">${k.title}</div>
+          ${k.html}
+          <div class="kpi-sub">
+            <span>${baseStr}</span>
+            <span class="delta ${deltaClass}">${deltaStr}</span>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    }
+  }
+
+  function renderTopTables(dash){
+    const mk = (rows, isBytes) => {
+      let html = `<thead><tr><th>Domain</th><th class="num">${isBytes?state.unit:'#'}</th><th class="pct">%</th></tr></thead><tbody>`;
+      for(const r of rows.slice(0,10)){
+        const v = isBytes ? nf2.format(bytesTo(r.value, state.unit)) : nf0.format(r.value);
+        html += `<tr><td>${escapeHtml(r.domain)}</td><td class="num">${v}</td><td class="pct">${nf2.format(r.pct)}%</td></tr>`;
+      }
+      html += `</tbody>`;
+      return html;
+    };
+    el('tblTopTraffic').innerHTML = mk(dash.global.top_domains_traffic || [], true);
+    el('tblTopConns').innerHTML   = mk(dash.global.top_domains_conns || [], false);
+  }
+
+  function renderTrends(dash){
+    const labels = dash.meta.days.map(fmtMMDD);
+    const g = dash.global;
+
+    if(state.trends === 'daily'){
+      const t = (g.daily_traffic_bytes||[]).map(b => bytesTo(b, state.unit));
+      const c = g.daily_conns || [];
+      mkBar('chTraffic', labels, t, 'Daily traffic', true, (v)=>`${nf2.format(v)} ${state.unit}`);
+      mkBar('chConns', labels, c, 'Daily conns', false, (v)=>nf0.format(v));
+    } else {
+      const t = (g.cumulative_traffic_bytes||[]).map(b => bytesTo(b, state.unit));
+      const c = g.cumulative_conns || [];
+      mkLine('chTraffic', labels, t, 'Cumulative traffic', true, (v)=>`${nf2.format(v)} ${state.unit}`);
+      mkLine('chConns', labels, c, 'Cumulative conns', false, (v)=>nf0.format(v));
+    }
+  }
+
+  function user7d(dash, u){
+    const uu = dash.users[u];
+    const t = sum(uu.daily_traffic_bytes || []);
+    const c = sum(uu.daily_conns || []);
+    return {t, c};
+  }
+
+  function renderUsersComparison(dash, selected){
+    const users = selected.length ? selected : (dash.meta.users || []);
+    const labels = users.map(u => {
+      const a = (dash.users[u] && dash.users[u].alias) ? dash.users[u].alias : '';
+      return a ? a : u;
+    });
+
+    let data, title, isFloat, fmt;
+    if(state.cmp === 'traffic'){
+      data = users.map(u => bytesTo(user7d(dash, u).t, state.unit));
+      title = `Traffic 7d (${state.unit})`;
+      isFloat = true;
+      fmt = (v)=>`${nf2.format(v)} ${state.unit}`;
+    } else {
+      data = users.map(u => user7d(dash, u).c);
+      title = `Conns 7d`;
+      isFloat = false;
+      fmt = (v)=>nf0.format(v);
+    }
+
+    const pairs = labels.map((l,i)=>({l, v:data[i]})).sort((a,b)=>b.v-a.v).slice(0, 12);
+    mkBar('chUsersCmp', pairs.map(x=>x.l), pairs.map(x=>x.v), title, isFloat, fmt);
+  }
+
+  function renderUsersDomainCompare(dash, selected){
+    const dom = (dash.global.top_domains_traffic && dash.global.top_domains_traffic[0]) ? dash.global.top_domains_traffic[0].domain : null;
+    const users = selected.length ? selected : (dash.meta.users || []);
+    const labels = users.map(u => (dash.users[u].alias || '').trim() || u).slice(0, 12);
+
+    const data = users.slice(0,12).map(u => {
+      const rows = (dash.users[u].top_domains_traffic || []);
+      const r = rows.find(x => x.domain === dom);
+      return r ? bytesTo(r.value, state.unit) : 0;
+    });
+
+    const title = dom ? `Traffic to top domain: ${dom}` : `Traffic to top domain`;
+    mkBar('chUsersDom', labels, data, title, true, (v)=>`${nf2.format(v)} ${state.unit}`);
+  }
+
+  function renderUserFilters(dash){
+    const box = el('userFilters');
+    box.innerHTML = '';
+
+    const users = dash.meta.users || [];
+
+    function pill(user, label){
+      const p = document.createElement('div');
+      p.className = 'pill';
+      p.innerHTML = `<span class="mini"></span><span>${label}</span>`;
+      p.onclick = () => {
+        const idx = state.selectedUsers.indexOf(user);
+        if(idx >= 0) state.selectedUsers.splice(idx,1);
+        else state.selectedUsers.push(user);
+        persist();
+        renderAllFromCache();
+      };
+      if(state.selectedUsers.includes(user)) p.classList.add('on');
+      return p;
+    }
+
+    const all = document.createElement('div');
+    all.className = 'pill';
+    const allOn = (state.selectedUsers.length === users.length && users.length>0);
+    all.innerHTML = `<span class="mini"></span><span>Все</span>`;
+    if(allOn) all.classList.add('on');
+    all.onclick = () => {
+      if(allOn) state.selectedUsers = [];
+      else state.selectedUsers = [...users];
+      persist();
+      renderAllFromCache();
+    };
+    box.appendChild(all);
+
+    for(const u of users){
+      const a = (dash.users[u] && dash.users[u].alias) ? dash.users[u].alias : '';
+      const label = a ? `${a} · ${u}` : u;
+      box.appendChild(pill(u, label));
+    }
+  }
+
+  function renderUsers(dash){
+    const users = dash.meta.users || [];
+    const grid = el('usersGrid');
+    grid.innerHTML = '';
+    el('usersNotice').style.display = 'none';
+
+    const selected = state.selectedUsers.length ? state.selectedUsers : users;
+    const maxCards = 4;
+    const show = selected.slice(0, maxCards);
+
+    if(selected.length > maxCards){
+      el('usersNotice').textContent = `Выбрано ${selected.length} пользователей — показываю первые ${maxCards}, иначе не уместится без скролла.`;
+      el('usersNotice').style.display = 'block';
+    }
+
+    renderUsersComparison(dash, selected);
+    renderUsersDomainCompare(dash, selected);
+
+    for(const u of show){
+      const uu = dash.users[u];
+      const alias = (uu.alias || '').trim();
+      const name = alias ? alias : u;
+      const {t, c} = user7d(dash, u);
+
+      const anomalies = uu.anomaly ? `
+        <span class="tooltip">аномалии
+          <span class="tip">
+            «Аномалии» = подозрительные строки в агрегации: слишком большой трафик за день, время=0, невалидные записи.
+            Это маркер “проверить исходные файлы”, не приговор.
+          </span>
+        </span>` : '';
+
+      const miniId = `spark_${u}`;
+      const miniLabels = dash.meta.days.map(fmtMMDD);
+
+      let miniData, isFloat, tipFmt, miniTitle;
+      if(state.mini === 'traffic'){
+        miniTitle = `7d динамика: Traffic (${state.unit})`;
+        miniData = (uu.daily_traffic_bytes||[]).map(b=>bytesTo(b, state.unit));
+        isFloat = true;
+        tipFmt = (v)=>`${nf2.format(v)} ${state.unit}`;
+      } else {
+        miniTitle = `7d динамика: Conns`;
+        miniData = (uu.daily_conns||[]);
+        isFloat = false;
+        tipFmt = (v)=>nf0.format(v);
+      }
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="hd">
+          <div class="user-hd" style="width:100%">
+            <div>
+              <div class="user-name">${escapeHtml(name)}</div>
+              <div class="user-sub">
+                <span class="tag">${fmtBytes(t)}</span>
+                <span class="tag">conns: ${nf0.format(c)}</span>
+                ${uu.anomaly ? `<span class="tag bad">${anomalies}</span>` : `<span class="tag good">ok</span>`}
+              </div>
+            </div>
+            <div class="muted" style="font-size:12px">${escapeHtml(u)}</div>
+          </div>
+        </div>
+        <div class="bd">
+          <div class="kpi-title">${miniTitle}</div>
+          <div class="chartbox spark"><canvas id="${escapeHtml(miniId)}"></canvas></div>
+          <div style="height:10px"></div>
+          <div class="mini-grid">
+            <div>
+              <div class="kpi-title">Top-10 по трафику</div>
+              ${mkTopTable(uu.top_domains_traffic || [], true)}
+            </div>
+            <div>
+              <div class="kpi-title">Top-10 по подключениям</div>
+              ${mkTopTable(uu.top_domains_conns || [], false)}
+            </div>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+
+      mkSpark(miniId, miniLabels, miniData, isFloat, tipFmt);
+    }
+  }
+
+  function mkTopTable(rows, isBytes){
+    let html = `<table class="table"><thead><tr><th>Domain</th><th class="num">${isBytes?state.unit:'#'}</th><th class="pct">%</th></tr></thead><tbody>`;
+    for(const r of rows.slice(0,10)){
+      const v = isBytes ? nf2.format(bytesTo(r.value, state.unit)) : nf0.format(r.value);
+      html += `<tr><td>${escapeHtml(r.domain)}</td><td class="num">${v}</td><td class="pct">${nf2.format(r.pct)}%</td></tr>`;
+    }
+    html += `</tbody></table>`;
+    return html;
+  }
+
+  async function copyText(text){
+    try{
+      await navigator.clipboard.writeText(text);
+      return true;
+    }catch(e){
+      try{
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+      }catch{
+        return false;
+      }
+    }
+  }
+
+  async function openAdmin(){
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="muted" style="margin-bottom:10px">
+        Управление реально пишет в config и рестартит xray. Reset UUID = “выбить человека до повторного импорта новой ссылки”.
+      </div>
+
+      <div class="card" style="margin-bottom:12px">
+        <div class="hd"><div><h2>Шаблон ссылки (Reality)</h2><div class="meta">Если pbk не деривится — импортируй любую рабочую vless:// ссылку.</div></div></div>
+        <div class="bd">
+          <div class="row" style="margin-bottom:10px">
+            <input type="text" id="admPublicHost" placeholder="public host (185.235...)" style="min-width:260px;flex:1"/>
+            <button class="btn" id="admSaveHost">Сохранить host</button>
+          </div>
+          <div class="row" style="margin-bottom:10px">
+            <input type="text" id="admLink" placeholder="Вставь рабочую vless://... ссылку (чтобы зафиксировать pbk/sni/sid)" style="width:100%"/>
+            <button class="btn primary" id="admImport">Импорт</button>
+          </div>
+          <div id="admTmplInfo">loading…</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd">
+          <div><h2>Пользователи</h2><div class="meta">Copy работает через Clipboard+fallback, будет toast.</div></div>
+          <button class="btn primary" id="admAdd">+ Добавить</button>
+        </div>
+        <div class="bd" id="admUsersBody">loading…</div>
+      </div>
+    `;
+    openModal('Управление', wrap);
+
+    const [tmpl, clients, stats] = await Promise.all([
+      fetch('/api/reality_template', {cache:'no-store'}).then(r=>r.json().then(j=>({ok:r.ok, j}))),
+      fetch('/api/admin/clients', {cache:'no-store'}).then(r=>r.json()),
+      fetch('/api/admin/stats', {cache:'no-store'}).then(r=>r.json()),
+    ]);
+
+    const info = document.getElementById('admTmplInfo');
+    if(!tmpl.ok){
+      info.innerHTML = `<div class="errbox">${escapeHtml(tmpl.j.error || 'template error')}</div>`;
+    }else{
+      const t = tmpl.j.template || {};
+      const host = tmpl.j.public_host || '';
+      document.getElementById('admPublicHost').value = host;
+      info.innerHTML = `
+        <div class="mono">pbk: ${escapeHtml((t.pbk||'') ? (t.pbk.slice(0,10)+'…'+t.pbk.slice(-6)) : '—')}</div>
+        <div class="mono">sni: ${escapeHtml(t.sni||'—')} · sid: ${escapeHtml(t.sid||'—')} · fp: ${escapeHtml(t.fp||'—')} · port: ${escapeHtml(String(t.port||'—'))}</div>
+        <div class="mono">flow: ${escapeHtml(t.flow||'—')}</div>
+        <div class="muted" style="margin-top:6px">access log: <span class="mono">${escapeHtml(tmpl.j.access_log||'—')}</span></div>
+      `;
+    }
+
+    document.getElementById('admSaveHost').onclick = async () => {
+      const v = document.getElementById('admPublicHost').value.trim();
+      const r = await fetch('/api/admin/public_host', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({public_host: v})});
+      const js = await r.json();
+      toast(`Host сохранён: ${js.public_host||''}`, 'ok');
+    };
+
+    document.getElementById('admImport').onclick = async () => {
+      const link = document.getElementById('admLink').value.trim();
+      if(!link) return;
+      const r = await fetch('/api/admin/import_link', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({link})});
+      const js = await r.json();
+      if(js.error) toast(`Импорт: ${js.error}`, 'bad');
+      else toast('Импорт: OK', 'ok');
+    };
+
+    function renderUsersAdmin(clientsArr, statsObj){
+      const body = document.getElementById('admUsersBody');
+      if(!Array.isArray(clientsArr)){
+        body.innerHTML = `<div class="errbox">clients error</div>`;
+        return;
+      }
+
+      let html = `<table class="table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Alias</th>
+            <th class="num">Days</th>
+            <th class="num">Traffic</th>
+            <th class="num">Conns</th>
+            <th>Top-3 sites</th>
+            <th class="num">Copy</th>
+            <th class="num">Kick</th>
+            <th class="num">Delete</th>
+          </tr>
+        </thead><tbody>`;
+
+      for(const c of clientsArr){
+        const st = (statsObj && statsObj[c.email]) ? statsObj[c.email] : null;
+        const days = st ? st.days_used : 0;
+        const t = st ? fmtBytes(st.total_traffic_bytes) : '—';
+        const conns = st ? nf0.format(st.total_conns) : '—';
+        const top3 = st ? (st.top3_domains || []) : [];
+        const top3html = top3.length
+          ? top3.map(x => `${escapeHtml(x.domain)} <span class="muted">(${nf2.format(bytesTo(x.bytes, state.unit))} ${state.unit})</span>`).join('<br/>')
+          : '<span class="muted">—</span>';
+
+        const hasLink = (c.share_link || '').trim().length > 0;
+
+        html += `<tr>
+          <td class="mono">${escapeHtml(c.email)}</td>
+          <td><input type="text" data-alias="${escapeHtml(c.email)}" value="${escapeHtml(c.alias||'')}" placeholder="name" style="width: 160px"/></td>
+          <td class="num">${nf0.format(days)}</td>
+          <td class="num">${t}</td>
+          <td class="num">${conns}</td>
+          <td>${top3html}</td>
+          <td class="num">
+            <button class="btn ${hasLink?'':'danger'}" data-copy="${escapeHtml(c.share_link||'')}" data-email="${escapeHtml(c.email)}">${hasLink?'Copy':'Fix'}</button>
+          </td>
+          <td class="num">
+            <button class="btn danger" data-kick="${escapeHtml(c.email)}">Kick</button>
+          </td>
+          <td class="num">
+            <button class="btn danger" data-del="${escapeHtml(c.email)}">✕</button>
+          </td>
+        </tr>`;
+      }
+      html += `</tbody></table>`;
+      body.innerHTML = html;
+
+      body.querySelectorAll('input[data-alias]').forEach(inp => {
+        inp.addEventListener('change', async () => {
+          const email = inp.getAttribute('data-alias');
+          const alias = inp.value.trim();
+          await fetch('/api/admin/alias', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, alias})});
+          toast('Alias сохранён', 'ok');
+        });
+      });
+
+      body.querySelectorAll('button[data-copy]').forEach(btn => {
+        btn.onclick = async () => {
+          const link = btn.getAttribute('data-copy') || '';
+          const email = btn.getAttribute('data-email') || '';
+          if(!link){
+            toast('Нет ссылки: почини template (pbk)', 'bad');
+            return;
+          }
+          const ok = await copyText(link);
+          if(ok) toast(`Скопировано: ${email}`, 'ok');
+          else toast('Не получилось скопировать (браузер)', 'bad');
+        };
+      });
+
+      body.querySelectorAll('button[data-kick]').forEach(btn => {
+        btn.onclick = async () => {
+          const email = btn.getAttribute('data-kick');
+          if(!email) return;
+          btn.textContent = '...';
+          const r = await fetch(`/api/admin/reset_uuid/${encodeURIComponent(email)}`, {method:'POST'});
+          const js = await r.json();
+          btn.textContent = 'Kick';
+          if(js.error){
+            toast(`Kick error: ${js.error}`, 'bad');
+            return;
+          }
+          if(js.share_link){
+            const ok = await copyText(js.share_link);
+            toast(ok ? `Kick OK + link copied (${email})` : `Kick OK (${email})`, 'ok');
+          }else{
+            toast(`Kick OK (${email})`, 'ok');
+          }
+        };
+      });
+
+      body.querySelectorAll('button[data-del]').forEach(btn => {
+        btn.onclick = async () => {
+          const email = btn.getAttribute('data-del');
+          if(!email) return;
+          btn.textContent = '...';
+          await fetch(`/api/admin/clients/${encodeURIComponent(email)}`, {method:'DELETE'});
+          toast(`Удалён: ${email}`, 'ok');
+          btn.textContent = '✕';
+        };
+      });
+    }
+
+    renderUsersAdmin(clients, stats);
+
+    document.getElementById('admAdd').onclick = async () => {
+      const btn = document.getElementById('admAdd');
+      btn.textContent = '...';
+      const r = await fetch('/api/admin/clients', {method:'POST'});
+      const js = await r.json();
+      btn.textContent = '+ Добавить';
+      if(js.error){
+        toast(`Add error: ${js.error}`, 'bad');
+      } else {
+        if(js.share_link){
+          const ok = await copyText(js.share_link);
+          toast(ok ? `Создан + link copied (${js.email})` : `Создан (${js.email})`, 'ok');
+        } else {
+          toast(`Создан (${js.email})`, 'ok');
+        }
+      }
+    };
+  }
+
+  async function runCmd(title, url, method='GET'){
+    const node = document.createElement('div');
+    node.innerHTML = `<div class="muted">running…</div>`;
+    openModal(title, node);
+    const r = await fetch(url, {method, cache:'no-store'});
+    const js = await r.json();
+    node.innerHTML = `<pre class="mono">${escapeHtml(js.output || JSON.stringify(js, null, 2))}</pre>`;
+  }
+
+  async function loadSessions(){
+    if(!state.sessDate) return;
+    el('sessNote').textContent = 'loading…';
+    el('sessTopTbl').innerHTML = '';
+    el('sessLines').innerHTML = '';
+
+    const res = await fetch(`/api/sessions/day?date=${encodeURIComponent(state.sessDate)}&gran=${state.sessGran}`, {cache:'no-store'});
+    const js = await res.json();
+    if(js.error){
+      el('sessNote').textContent = js.error;
+      return;
+    }
+
+    el('sessNote').textContent = js.has_log ? js.note : 'Нет access.log. Для «по минутам» нужен access log в Xray.';
+    const top = js.top || [];
+    const maxMin = Math.max(1, ...top.map(x=>x.min||0));
+
+    let tHtml = `<thead><tr><th>User</th><th class="num">min</th><th>bar</th><th class="num">Kick</th></tr></thead><tbody>`;
+    for(const r of top){
+      const p = Math.round((r.min||0) / maxMin * 100);
+      tHtml += `<tr>
+        <td class="mono">${escapeHtml(r.user)}</td>
+        <td class="num">${nf0.format(r.min||0)}</td>
+        <td><div class="bar"><div style="width:${p}%"></div></div></td>
+        <td class="num"><button class="btn danger" data-kick="${escapeHtml(r.user)}">Kick</button></td>
+      </tr>`;
+    }
+    tHtml += `</tbody>`;
+    el('sessTopTbl').innerHTML = tHtml;
+
+    el('sessTopTbl').querySelectorAll('button[data-kick]').forEach(btn=>{
+      btn.onclick = async ()=>{
+        const email = btn.getAttribute('data-kick');
+        btn.textContent = '...';
+        const r = await fetch(`/api/admin/reset_uuid/${encodeURIComponent(email)}`, {method:'POST'});
+        const js2 = await r.json();
+        btn.textContent = 'Kick';
+        if(js2.error){ toast(`Kick error: ${js2.error}`, 'bad'); return; }
+        if(js2.share_link){
+          const ok = await copyText(js2.share_link);
+          toast(ok ? `Kick OK + link copied (${email})` : `Kick OK (${email})`, 'ok');
+        }else toast(`Kick OK (${email})`, 'ok');
+      };
+    });
+
+    const users = js.users || [];
+    const maxLines = 8;
+    const show = users.slice(0, maxLines);
+
+    for(const u of show){
+      const line = document.createElement('div');
+      line.style.marginBottom = '12px';
+
+      const mins = js.durations_min ? (js.durations_min[u] || 0) : 0;
+
+      const heat = document.createElement('div');
+      heat.className = 'heat';
+      heat.style.gridTemplateColumns = `repeat(${js.slots}, 1fr)`;
+
+      const arr = js.active && js.active[u] ? js.active[u] : [];
+      for(let i=0;i<js.slots;i++){
+        const cell = document.createElement('div');
+        if(arr[i]) cell.classList.add('on');
+        heat.appendChild(cell);
+      }
+
+      line.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:6px">
+        <div style="font-weight:900;font-size:12.5px" class="mono">${escapeHtml(u)}</div>
+        <div class="muted" style="font-size:12px">${nf0.format(mins)} min</div>
+      </div>`;
+      line.appendChild(heat);
+
+      const leg = document.createElement('div');
+      leg.className = 'heat-legend';
+      leg.innerHTML = `<span>00:00</span><span>12:00</span><span>24:00</span>`;
+      line.appendChild(leg);
+
+      el('sessLines').appendChild(line);
+    }
+  }
+
+  function toggleSessions(open){
+    state.sessOpen = open;
+    persist();
+    el('sessionsBody').style.display = open ? '' : 'none';
+    el('btnSessToggle').textContent = open ? 'Скрыть' : 'Показать';
+    if(open) loadSessions();
+  }
+
+  function renderAllFromCache(){
+    if(!dashCache) return;
+    const set = new Set(dashCache.meta.users || []);
+    state.selectedUsers = state.selectedUsers.filter(u => set.has(u));
+    persist();
+
+    renderKpis(dashCache);
+    renderTopTables(dashCache);
+    renderTrends(dashCache);
+    renderUserFilters(dashCache);
+    renderUsers(dashCache);
+
+    if(state.sessOpen) loadSessions();
+  }
+
+  async function reloadDashboard(){
+    if(!state.date) return;
+    dashCache = await fetch(`/api/dashboard?days=7&to=${encodeURIComponent(state.date)}`, {cache:'no-store'}).then(r=>r.json());
+    renderAllFromCache();
+  }
+
+  async function load(){
+    setTheme(); setUnit(); setTrends(); setCmp(); setMini(); setSessGran();
+    persist();
+
+    try{
+      const ui = await fetch('/__ui', {cache:'no-store'}).then(r=>r.json());
+      el('uiStamp').textContent = `ui ${ui.sha12 || '—'}`;
+    }catch{
+      el('uiStamp').textContent = 'ui —';
+    }
+
+    const days = await fetch('/api/days', {cache:'no-store'}).then(r=>r.json());
+    const ds = el('dateSel');
+    ds.innerHTML = '';
+    for(const d of days){
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = fmtMMDD(d);
+      ds.appendChild(opt);
+    }
+
+    if(state.date && days.includes(state.date)) ds.value = state.date;
+    else ds.value = days[days.length-1] || '';
+    state.date = ds.value;
+    persist();
+
+    ds.onchange = async () => {
+      state.date = ds.value;
+      persist();
+      await reloadDashboard();
+    };
+
+    const sd = el('sessDateSel');
+    sd.innerHTML = '';
+    for(const d of days){
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = fmtMMDD(d);
+      sd.appendChild(opt);
+    }
+    if(state.sessDate && days.includes(state.sessDate)) sd.value = state.sessDate;
+    else sd.value = state.date || (days[days.length-1]||'');
+    state.sessDate = sd.value;
+    persist();
+
+    sd.onchange = ()=>{ state.sessDate = sd.value; persist(); if(state.sessOpen) loadSessions(); };
+
+    el('btnSessToggle').onclick = () => toggleSessions(!state.sessOpen);
+    toggleSessions(state.sessOpen);
+
+    await reloadDashboard();
+  }
+
+  el('segDark').onclick = () => { state.theme='dark'; persist(); setTheme(); renderAllFromCache(); };
+  el('segLight').onclick = () => { state.theme='light'; persist(); setTheme(); renderAllFromCache(); };
+
+  el('segGB').onclick = () => { state.unit='GB'; persist(); setUnit(); renderAllFromCache(); };
+  el('segMB').onclick = () => { state.unit='MB'; persist(); setUnit(); renderAllFromCache(); };
+
+  // FIX: тренды теперь не триггерят fetch — только перерисовка из cache
+  el('segDaily').onclick = () => { state.trends='daily'; persist(); setTrends(); if(dashCache) renderTrends(dashCache); };
+  el('segCum').onclick = () => { state.trends='cum'; persist(); setTrends(); if(dashCache) renderTrends(dashCache); };
+
+  el('segCmpTraffic').onclick = () => { state.cmp='traffic'; persist(); setCmp(); renderAllFromCache(); };
+  el('segCmpConns').onclick = () => { state.cmp='conns'; persist(); setCmp(); renderAllFromCache(); };
+
+  el('segMiniTraffic').onclick = () => { state.mini='traffic'; persist(); setMini(); renderAllFromCache(); };
+  el('segMiniConns').onclick = () => { state.mini='conns'; persist(); setMini(); renderAllFromCache(); };
+
+  el('segGran5').onclick = () => { state.sessGran=5; persist(); setSessGran(); if(state.sessOpen) loadSessions(); };
+  el('segGran10').onclick = () => { state.sessGran=10; persist(); setSessGran(); if(state.sessOpen) loadSessions(); };
+
+  el('btnAdmin').onclick = openAdmin;
+
+  el('btnStatus').onclick = () => runCmd('xray status', '/api/sys/xray_status', 'GET');
+  el('btnRestart').onclick = () => runCmd('xray restart', '/api/sys/xray_restart', 'POST');
+  el('btnJournal').onclick = () => runCmd('xray journal (last 30)', '/api/sys/xray_journal', 'GET');
+
+  load();
+</script>
+</body>
+</html>

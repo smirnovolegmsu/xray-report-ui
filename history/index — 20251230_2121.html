@@ -1,0 +1,1692 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Xray Usage</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800;900&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+  <style>
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{ margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; overflow:auto; }
+
+    body[data-theme="dark"]{
+      --bg: #0b0d12;
+      --panel: rgba(255,255,255,.045);
+      --line: rgba(255,255,255,.12);
+      --text: rgba(255,255,255,.94);
+      --muted: rgba(255,255,255,.70);
+
+      --grid: rgba(255,255,255,.07);
+      --bar: rgba(120,180,255,.66);
+      --bar2: rgba(255,255,255,.30);
+      --stroke: rgba(255,255,255,.34);
+      --fill: rgba(255,255,255,.05);
+
+      --bad: rgba(239,71,111,.85);
+      --bad_bar: rgba(239,71,111,.62);
+
+      --up: rgba(120,180,255,.95);
+      --down: rgba(239,71,111,.95);
+
+      --shadow: rgba(0,0,0,.55);
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    body[data-theme="light"]{
+      --bg: #f7f7fa;
+      --panel: rgba(0,0,0,.03);
+      --line: rgba(0,0,0,.10);
+      --text: rgba(0,0,0,.88);
+      --muted: rgba(0,0,0,.56);
+
+      --grid: rgba(0,0,0,.07);
+      --bar: rgba(20,60,120,.34);
+      --bar2: rgba(0,0,0,.20);
+      --stroke: rgba(0,0,0,.35);
+      --fill: rgba(0,0,0,.03);
+
+      --bad: rgba(200,30,70,.86);
+      --bad_bar: rgba(200,30,70,.55);
+
+      --up: rgba(20,60,120,.82);
+      --down: rgba(200,30,70,.82);
+
+      --shadow: rgba(0,0,0,.12);
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    :root{ --gap: 12px; --r: 14px; }
+
+    .app{ max-width: 2600px; margin: 0 auto; padding: 12px; display:flex; flex-direction:column; gap: var(--gap); }
+
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      padding: 14px; border: 1px solid var(--line); border-radius: var(--r);
+      background: var(--panel); gap: 12px; flex-wrap: wrap;
+    }
+    .brand{ display:flex; flex-direction:column; gap: 6px; min-width: 220px; }
+    .brand .title{ font-size: 26px; font-weight: 900; letter-spacing:.2px; }
+    .brand .range{ font-size: 13px; font-weight: 900; color: var(--muted); }
+
+    .controls{ display:flex; align-items:center; gap: 10px; flex-wrap: wrap; }
+
+    .seg{ display:inline-flex; border: 1px solid var(--line); border-radius: 12px; overflow:hidden; background: transparent; }
+    .seg button{
+      all: unset; cursor:pointer; padding: 10px 12px;
+      font-size: 13px; font-weight: 900; color: var(--muted);
+      border-right: 1px solid var(--line); user-select:none;
+    }
+    .seg button:last-child{ border-right:none; }
+    .seg button.active{ background: rgba(127,127,127,.12); color: var(--text); }
+
+    .btn{
+      padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
+      background: transparent; color: var(--text); cursor: pointer;
+      font-weight: 900; font-size: 13px; user-select:none;
+    }
+    .btn:hover{ background: rgba(127,127,127,.10); }
+
+    .chip{
+      padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
+      background: transparent; color: var(--muted);
+      font-weight: 900; font-size: 13px; user-select:none; white-space:nowrap;
+    }
+
+    .section{
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      background: var(--panel);
+      overflow:hidden;
+    }
+    .section-head{
+      display:flex; align-items:center; justify-content:space-between;
+      gap: 12px; padding: 10px 12px;
+      border-bottom: 1px solid rgba(127,127,127,.14);
+      flex-wrap: wrap;
+    }
+    .section-title{ font-size: 16px; font-weight: 900; color: rgba(127,127,127,.95); }
+
+    .summary{
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      background: var(--panel);
+      padding: 12px;
+      display:grid;
+      grid-template-columns: repeat(6, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 1200px){ .summary{ grid-template-columns: repeat(3, minmax(160px, 1fr)); } }
+    @media (max-width: 720px){ .summary{ grid-template-columns: repeat(2, minmax(160px, 1fr)); } }
+
+    .kpi{
+      border: 1px solid rgba(127,127,127,.14);
+      border-radius: 12px;
+      padding: 10px;
+      min-width:0;
+    }
+    .kpi .k{ font-size: 12px; font-weight: 900; color: var(--muted); }
+    .kpi .v{ margin-top:6px; font-size: 18px; font-weight: 900; }
+    .kpi .d{ margin-top:6px; font-size: 12px; font-weight: 900; color: var(--muted); display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .delta{ font-weight: 900; }
+    .delta.up{ color: var(--up); }
+    .delta.down{ color: var(--down); }
+    .delta.neu{ color: var(--muted); }
+
+    .trends-grid{
+      padding: 12px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--gap);
+    }
+    @media (max-width: 1200px){ .trends-grid{ grid-template-columns: 1fr; } }
+
+    .tcard{
+      border: 1px solid rgba(127,127,127,.14);
+      border-radius: var(--r);
+      background: transparent;
+      overflow:hidden;
+      padding-top: 36px;
+      position:relative;
+      height: 240px; /* компактно */
+    }
+    .ttitle{
+      position:absolute; left: 12px; top: 10px;
+      font-size: 16px; font-weight: 900;
+      color: rgba(127,127,127,.95);
+    }
+
+    .user-filter{
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      background: var(--panel);
+      padding: 10px 12px;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      overflow:hidden;
+    }
+    .user-filter .wrap{
+      display:flex; align-items:center; gap: 8px;
+      flex: 1; overflow:auto; white-space:nowrap; padding-bottom: 2px;
+    }
+    .toggle{
+      padding: 9px 12px; border-radius: 999px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--muted);
+      font-weight: 900; font-size: 13px;
+      cursor:pointer; user-select:none;
+    }
+    .toggle.on{ background: rgba(127,127,127,.12); color: var(--text); }
+
+    .cards{
+      display:grid;
+      gap: var(--gap);
+      grid-template-columns: repeat(auto-fit, minmax(430px, 1fr));
+      align-items:stretch;
+    }
+
+    .user-card{
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      background: var(--panel);
+      overflow:hidden;
+      display:grid;
+      grid-template-rows: 52px 1fr;
+      min-width: 0;
+      min-height: 520px;
+    }
+    .card-head{
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(127,127,127,.14);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      min-width:0;
+    }
+    .u-title{ display:flex; flex-direction:column; gap: 4px; min-width:0; }
+    .u-name{
+      font-size: 14px; font-weight: 900;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      max-width: 420px;
+      color: var(--text);
+    }
+    .u-sub{ font-size: 12px; font-weight: 900; color: var(--muted); white-space:nowrap; }
+
+    .badge{
+      font-size: 12px; font-weight: 900;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(127,127,127,.22);
+      color: var(--muted);
+      white-space:nowrap;
+      position:relative;
+    }
+    .badge.bad{ border-color: rgba(239,71,111,.40); color: var(--text); }
+
+    .badge[data-tip]:hover::after{
+      content: attr(data-tip);
+      position:absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      width: 360px;
+      max-width: 60vw;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(127,127,127,.22);
+      background: rgba(0,0,0,.75);
+      color: rgba(255,255,255,.92);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: pre-wrap;
+      box-shadow: 0 16px 50px var(--shadow);
+      z-index: 50;
+    }
+    body[data-theme="light"] .badge[data-tip]:hover::after{
+      background: rgba(255,255,255,.94);
+      color: rgba(0,0,0,.84);
+    }
+
+    .card-body{
+      padding: 10px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 0.85fr 1.15fr;
+      gap: 10px;
+      min-width:0;
+      min-height:0;
+    }
+    .blk{
+      position:relative;
+      border: 1px solid rgba(127,127,127,.14);
+      border-radius: 12px;
+      background: transparent;
+      overflow:hidden;
+      min-width:0;
+      min-height:0;
+      padding-top: 28px;
+    }
+    .blk-title{
+      position:absolute; left: 10px; top: 7px;
+      font-size: 14px; font-weight: 900;
+      color: rgba(127,127,127,.95);
+    }
+
+    canvas{ width:100% !important; height:100% !important; }
+
+    .placeholder{
+      position:absolute;
+      inset: 28px 10px 10px 10px;
+      border-radius: 12px;
+      border: 1px dashed rgba(127,127,127,.22);
+      display:flex; align-items:center; justify-content:center;
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 12px;
+      text-align:center;
+      padding: 0 10px;
+    }
+
+    table{ width: 100%; border-collapse: collapse; font-size: 10px; line-height: 1.15; }
+    thead th{
+      text-align:left;
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(127,127,127,.16);
+      color: rgba(127,127,127,.95);
+      font-weight: 900;
+      cursor:pointer;
+      user-select:none;
+    }
+    tbody td{
+      padding: 3px 8px;
+      border-bottom: 1px solid rgba(127,127,127,.10);
+      color: var(--text);
+      vertical-align:top;
+    }
+    tbody tr:last-child td{ border-bottom:none; }
+    .right{ text-align:right; }
+
+    .compare-body{ padding: 12px; display:none; }
+    .compare-body.active{ display:block; }
+
+    .compare-grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--gap);
+    }
+    @media (max-width: 1200px){ .compare-grid{ grid-template-columns: 1fr; } }
+
+    .ccard{
+      border: 1px solid rgba(127,127,127,.14);
+      border-radius: var(--r);
+      background: transparent;
+      overflow:hidden;
+      padding-top: 36px;
+      position:relative;
+      height: 320px; /* меньше чем было */
+    }
+    .ctitle{
+      position:absolute; left: 12px; top: 10px;
+      font-size: 16px; font-weight: 900;
+      color: rgba(127,127,127,.95);
+    }
+
+    .toast{
+      position: fixed;
+      right: 16px; bottom: 16px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(127,127,127,.22);
+      background: rgba(0,0,0,.75);
+      color: rgba(255,255,255,.92);
+      font-size: 12px;
+      font-weight: 900;
+      display:none;
+      max-width: min(860px, 92vw);
+      box-shadow: 0 12px 40px var(--shadow);
+      z-index: 80;
+    }
+    body[data-theme="light"] .toast{ background: rgba(255,255,255,.94); color: rgba(0,0,0,.84); }
+    .toast.show{ display:block; }
+
+    /* ADMIN MODAL (как было) */
+    .modal{ position: fixed; inset: 0; display:none; background: rgba(0,0,0,.45); align-items:center; justify-content:center; padding: 16px; z-index: 90; }
+    body[data-theme="light"] .modal{ background: rgba(0,0,0,.20); }
+    .modal.show{ display:flex; }
+    .modal-card{
+      width: min(2200px, 96vw);
+      height: min(1200px, 92vh);
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      box-shadow: 0 20px 80px var(--shadow);
+      overflow:hidden;
+      display:grid;
+      grid-template-rows: 70px 1fr;
+    }
+    .modal-head{
+      display:flex; align-items:center; justify-content:space-between;
+      padding: 14px; border-bottom: 1px solid var(--line);
+      gap: 12px; flex-wrap: wrap;
+    }
+    .modal-title{ font-size: 20px; font-weight: 900; }
+    .modal-body{
+      display:grid;
+      grid-template-columns: minmax(320px, 560px) 1fr;
+      gap: 12px;
+      padding: 12px;
+      overflow:hidden;
+    }
+    @media (max-width: 1200px){ .modal-body{ grid-template-columns: 1fr; } }
+
+    .panel{
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      overflow:hidden;
+      padding: 12px;
+      min-width:0; min-height:0;
+    }
+    .panel h3{ margin: 0 0 10px 0; font-size: 15px; font-weight: 900; color: rgba(127,127,127,.95); }
+    .field{ display:flex; flex-direction:column; gap: 6px; margin-bottom: 10px; }
+    .field label{ font-size: 12px; font-weight: 900; color: var(--muted); }
+    .field input{
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 900;
+      outline:none;
+      background: transparent;
+      color: var(--text);
+    }
+    .row-actions{ display:flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .admin-table{ width:100%; border-collapse: collapse; font-size: 12px; line-height: 1.15; }
+    .admin-table th, .admin-table td{ padding: 10px; border-bottom: 1px solid rgba(127,127,127,.12); vertical-align: top; }
+    .admin-table th{
+      color: rgba(127,127,127,.95);
+      font-weight: 900;
+      text-align:left;
+      user-select:none;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+    }
+    .admin-table td{ color: var(--text); font-weight: 800; }
+    .admin-scroll{ height: 100%; overflow:auto; }
+    .mini{ font-size: 11px; font-weight: 900; color: var(--muted); }
+    .pill{ display:inline-block; border: 1px solid rgba(127,127,127,.22); border-radius: 999px; padding: 6px 10px; font-size: 11px; font-weight: 900; color: var(--muted); }
+    .kbtn{ padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(127,127,127,.22); background: transparent; color: var(--text); cursor: pointer; font-weight: 900; font-size: 12px; }
+    .kbtn:hover{ background: rgba(127,127,127,.10); }
+    .kbtn.danger{ border-color: rgba(239,71,111,.45); }
+    .site-lines div{ margin: 0 0 6px 0; }
+    .site-lines div:last-child{ margin-bottom:0; }
+
+    /* Matrix */
+    .matrix-wrap{ padding: 12px; overflow:auto; height: 320px; border: 1px solid rgba(127,127,127,.14); border-radius: var(--r); }
+    .matrix{ border-collapse: collapse; font-size: 11px; min-width: 900px; }
+    .matrix th, .matrix td{ padding: 8px 10px; border-bottom: 1px solid rgba(127,127,127,.12); white-space: nowrap; }
+    .matrix th{ position: sticky; top: 0; background: var(--bg); color: rgba(127,127,127,.95); font-weight: 900; }
+    .mcell{
+      position:relative;
+      border-radius: 8px;
+    }
+    .mcell::before{
+      content:'';
+      position:absolute; inset: 0;
+      border-radius: 8px;
+      background: linear-gradient(90deg, rgba(127,127,127,.16) 0%, rgba(127,127,127,.16) var(--p), transparent var(--p), transparent 100%);
+      pointer-events:none;
+      z-index: 0;
+    }
+    .mcell span{ position:relative; z-index: 1; }
+  </style>
+</head>
+
+<body data-theme="dark">
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="title">Xray Usage</div>
+      <div class="range" id="range">—</div>
+    </div>
+
+    <div class="controls">
+      <div class="seg" id="themeSeg">
+        <button data-theme="dark" class="active">Dark</button>
+        <button data-theme="light">Light</button>
+      </div>
+
+      <div class="seg" id="unitSeg">
+        <button data-unit="GB" class="active">GB</button>
+        <button data-unit="MB">MB</button>
+      </div>
+
+      <button class="btn" id="adminBtn">Управление</button>
+      <button class="btn" id="refreshBtn">Обновить</button>
+      <div class="chip" id="statusChip">loading…</div>
+    </div>
+  </div>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Тренды (7 дней)</div>
+    </div>
+    <div class="trends-grid" id="trendsGrid"></div>
+  </div>
+
+  <div class="user-filter">
+    <div class="wrap" id="userFilter"></div>
+    <div class="chip" id="limitHint">—</div>
+  </div>
+
+  <div class="cards" id="cardsPanel"></div>
+
+  <div class="section">
+    <div class="section-head">
+      <div class="section-title">Сравнение</div>
+      <div class="seg" id="compareTabs">
+        <button data-tab="users" class="active">Users</button>
+        <button data-tab="domains">Domains</button>
+        <button data-tab="matrix">Matrix</button>
+      </div>
+    </div>
+
+    <div class="compare-body active" id="tab-users">
+      <div class="compare-grid" id="cmpUsers"></div>
+    </div>
+
+    <div class="compare-body" id="tab-domains">
+      <div class="compare-grid" id="cmpDomains"></div>
+    </div>
+
+    <div class="compare-body" id="tab-matrix">
+      <div class="compare-grid" id="cmpMatrix"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- ADMIN MODAL -->
+  <div class="modal" id="adminModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="modal-title">Управление пользователями</div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <span class="pill" id="adminTokenHint" style="display:none;">token required</span>
+          <button class="btn" id="adminClose">Закрыть</button>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <div class="panel">
+          <h3>Действия</h3>
+
+          <div class="field" id="tokenField" style="display:none;">
+            <label>Admin token (X-Admin-Token)</label>
+            <input id="adminToken" placeholder="если включил XRAY_UI_ADMIN_TOKEN"/>
+          </div>
+
+          <div class="panel" style="padding:12px; margin:0 0 12px 0;">
+            <h3 style="margin-bottom:10px;">Добавить пользователя</h3>
+            <div class="field">
+              <label>email / user_id (пусто → auto user_XX)</label>
+              <input id="addEmail" placeholder="например: user_11"/>
+            </div>
+            <div class="field">
+              <label>Alias (как отображать в UI)</label>
+              <input id="addAlias" placeholder="например: Миша"/>
+            </div>
+            <div class="row-actions">
+              <button class="kbtn" id="addBtn">Добавить</button>
+              <button class="kbtn" id="copyAddLinkBtn" disabled>Скопировать ссылку</button>
+            </div>
+            <div class="mini" id="addResult" style="margin-top:10px; white-space:pre-wrap;"></div>
+          </div>
+
+          <div class="mini">
+            Rename = алиас (история не ломается). Delete = UUID убирается из Xray (доступ отрубается).
+          </div>
+        </div>
+
+        <div class="panel" style="padding:0;">
+          <div style="padding:12px 12px 0 12px;">
+            <h3>Пользователи + all-time статистика</h3>
+            <div class="mini" id="adminStatus" style="margin-bottom:10px;">—</div>
+          </div>
+
+          <div class="admin-scroll">
+            <table class="admin-table" id="adminTable">
+              <thead>
+                <tr>
+                  <th style="width:240px;">User</th>
+                  <th style="width:260px;">Email</th>
+                  <th style="width:170px;">UUID</th>
+                  <th style="width:90px;">Days</th>
+                  <th style="width:160px;">Traffic</th>
+                  <th style="width:140px;">Conns</th>
+                  <th>Top-3 sites (traffic)</th>
+                  <th style="width:220px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  Chart.register(ChartDataLabels);
+
+  const LS_USERS  = 'xray_ui_selected_users_v5';
+  const LS_UNIT   = 'xray_ui_unit_v5';
+  const LS_THEME  = 'xray_ui_theme_v1';
+  const LS_TOKEN  = 'xray_ui_admin_token_v1';
+
+  const nfInt = new Intl.NumberFormat('ru-RU');
+
+  const state = {
+    unit: localStorage.getItem(LS_UNIT) || "GB",
+    theme: localStorage.getItem(LS_THEME) || "dark",
+    data: null,
+    charts: new Map(),
+    selectedUsers: new Set(),
+    etag: null,
+    aliases: {}
+  };
+
+  function cssVar(name){ return getComputedStyle(document.body).getPropertyValue(name).trim(); }
+  function fmtNum(x, digits=2){ if (!isFinite(x)) return "0"; return Number(x).toFixed(digits); }
+  function bytesTo(unit, bytes){ return unit === "MB" ? (bytes / 1_000_000.0) : (bytes / 1_000_000_000.0); }
+  function formatTraffic(unit, bytes){
+    if (!bytes) return `0 ${unit}`;
+    const v = bytesTo(unit, bytes);
+    const d = unit === "MB" ? 1 : 2;
+    return `${fmtNum(v, d)} ${unit}`;
+  }
+  function fmtDayLabel(iso){
+    const p = String(iso).split('-');
+    if (p.length !== 3) return iso;
+    return `${p[1]}.${p[2]}`;
+  }
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(showToast._tm);
+    showToast._tm = setTimeout(()=>t.classList.remove('show'), 2400);
+  }
+  function clearNode(el){ while (el.firstChild) el.removeChild(el.firstChild); }
+  function escapeHtml(s){
+    return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+  }
+  function shorten(s, n){ s = String(s); return s.length <= n ? s : (s.slice(0, n-1) + '…'); }
+  function displayFor(email){ return state.aliases?.[email] || email; }
+
+  function destroyCharts(){
+    state.charts.forEach(ch=>{ try{ ch.destroy(); }catch(_){} });
+    state.charts.clear();
+  }
+
+  function loadSelected(users){
+    try{
+      const raw = localStorage.getItem(LS_USERS);
+      if (!raw) return new Set(users);
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return new Set(users);
+      const s = new Set(arr.filter(u => users.includes(u)));
+      return s.size ? s : new Set(users);
+    }catch(_){
+      return new Set(users);
+    }
+  }
+  function saveSelected(){ localStorage.setItem(LS_USERS, JSON.stringify([...state.selectedUsers])); }
+
+  function baseChartOptions({denseLabels=false}={}){
+    const grid = cssVar('--grid');
+    const muted = cssVar('--muted');
+    const text = cssVar('--text');
+
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 140 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: true,
+          backgroundColor: state.theme === 'light' ? 'rgba(255,255,255,.94)' : 'rgba(0,0,0,.78)',
+          borderColor: cssVar('--line'),
+          borderWidth: 1,
+          titleColor: text,
+          bodyColor: text
+        },
+        datalabels: {
+          color: text,
+          font: { weight: '900', size: denseLabels ? 10 : 11 },
+          clamp: true
+        }
+      },
+      scales: {
+        x: { ticks: { color: muted, font: {weight:'900', size: 10 } }, grid: { color: grid } },
+        y: { ticks: { color: muted, font: {weight:'900', size: 10 } }, grid: { color: grid } }
+      }
+    };
+  }
+
+  function buildTrafficBar(canvas, labels, bytesArr, anomalyLabelSet){
+    const unit = state.unit;
+    const data = bytesArr.map(b => bytesTo(unit, b));
+    const opts = baseChartOptions({denseLabels:true});
+    opts.plugins.datalabels.anchor = 'center';
+    opts.plugins.datalabels.align = 'center';
+    opts.plugins.datalabels.formatter = (v)=> (v === 0 ? '' : fmtNum(v, unit === "MB" ? 1 : 2));
+
+    const normal = cssVar('--bar');
+    const bad = cssVar('--bad_bar');
+
+    return new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: (ctx)=>{
+            const idx = ctx.dataIndex ?? 0;
+            const lab = labels[idx];
+            return anomalyLabelSet?.has(lab) ? bad : normal;
+          },
+          borderRadius: 8,
+          maxBarThickness: 28
+        }]
+      },
+      options: opts
+    });
+  }
+
+  function buildConnsBar(canvas, labels, countsArr){
+    const opts = baseChartOptions({denseLabels:true});
+    opts.plugins.datalabels.anchor = 'center';
+    opts.plugins.datalabels.align = 'center';
+    opts.plugins.datalabels.formatter = (v)=> (v === 0 ? '' : nfInt.format(Math.round(v)));
+
+    return new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data: countsArr,
+          backgroundColor: cssVar('--bar2'),
+          borderRadius: 8,
+          maxBarThickness: 28
+        }]
+      },
+      options: opts
+    });
+  }
+
+  function buildLineKeyLabels(canvas, labels, values, {isTraffic=false}={}){
+    const opts = baseChartOptions();
+    const data = values;
+    const lastIdx = data.length - 1;
+    const maxVal = Math.max(...data);
+
+    opts.plugins.datalabels.anchor = 'end';
+    opts.plugins.datalabels.align = 'top';
+    opts.plugins.datalabels.display = (ctx)=>{
+      const i = ctx.dataIndex;
+      const v = ctx.dataset.data[i] ?? 0;
+      if (!v) return false;
+      return i === lastIdx || v === maxVal;
+    };
+    opts.plugins.datalabels.formatter = (v)=>{
+      if (!v) return '';
+      if (isTraffic) return fmtNum(v, state.unit === "MB" ? 1 : 2);
+      return nfInt.format(Math.round(v));
+    };
+
+    return new Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets: [{
+        data,
+        fill: true,
+        backgroundColor: cssVar('--fill'),
+        borderColor: cssVar('--stroke'),
+        borderWidth: 2,
+        pointRadius: 2.5,
+        pointHoverRadius: 3.5,
+        tension: .28
+      }]},
+      options: opts
+    });
+  }
+
+  function buildHBar(canvas, labels, values, {isTraffic=false}={}){
+    const opts = baseChartOptions({denseLabels:true});
+    opts.indexAxis = 'y';
+    opts.plugins.datalabels.anchor = 'end';
+    opts.plugins.datalabels.align = 'right';
+    opts.plugins.datalabels.formatter = (v)=>{
+      if (!v) return '';
+      if (isTraffic) return fmtNum(v, state.unit === "MB" ? 1 : 2);
+      return nfInt.format(Math.round(v));
+    };
+
+    return new Chart(canvas, {
+      type:'bar',
+      data:{ labels, datasets:[{
+        data: values,
+        backgroundColor: cssVar('--bar'),
+        borderRadius: 8,
+        maxBarThickness: 24
+      }]},
+      options: opts
+    });
+  }
+
+  function buildHBar2(canvas, labels, values){
+    const opts = baseChartOptions({denseLabels:true});
+    opts.indexAxis = 'y';
+    opts.plugins.datalabels.anchor = 'end';
+    opts.plugins.datalabels.align = 'right';
+    opts.plugins.datalabels.formatter = (v)=> (v ? nfInt.format(Math.round(v)) : '');
+
+    return new Chart(canvas, {
+      type:'bar',
+      data:{ labels, datasets:[{
+        data: values,
+        backgroundColor: cssVar('--bar2'),
+        borderRadius: 8,
+        maxBarThickness: 24
+      }]},
+      options: opts
+    });
+  }
+
+  function enableSort(table, rows, mode){
+    table.querySelector('thead').addEventListener('click', (e)=>{
+      const th = e.target.closest('th');
+      if (!th) return;
+      const key = th.dataset.key;
+      if (!key) return;
+
+      const dir = (table.dataset.sort === key && table.dataset.dir === 'desc') ? 'asc' : 'desc';
+      table.dataset.sort = key;
+      table.dataset.dir = dir;
+
+      let sorted = [...rows];
+      sorted.sort((a,b)=>{
+        let av, bv;
+        if (mode === 'traffic'){
+          av = (key === 'domain') ? a.domain : (key === 'pct' ? a.pct : a.bytes);
+          bv = (key === 'domain') ? b.domain : (key === 'pct' ? b.pct : b.bytes);
+        } else {
+          av = (key === 'domain') ? a.domain : (key === 'pct' ? a.pct : a.count);
+          bv = (key === 'domain') ? b.domain : (key === 'pct' ? b.pct : b.count);
+        }
+        if (typeof av === 'string'){
+          const res = av.localeCompare(bv);
+          return dir === 'asc' ? res : -res;
+        }
+        const res = av - bv;
+        return dir === 'asc' ? res : -res;
+      });
+
+      const tbody = table.querySelector('tbody');
+      clearNode(tbody);
+
+      if (mode === 'traffic'){
+        sorted.forEach(r=>{
+          const v = bytesTo(state.unit, r.bytes);
+          const d = state.unit === "MB" ? 1 : 2;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td title="${escapeHtml(r.domain)}">${escapeHtml(shorten(r.domain, 42))}</td>
+            <td class="right">${fmtNum(v, d)}</td>
+            <td class="right">${fmtNum(r.pct, 1)}%</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } else {
+        sorted.forEach(r=>{
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td title="${escapeHtml(r.domain)}">${escapeHtml(shorten(r.domain, 42))}</td>
+            <td class="right">${nfInt.format(r.count)}</td>
+            <td class="right">${fmtNum(r.pct, 1)}%</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    });
+  }
+
+  function buildTableTraffic(rows){
+    const table = document.createElement('table');
+    table.dataset.sort = 'bytes';
+    table.dataset.dir = 'desc';
+    table.innerHTML = `
+      <thead><tr>
+        <th data-key="domain">Domain</th>
+        <th data-key="bytes" class="right">Value</th>
+        <th data-key="pct" class="right">%</th>
+      </tr></thead>
+      <tbody></tbody>
+    `;
+    const tbody = table.querySelector('tbody');
+    rows.forEach(r=>{
+      const v = bytesTo(state.unit, r.bytes);
+      const d = state.unit === "MB" ? 1 : 2;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td title="${escapeHtml(r.domain)}">${escapeHtml(shorten(r.domain, 42))}</td>
+        <td class="right">${fmtNum(v, d)}</td>
+        <td class="right">${fmtNum(r.pct, 1)}%</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    enableSort(table, rows, 'traffic');
+    return table;
+  }
+
+  function buildTableConns(rows){
+    const table = document.createElement('table');
+    table.dataset.sort = 'count';
+    table.dataset.dir = 'desc';
+    table.innerHTML = `
+      <thead><tr>
+        <th data-key="domain">Domain</th>
+        <th data-key="count" class="right">Count</th>
+        <th data-key="pct" class="right">%</th>
+      </tr></thead>
+      <tbody></tbody>
+    `;
+    const tbody = table.querySelector('tbody');
+    rows.forEach(r=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td title="${escapeHtml(r.domain)}">${escapeHtml(shorten(r.domain, 42))}</td>
+        <td class="right">${nfInt.format(r.count)}</td>
+        <td class="right">${fmtNum(r.pct, 1)}%</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    enableSort(table, rows, 'conns');
+    return table;
+  }
+
+  function updateRangeText(payload){
+    const raw = payload.meta.days || [];
+    const el = document.getElementById('range');
+    if (!raw.length){ el.textContent = 'нет данных'; return; }
+    const from = fmtDayLabel(raw[0]);
+    const to = fmtDayLabel(raw[raw.length-1]);
+    const year = String(raw[raw.length-1]).slice(0,4);
+    el.textContent = `${from} → ${to} • ${year}`;
+  }
+
+  function updateStatus(ok, msg){
+    const chip = document.getElementById('statusChip');
+    chip.textContent = msg;
+    chip.style.borderColor = ok ? cssVar('--line') : cssVar('--bad');
+    chip.style.color = ok ? cssVar('--muted') : cssVar('--text');
+  }
+
+  function applyTheme(theme){
+    state.theme = theme;
+    localStorage.setItem(LS_THEME, theme);
+    document.body.setAttribute('data-theme', theme);
+    document.querySelectorAll('#themeSeg button').forEach(x=>x.classList.toggle('active', x.dataset.theme === theme));
+    if (state.data) rebuildAll();
+  }
+
+  // KPI delta helpers
+  function deltaInfo(today, avg){
+    if (!avg && !today) return {txt:'—', cls:'neu'};
+    if (!avg && today) return {txt:'▲ new', cls:'up'};
+    const pct = ((today - avg) / avg) * 100.0;
+    const ratio = avg ? (today / avg) : 0;
+    const arrow = pct >= 0 ? '▲' : '▼';
+    const cls = pct > 0 ? 'up' : (pct < 0 ? 'down' : 'neu');
+    return {txt: `${arrow} ${fmtNum(Math.abs(pct),1)}% • ${fmtNum(ratio,2)}×`, cls};
+  }
+
+  function buildSummary(payload){
+    const el = document.getElementById('summary');
+    clearNode(el);
+
+    const days = payload.meta.days || [];
+    if (!days.length){
+      el.textContent = 'нет данных';
+      return;
+    }
+
+    const last = days[days.length - 1];
+    const dailyT = payload.global.daily_traffic_bytes || {};
+    const dailyC = payload.global.daily_conns || {};
+
+    const todayT = dailyT[last] || 0;
+    const todayC = dailyC[last] || 0;
+
+    const sumT = Object.values(dailyT).reduce((a,b)=>a+(b||0), 0);
+    const sumC = Object.values(dailyC).reduce((a,b)=>a+(b||0), 0);
+
+    const avgT = days.length ? (sumT / days.length) : 0;
+    const avgC = days.length ? (sumC / days.length) : 0;
+
+    let activeUsersToday = 0;
+    (payload.users || []).forEach(u=>{
+      const tb = payload.per_user?.[u]?.traffic_by_day_bytes?.[last] || 0;
+      const cc = payload.per_user?.[u]?.conns_by_day?.[last] || 0;
+      if (tb>0 || cc>0) activeUsersToday++;
+    });
+
+    const topDom = (payload.global.top_domains_traffic || [])[0]?.domain || '—';
+
+    const dT = deltaInfo(todayT, avgT);
+    const dC = deltaInfo(todayC, avgC);
+
+    const kpis = [
+      {
+        k:`Today traffic (${state.unit})`,
+        v: sumT ? formatTraffic(state.unit, todayT) : '—',
+        d1:`avg7: ${sumT ? formatTraffic(state.unit, avgT) : '—'}`,
+        d2:dT
+      },
+      {
+        k:`Today conns`,
+        v: sumC ? nfInt.format(todayC) : '—',
+        d1:`avg7: ${sumC ? nfInt.format(avgC) : '—'}`,
+        d2:dC
+      },
+      { k:`Active users today`, v: nfInt.format(activeUsersToday), d1:`из ${nfInt.format((payload.users||[]).length)}`, d2:{txt:'',cls:'neu'} },
+      { k:`Top domain (7d)`, v: sumT ? shorten(topDom, 28) : '—', d1:`по трафику`, d2:{txt:'',cls:'neu'} },
+      { k:`7d total traffic`, v: sumT ? formatTraffic(state.unit, sumT) : '—', d1:`сумма за 7 дней`, d2:{txt:'',cls:'neu'} },
+      { k:`7d total conns`, v: sumC ? nfInt.format(sumC) : '—', d1:`сумма за 7 дней`, d2:{txt:'',cls:'neu'} }
+    ];
+
+    kpis.forEach(x=>{
+      const k = document.createElement('div');
+      k.className = 'kpi';
+      const deltaHtml = x.d2?.txt ? `<span class="delta ${x.d2.cls}">${escapeHtml(x.d2.txt)}</span>` : '';
+      k.innerHTML = `
+        <div class="k">${escapeHtml(x.k)}</div>
+        <div class="v">${escapeHtml(String(x.v))}</div>
+        <div class="d"><span>${escapeHtml(x.d1 || '')}</span>${deltaHtml}</div>
+      `;
+      el.appendChild(k);
+    });
+  }
+
+  function buildTrends(payload){
+    const grid = document.getElementById('trendsGrid');
+    clearNode(grid);
+
+    const rawDays = payload.meta.days || [];
+    const labels = rawDays.map(fmtDayLabel);
+
+    const dailyTrafficBytes = payload.global.daily_traffic_bytes || {};
+    const dailyConns = payload.global.daily_conns || {};
+
+    const dailyTrafficBytesArr = rawDays.map(d => dailyTrafficBytes[d] || 0);
+    const dailyConnArr = rawDays.map(d => dailyConns[d] || 0);
+
+    const cumTrafficBytes = payload.global.cumulative_traffic_bytes || [];
+    const cumConns = payload.global.cumulative_conns || [];
+
+    const cumTraffic = cumTrafficBytes.map(b => bytesTo(state.unit, b || 0));
+    const cumConnsArr = cumConns.map(x => x || 0);
+
+    const cards = [
+      {title:`Ежедневный трафик (${state.unit})`, kind:'bar_t'},
+      {title:`Ежедневные подключения`, kind:'bar_c'},
+      {title:`Кумулятивный трафик (${state.unit})`, kind:'line_t'},
+      {title:`Кумулятивные подключения`, kind:'line_c'},
+    ];
+
+    cards.forEach(c=>{
+      const card = document.createElement('div');
+      card.className = 'tcard';
+      card.innerHTML = `<div class="ttitle">${escapeHtml(c.title)}</div>`;
+      const canvas = document.createElement('canvas');
+      card.appendChild(canvas);
+      grid.appendChild(card);
+
+      if (c.kind === 'bar_t'){
+        if (!dailyTrafficBytesArr.some(v=>v>0)){
+          card.innerHTML = `<div class="ttitle">${escapeHtml(c.title)}</div><div class="placeholder">Нет данных</div>`;
+        } else {
+          state.charts.set('trend:bar_t', buildTrafficBar(canvas, labels, dailyTrafficBytesArr, new Set()));
+        }
+      }
+      if (c.kind === 'bar_c'){
+        if (!dailyConnArr.some(v=>v>0)){
+          card.innerHTML = `<div class="ttitle">${escapeHtml(c.title)}</div><div class="placeholder">Нет данных</div>`;
+        } else {
+          state.charts.set('trend:bar_c', buildConnsBar(canvas, labels, dailyConnArr));
+        }
+      }
+      if (c.kind === 'line_t'){
+        if (!cumTraffic.some(v=>v>0)){
+          card.innerHTML = `<div class="ttitle">${escapeHtml(c.title)}</div><div class="placeholder">Нет данных</div>`;
+        } else {
+          state.charts.set('trend:line_t', buildLineKeyLabels(canvas, labels, cumTraffic, {isTraffic:true}));
+        }
+      }
+      if (c.kind === 'line_c'){
+        if (!cumConnsArr.some(v=>v>0)){
+          card.innerHTML = `<div class="ttitle">${escapeHtml(c.title)}</div><div class="placeholder">Нет данных</div>`;
+        } else {
+          state.charts.set('trend:line_c', buildLineKeyLabels(canvas, labels, cumConnsArr, {isTraffic:false}));
+        }
+      }
+    });
+  }
+
+  function userSubtitle(uobj){
+    const tot = uobj.totals || {};
+    const t = tot.traffic_7d_bytes || 0;
+    const c = tot.conns_7d || 0;
+    return `7д: ${formatTraffic(state.unit, t)} • conns: ${nfInt.format(c)}`;
+  }
+
+  function createToggle(label, onClick){
+    const b = document.createElement('div');
+    b.className = 'toggle';
+    b.textContent = label;
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function syncCardsVisibility(){
+    const users = state.data?.users || [];
+    const selectedOrdered = users.filter(u => state.selectedUsers.has(u));
+    const visibleArr = selectedOrdered.slice(0, 10);
+    const visible = new Set(visibleArr);
+
+    const hint = document.getElementById('limitHint');
+    hint.textContent = selectedOrdered.length > 10 ? 'выбрано >10 — показываю первые 10' : '—';
+    if (selectedOrdered.length > 10) showToast('Выбрано >10: показываю первые 10');
+
+    document.querySelectorAll('.user-card').forEach(card=>{
+      const u = card.dataset.user;
+      card.style.display = visible.has(u) ? 'grid' : 'none';
+    });
+
+    document.querySelectorAll('.toggle').forEach(el=>{
+      const u = el.dataset.user;
+      if (u === '__ALL__'){
+        el.classList.toggle('on', state.selectedUsers.size === users.length && users.length > 0);
+      } else {
+        el.classList.toggle('on', state.selectedUsers.has(u));
+      }
+    });
+  }
+
+  function buildUserFilter(users){
+    const wrap = document.getElementById('userFilter');
+    clearNode(wrap);
+
+    const allBtn = createToggle('Все', ()=>{
+      const allOn = state.selectedUsers.size !== users.length;
+      state.selectedUsers = new Set(allOn ? users : []);
+      localStorage.setItem(LS_USERS, JSON.stringify([...state.selectedUsers]));
+      syncCardsVisibility();
+    });
+    allBtn.dataset.user = '__ALL__';
+    wrap.appendChild(allBtn);
+
+    users.forEach(u=>{
+      const btn = createToggle(displayFor(u), ()=>{
+        if (state.selectedUsers.has(u)) state.selectedUsers.delete(u);
+        else state.selectedUsers.add(u);
+        saveSelected();
+        syncCardsVisibility();
+      });
+      btn.dataset.user = u;
+      wrap.appendChild(btn);
+    });
+
+    syncCardsVisibility();
+  }
+
+  function buildUserCards(payload){
+    const panel = document.getElementById('cardsPanel');
+    clearNode(panel);
+
+    const rawDays = payload.meta.days || [];
+    const labels = rawDays.map(fmtDayLabel);
+
+    payload.users.forEach(u=>{
+      const uobj = payload.per_user[u] || {};
+      const anomalyDaysRaw = (uobj.totals?.anomaly_days || []);
+      const anomalyLabelSet = new Set(anomalyDaysRaw.map(fmtDayLabel));
+
+      const card = document.createElement('div');
+      card.className = 'user-card';
+      card.dataset.user = u;
+
+      const head = document.createElement('div');
+      head.className = 'card-head';
+
+      let badgeHtml = `<span class="badge">ok</span>`;
+      if (anomalyDaysRaw.length){
+        const tip =
+          `Аномалия = трафик > ${payload.meta.anomaly_gb_per_day} GB/день\n` +
+          `Дни: ${anomalyDaysRaw.map(fmtDayLabel).join(', ')}`;
+        badgeHtml = `<span class="badge bad" data-tip="${escapeHtml(tip)}">аномалии: ${anomalyDaysRaw.length}</span>`;
+      }
+
+      head.innerHTML = `
+        <div class="u-title">
+          <div class="u-name">${escapeHtml(displayFor(u))}</div>
+          <div class="u-sub">${escapeHtml(userSubtitle(uobj))}</div>
+        </div>
+        <div>${badgeHtml}</div>
+      `;
+      card.appendChild(head);
+
+      const body = document.createElement('div');
+      body.className = 'card-body';
+
+      const blk1 = document.createElement('div');
+      blk1.className = 'blk';
+      blk1.innerHTML = `<div class="blk-title">Трафик (7д)</div>`;
+      const c1 = document.createElement('canvas');
+      blk1.appendChild(c1);
+
+      const blk2 = document.createElement('div');
+      blk2.className = 'blk';
+      blk2.innerHTML = `<div class="blk-title">Подключения (7д)</div>`;
+      const c2 = document.createElement('canvas');
+      blk2.appendChild(c2);
+
+      const blk3 = document.createElement('div');
+      blk3.className = 'blk';
+      blk3.innerHTML = `<div class="blk-title">ТОП-10 домены • трафик</div>`;
+
+      const blk4 = document.createElement('div');
+      blk4.className = 'blk';
+      blk4.innerHTML = `<div class="blk-title">ТОП-10 домены • conns</div>`;
+
+      body.appendChild(blk1);
+      body.appendChild(blk2);
+      body.appendChild(blk3);
+      body.appendChild(blk4);
+      card.appendChild(body);
+      panel.appendChild(card);
+
+      const tByDay = uobj.traffic_by_day_bytes || {};
+      const cByDay = uobj.conns_by_day || {};
+      const trafficArr = rawDays.map(d => tByDay[d] || 0);
+      const connsArr = rawDays.map(d => cByDay[d] || 0);
+
+      if (!trafficArr.some(v => v > 0)){
+        blk1.innerHTML = `<div class="blk-title">Трафик (7д)</div><div class="placeholder">Нет данных</div>`;
+      } else {
+        state.charts.set(`u:${u}:t`, buildTrafficBar(c1, labels, trafficArr, anomalyLabelSet));
+      }
+
+      if (!connsArr.some(v => v > 0)){
+        blk2.innerHTML = `<div class="blk-title">Подключения (7д)</div><div class="placeholder">Нет данных</div>`;
+      } else {
+        state.charts.set(`u:${u}:c`, buildConnsBar(c2, labels, connsArr));
+      }
+
+      const tRows = (uobj.top_domains_traffic || []).slice(0, 10);
+      const cRows = (uobj.top_domains_conns || []).slice(0, 10);
+
+      if (!tRows.length){
+        blk3.innerHTML = `<div class="blk-title">ТОП-10 домены • трафик</div><div class="placeholder">Нет данных</div>`;
+      } else {
+        blk3.appendChild(buildTableTraffic(tRows));
+      }
+
+      if (!cRows.length){
+        blk4.innerHTML = `<div class="blk-title">ТОП-10 домены • conns</div><div class="placeholder">Нет данных</div>`;
+      } else {
+        blk4.appendChild(buildTableConns(cRows));
+      }
+    });
+
+    syncCardsVisibility();
+  }
+
+  function buildCompareUsers(payload){
+    const grid = document.getElementById('cmpUsers');
+    clearNode(grid);
+
+    const users = payload.users || [];
+    const totals = users.map(u=>{
+      const t = payload.per_user?.[u]?.totals?.traffic_7d_bytes || 0;
+      const c = payload.per_user?.[u]?.totals?.conns_7d || 0;
+      return {u, t, c, name: displayFor(u)};
+    });
+
+    const topTraffic = [...totals].sort((a,b)=>b.t-a.t).slice(0, 10);
+    const topConns = [...totals].sort((a,b)=>b.c-a.c).slice(0, 10);
+
+    const mk = (title)=>{
+      const c = document.createElement('div');
+      c.className = 'ccard';
+      c.innerHTML = `<div class="ctitle">${escapeHtml(title)}</div>`;
+      const canvas = document.createElement('canvas');
+      c.appendChild(canvas);
+      grid.appendChild(c);
+      return {c, canvas};
+    };
+
+    {
+      const {c, canvas} = mk(`Трафик 7д по пользователям (${state.unit})`);
+      if (!topTraffic.some(x=>x.t>0)){
+        c.innerHTML = `<div class="ctitle">Трафик 7д по пользователям (${state.unit})</div><div class="placeholder">Нет данных</div>`;
+      } else {
+        const labels = topTraffic.map(x=>shorten(x.name, 18));
+        const values = topTraffic.map(x=>bytesTo(state.unit, x.t));
+        state.charts.set('cmp:users:traffic', buildHBar(canvas, labels, values, {isTraffic:true}));
+      }
+    }
+
+    {
+      const {c, canvas} = mk(`Подключения 7д по пользователям`);
+      if (!topConns.some(x=>x.c>0)){
+        c.innerHTML = `<div class="ctitle">Подключения 7д по пользователям</div><div class="placeholder">Нет данных</div>`;
+      } else {
+        const labels = topConns.map(x=>shorten(x.name, 18));
+        const values = topConns.map(x=>x.c);
+        state.charts.set('cmp:users:conns', buildHBar2(canvas, labels, values));
+      }
+    }
+  }
+
+  function buildCompareDomains(payload){
+    const grid = document.getElementById('cmpDomains');
+    clearNode(grid);
+
+    const gt = payload.global.top_domains_traffic || [];
+    const gc = payload.global.top_domains_conns || [];
+
+    const mk = (title)=>{
+      const c = document.createElement('div');
+      c.className = 'ccard';
+      c.innerHTML = `<div class="ctitle">${escapeHtml(title)}</div>`;
+      const canvas = document.createElement('canvas');
+      c.appendChild(canvas);
+      grid.appendChild(c);
+      return {c, canvas};
+    };
+
+    {
+      const {c, canvas} = mk(`ТОП домены (7д) по трафику (${state.unit})`);
+      if (!gt.length){
+        c.innerHTML = `<div class="ctitle">ТОП домены (7д) по трафику (${state.unit})</div><div class="placeholder">Нет данных</div>`;
+      } else {
+        const labels = gt.map(x=>shorten(x.domain, 26));
+        const vals = gt.map(x=>bytesTo(state.unit, x.bytes));
+        state.charts.set('cmp:dom:traffic', buildHBar(canvas, labels, vals, {isTraffic:true}));
+      }
+    }
+
+    {
+      const {c, canvas} = mk(`ТОП домены (7д) по conns`);
+      if (!gc.length){
+        c.innerHTML = `<div class="ctitle">ТОП домены (7д) по conns</div><div class="placeholder">Нет данных</div>`;
+      } else {
+        const labels = gc.map(x=>shorten(x.domain, 26));
+        const vals = gc.map(x=>x.count);
+        state.charts.set('cmp:dom:conns', buildHBar2(canvas, labels, vals));
+      }
+    }
+  }
+
+  function buildCompareMatrix(payload){
+    const grid = document.getElementById('cmpMatrix');
+    clearNode(grid);
+
+    const m = payload.matrix || {};
+    const doms = m.domains || [];
+    const traffic = m.traffic || {};
+    if (!doms.length){
+      const c = document.createElement('div');
+      c.className = 'ccard';
+      c.innerHTML = `<div class="ctitle">User × Domains (traffic)</div><div class="placeholder">Нет данных</div>`;
+      grid.appendChild(c);
+      return;
+    }
+
+    const wrap = document.createElement('div');
+    wrap.className = 'matrix-wrap';
+    const table = document.createElement('table');
+    table.className = 'matrix';
+
+    // global max to scale bars
+    let gmax = 0;
+    Object.keys(traffic).forEach(u=>{
+      doms.forEach(d=>{
+        gmax = Math.max(gmax, traffic?.[u]?.[d] || 0);
+      });
+    });
+    if (!gmax) gmax = 1;
+
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    trh.innerHTML = `<th>User</th>` + doms.map(d=>`<th title="${escapeHtml(d)}">${escapeHtml(shorten(d, 18))}</th>`).join('');
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    const users = (payload.users || []).slice();
+    users.sort((a,b)=>{
+      const ta = doms.reduce((s,d)=>s + (traffic?.[a]?.[d]||0), 0);
+      const tb = doms.reduce((s,d)=>s + (traffic?.[b]?.[d]||0), 0);
+      return tb - ta;
+    });
+
+    users.forEach(u=>{
+      const tr = document.createElement('tr');
+      const name = displayFor(u);
+      let html = `<td title="${escapeHtml(u)}">${escapeHtml(shorten(name, 16))}</td>`;
+      doms.forEach(d=>{
+        const v = traffic?.[u]?.[d] || 0;
+        const p = Math.min(100, (v / gmax) * 100).toFixed(1) + '%';
+        html += `<td class="mcell" style="--p:${p}" title="${escapeHtml(d)} • ${escapeHtml(formatTraffic(state.unit, v))}"><span>${escapeHtml(formatTraffic(state.unit, v))}</span></td>`;
+      });
+      tr.innerHTML = html;
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+
+    const c = document.createElement('div');
+    c.className = 'ccard';
+    c.style.height = '360px';
+    c.innerHTML = `<div class="ctitle">User × Top domains (traffic)</div>`;
+    c.appendChild(wrap);
+    grid.appendChild(c);
+  }
+
+  function rebuildAll(){
+    destroyCharts();
+
+    const users = state.data?.users || [];
+    state.selectedUsers = loadSelected(users);
+
+    buildSummary(state.data);
+    buildTrends(state.data);
+    buildUserCards(state.data);
+    buildUserFilter(users);
+
+    buildCompareUsers(state.data);
+    buildCompareDomains(state.data);
+    buildCompareMatrix(state.data);
+  }
+
+  document.getElementById('themeSeg').addEventListener('click', (e)=>{
+    const b = e.target.closest('button'); if (!b) return;
+    const theme = b.dataset.theme;
+    if (!theme || theme === state.theme) return;
+    applyTheme(theme);
+    showToast(`Тема: ${theme}`);
+  });
+
+  document.getElementById('unitSeg').addEventListener('click', (e)=>{
+    const b = e.target.closest('button'); if (!b) return;
+    const unit = b.dataset.unit;
+    if (!unit || unit === state.unit) return;
+
+    state.unit = unit;
+    localStorage.setItem(LS_UNIT, unit);
+    document.querySelectorAll('#unitSeg button').forEach(x=>x.classList.toggle('active', x.dataset.unit === unit));
+    if (state.data){
+      rebuildAll();
+      showToast(`Единицы: ${unit}`);
+    }
+  });
+
+  document.getElementById('compareTabs').addEventListener('click', (e)=>{
+    const b = e.target.closest('button'); if (!b) return;
+    const tab = b.dataset.tab;
+    document.querySelectorAll('#compareTabs button').forEach(x=>x.classList.toggle('active', x.dataset.tab === tab));
+    document.querySelectorAll('.compare-body').forEach(x=>x.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+  });
+
+  async function loadDashboard(){
+    try{
+      updateStatus(true, 'loading…');
+
+      const headers = {};
+      if (state.etag) headers['If-None-Match'] = state.etag;
+
+      const res = await fetch('/api/dashboard?days=7', {headers});
+      if (res.status === 304){ updateStatus(true, 'up-to-date'); return; }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const etag = res.headers.get('ETag');
+      if (etag) state.etag = etag.replaceAll('"','');
+
+      const payload = await res.json();
+      state.data = payload;
+      state.aliases = payload.aliases || {};
+
+      updateRangeText(payload);
+      rebuildAll();
+
+      updateStatus(true, 'ok');
+    } catch(err){
+      console.error(err);
+      updateStatus(false, 'error');
+      showToast('Ошибка загрузки (см. консоль)');
+    }
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', ()=>{
+    state.etag = null;
+    loadDashboard();
+  });
+
+  // -------- ADMIN (как было, без изменений логики) --------
+  function adminHeaders(){
+    const tok = (localStorage.getItem(LS_TOKEN) || '').trim();
+    const h = {'Content-Type':'application/json'};
+    if (tok) h['X-Admin-Token'] = tok;
+    return h;
+  }
+  function setAdminStatus(s){ document.getElementById('adminStatus').textContent = s; }
+  function bytesFmtAdmin(bytes){
+    const v = bytesTo(state.unit, bytes || 0);
+    const d = state.unit === "MB" ? 1 : 2;
+    return `${fmtNum(v, d)} ${state.unit}`;
+  }
+
+  async function loadAdmin(){
+    try{
+      setAdminStatus('loading…');
+      const res = await fetch('/api/admin/users', {headers: adminHeaders()});
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+
+      document.getElementById('adminTokenHint').style.display = j.token_required ? 'inline-block' : 'none';
+      document.getElementById('tokenField').style.display = j.token_required ? 'block' : 'none';
+
+      const tbody = document.querySelector('#adminTable tbody');
+      clearNode(tbody);
+
+      (j.users || []).forEach(u=>{
+        const st = u.stats || {};
+        const top3 = (st.top3_traffic || []).map(x => ({d:x.domain, b:x.bytes}));
+
+        const topHtml = top3.length
+          ? `<div class="site-lines">${
+              top3.map(x => `<div>${escapeHtml(shorten(x.d, 42))} <span class="mini">(${escapeHtml(bytesFmtAdmin(x.b))})</span></div>`).join('')
+            }</div>`
+          : `<div class="mini">—</div>`;
+
+        const uuidShort = (u.id || '').slice(0,8) ? `${(u.id||'').slice(0,8)}…` : '';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><div style="font-weight:900;">${escapeHtml(u.display || u.email)}</div><div class="mini">${escapeHtml(u.alias||'')}</div></td>
+          <td>${escapeHtml(u.email||'')}</td>
+          <td class="mini">${escapeHtml(uuidShort)}</td>
+          <td>${nfInt.format(st.days_used || 0)}</td>
+          <td>${escapeHtml(bytesFmtAdmin(st.total_traffic_bytes || 0))}</td>
+          <td>${nfInt.format(st.total_conns || 0)}</td>
+          <td>${topHtml}</td>
+          <td>
+            <button class="kbtn" data-act="link" data-email="${escapeHtml(u.email)}">Link</button>
+            <button class="kbtn" data-act="rename" data-email="${escapeHtml(u.email)}">Rename</button>
+            <button class="kbtn danger" data-act="del" data-email="${escapeHtml(u.email)}">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      setAdminStatus('ok');
+    } catch(e){
+      console.error(e);
+      setAdminStatus('error: ' + e.message);
+      showToast('Admin: ошибка (см. консоль)');
+    }
+  }
+
+  document.getElementById('adminTable').addEventListener('click', async (e)=>{
+    const b = e.target.closest('button');
+    if (!b) return;
+    const act = b.dataset.act;
+    const email = b.dataset.email;
+
+    try{
+      if (act === 'link'){
+        const res = await fetch('/api/admin/user/link?email=' + encodeURIComponent(email), {headers: adminHeaders()});
+        const j = await res.json();
+        if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+        await navigator.clipboard.writeText(j.link);
+        showToast('Ссылка скопирована');
+        return;
+      }
+
+      if (act === 'rename'){
+        const alias = prompt('Новый alias (пусто = убрать):', '');
+        if (alias === null) return;
+        const res = await fetch('/api/admin/user/rename', {
+          method:'POST', headers: adminHeaders(),
+          body: JSON.stringify({email, alias})
+        });
+        const j = await res.json();
+        if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+        showToast('Переименовано');
+        state.etag = null;
+        await loadAdmin();
+        await loadDashboard();
+        return;
+      }
+
+      if (act === 'del'){
+        if (!confirm(`Удалить ${email}? Это отключит доступ.`)) return;
+        const res = await fetch('/api/admin/user/delete', {
+          method:'POST', headers: adminHeaders(),
+          body: JSON.stringify({email})
+        });
+        const j = await res.json();
+        if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+        showToast('Удалено');
+        state.etag = null;
+        await loadAdmin();
+        await loadDashboard();
+        return;
+      }
+    } catch(err){
+      console.error(err);
+      showToast('Ошибка: ' + err.message);
+    }
+  });
+
+  document.getElementById('adminBtn').addEventListener('click', async ()=>{
+    document.getElementById('adminModal').classList.add('show');
+    await loadAdmin();
+  });
+  document.getElementById('adminClose').addEventListener('click', ()=>{
+    document.getElementById('adminModal').classList.remove('show');
+  });
+
+  const tokenInput = document.getElementById('adminToken');
+  tokenInput.value = localStorage.getItem(LS_TOKEN) || '';
+  tokenInput.addEventListener('change', ()=>{
+    localStorage.setItem(LS_TOKEN, tokenInput.value.trim());
+    showToast('Token сохранён');
+  });
+
+  let lastAddLink = '';
+  document.getElementById('addBtn').addEventListener('click', async ()=>{
+    try{
+      const email = document.getElementById('addEmail').value.trim();
+      const alias = document.getElementById('addAlias').value.trim();
+      document.getElementById('addResult').textContent = 'adding…';
+      const res = await fetch('/api/admin/user/add', {
+        method:'POST', headers: adminHeaders(),
+        body: JSON.stringify({email, alias})
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+
+      lastAddLink = j.link || '';
+      document.getElementById('copyAddLinkBtn').disabled = !lastAddLink;
+
+      document.getElementById('addResult').textContent =
+        `email: ${j.email}\n` +
+        `uuid: ${j.id}\n` +
+        `host: ${j.host}:${j.port}\n` +
+        `pbk: ${j.pbk || '(missing)'}\n` +
+        `sni: ${j.sni || '(missing)'}\n` +
+        `sid: ${j.sid || '(missing)'}\n` +
+        `link: ${j.link}\n` +
+        `xray restart ok: ${j.xray_restart?.ok}`;
+
+      showToast('Пользователь добавлен');
+      state.etag = null;
+      await loadAdmin();
+      await loadDashboard();
+    } catch(err){
+      console.error(err);
+      document.getElementById('addResult').textContent = 'error: ' + err.message;
+      showToast('Ошибка добавления');
+    }
+  });
+
+  document.getElementById('copyAddLinkBtn').addEventListener('click', async ()=>{
+    if (!lastAddLink) return;
+    await navigator.clipboard.writeText(lastAddLink);
+    showToast('Ссылка скопирована');
+  });
+
+  // init
+  applyTheme(state.theme);
+  document.querySelectorAll('#unitSeg button').forEach(x=>x.classList.toggle('active', x.dataset.unit === state.unit));
+
+  loadDashboard();
+  setInterval(loadDashboard, 60_000);
+</script>
+</body>
+</html>

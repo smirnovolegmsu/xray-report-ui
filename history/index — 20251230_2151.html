@@ -1,0 +1,1481 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Xray Usage</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+  <style>
+    :root{
+      --bg: #0b0d12;
+      --panel: rgba(255,255,255,.06);
+      --panel2: rgba(255,255,255,.08);
+      --stroke: rgba(255,255,255,.10);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.65);
+      --muted2: rgba(255,255,255,.45);
+      --accent: #8ab4ff;
+      --accent2: #a4c2ff;
+      --danger: #ff6b6b;
+      --ok: #7ee787;
+
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+      --radius2: 22px;
+
+      --h1: 18px;
+      --h2: 14px;
+      --txt: 13px;
+      --txt2: 12px;
+
+      --gap: 12px;
+      --pad: 14px;
+      --top: 56px;
+    }
+
+    [data-theme="light"]{
+      --bg: #f5f6f8;
+      --panel: rgba(0,0,0,.04);
+      --panel2: rgba(0,0,0,.06);
+      --stroke: rgba(0,0,0,.10);
+      --text: rgba(0,0,0,.88);
+      --muted: rgba(0,0,0,.60);
+      --muted2: rgba(0,0,0,.45);
+      --accent: #0a84ff;
+      --accent2: #3ea0ff;
+      --shadow: 0 12px 30px rgba(0,0,0,.10);
+    }
+
+    *{ box-sizing: border-box; }
+    html, body{ height: 100%; }
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    .topbar{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+      background: color-mix(in srgb, var(--bg) 75%, transparent);
+      border-bottom: 1px solid var(--stroke);
+    }
+    .topbar-inner{
+      max-width: 1680px;
+      margin: 0 auto;
+      padding: 10px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      height: var(--top);
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      min-width: 220px;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+    .brand h1{
+      font-size: 14px;
+      margin:0;
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+    .sub{
+      font-size: 12px;
+      color: var(--muted);
+      margin-left: 2px;
+      white-space: nowrap;
+    }
+    .controls{
+      display:flex;align-items:center;gap:8px;flex-wrap: wrap;
+      justify-content:flex-end;
+    }
+    select, input[type="text"], input[type="number"]{
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      padding: 8px 10px;
+      outline: none;
+      font-size: var(--txt2);
+    }
+    select{ cursor: pointer; }
+    .btn{
+      border: 1px solid var(--stroke);
+      background: var(--panel);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: var(--txt2);
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      user-select: none;
+      transition: transform .05s ease, background .15s ease, border-color .15s ease;
+    }
+    .btn:hover{ background: var(--panel2); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{ border-color: color-mix(in srgb, var(--accent) 55%, var(--stroke)); }
+    .btn.danger{ border-color: color-mix(in srgb, var(--danger) 45%, var(--stroke)); }
+    .btn.ghost{ background: transparent; }
+    .seg{
+      display:inline-flex;
+      border: 1px solid var(--stroke);
+      background: var(--panel);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .seg button{
+      border:0;
+      background: transparent;
+      color: var(--muted);
+      padding: 8px 10px;
+      cursor:pointer;
+      font-size: var(--txt2);
+    }
+    .seg button.active{
+      color: var(--text);
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+    }
+
+    .wrap{
+      max-width: 1680px;
+      margin: 0 auto;
+      padding: 16px;
+      display:flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+
+    .grid{
+      display:grid;
+      gap: var(--gap);
+    }
+    .kpis{
+      grid-template-columns: repeat(6, minmax(0,1fr));
+    }
+    @media (max-width: 1500px){
+      .kpis{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+    }
+    @media (max-width: 900px){
+      .kpis{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .brand{ min-width: unset; }
+    }
+
+    .card{
+      background: var(--panel);
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius2);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .hd{
+      padding: 12px 14px 10px 14px;
+      display:flex;
+      align-items:flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--stroke);
+    }
+    .card .hd h2{
+      margin:0;
+      font-size: var(--h1);
+      font-weight: 700;
+      letter-spacing:.1px;
+    }
+    .card .hd .meta{
+      font-size: var(--txt2);
+      color: var(--muted);
+      margin-top: 2px;
+      line-height: 1.25;
+    }
+    .card .bd{
+      padding: 12px 14px 14px 14px;
+    }
+
+    .kpi-title{
+      font-size: var(--txt2);
+      color: var(--muted);
+      margin-bottom: 8px  ;
+      display:flex;
+      align-items:center;
+      gap: 8px;
+    }
+    .kpi-val{
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      line-height: 1.05;
+    }
+    .kpi-sub{
+      margin-top: 8px;
+      font-size: var(--txt2);
+      color: var(--muted);
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .delta{
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--stroke);
+      background: color-mix(in srgb, var(--panel2) 60%, transparent);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .delta.up{ color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--stroke)); }
+    .delta.down{ color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--stroke)); }
+
+    .two-col{
+      grid-template-columns: 1.1fr .9fr;
+    }
+    @media (max-width: 1200px){
+      .two-col{ grid-template-columns: 1fr; }
+    }
+
+    .mini-grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--gap);
+    }
+    @media (max-width: 1200px){
+      .mini-grid{ grid-template-columns: 1fr; }
+    }
+
+    .chartbox{
+      height: 240px;
+      position: relative;
+    }
+    .chartbox.small{ height: 210px; }
+    .chartbox.tiny{ height: 170px; }
+
+    .table{
+      width:100%;
+      border-collapse: collapse;
+      font-size: var(--txt2);
+    }
+    .table th, .table td{
+      border-bottom: 1px solid var(--stroke);
+      padding: 7px 6px;
+      vertical-align: top;
+    }
+    .table th{
+      text-align:left;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 11.5px;
+      letter-spacing: .2px;
+    }
+    .table td.num{
+      text-align:right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .table td.pct{
+      text-align:right;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid var(--stroke);
+      background: var(--panel);
+      border-radius: 999px;
+      cursor:pointer;
+      user-select:none;
+      font-size: var(--txt2);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .pill.on{
+      color: var(--text);
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--stroke));
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+    .pill .mini{
+      width:8px;height:8px;border-radius:999px;background: var(--muted2);
+    }
+    .pill.on .mini{ background: var(--accent); }
+
+    .filters{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 14px 12px 14px;
+      border-bottom: 1px solid var(--stroke);
+    }
+
+    .users-grid{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: var(--gap);
+    }
+    @media (max-width: 1200px){
+      .users-grid{ grid-template-columns: 1fr; }
+    }
+
+    .user-hd{
+      display:flex;
+      align-items:flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .user-name{
+      font-weight: 800;
+      font-size: 14px;
+      margin: 0;
+      line-height: 1.05;
+    }
+    .user-sub{
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.25;
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .tag{
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--stroke);
+      background: color-mix(in srgb, var(--panel2) 60%, transparent);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .tag.bad{ border-color: color-mix(in srgb, var(--danger) 40%, var(--stroke)); color: var(--danger); }
+    .tag.good{ border-color: color-mix(in srgb, var(--ok) 40%, var(--stroke)); color: var(--ok); }
+
+    .tooltip{
+      position: relative;
+      display:inline-block;
+      cursor: help;
+      color: var(--muted);
+      text-decoration: underline dotted;
+      text-underline-offset: 3px;
+    }
+    .tooltip .tip{
+      position:absolute;
+      left: 0;
+      top: 22px;
+      min-width: 240px;
+      max-width: 320px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--stroke);
+      background: color-mix(in srgb, var(--bg) 92%, transparent);
+      box-shadow: var(--shadow);
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.35;
+      display:none;
+      z-index: 10;
+    }
+    .tooltip:hover .tip{ display:block; }
+
+    .notice{
+      padding: 12px 14px;
+      color: var(--muted);
+      font-size: var(--txt2);
+      border-top: 1px solid var(--stroke);
+    }
+
+    /* Modal */
+    .modal{
+      position: fixed;
+      inset: 0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background: rgba(0,0,0,.45);
+      z-index: 100;
+      padding: 16px;
+    }
+    .modal.on{ display:flex; }
+    .modal-card{
+      width: min(1100px, 100%);
+      max-height: min(86vh, 900px);
+      overflow:auto;
+      background: var(--bg);
+      border: 1px solid var(--stroke);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+    .modal-hd{
+      position: sticky;
+      top: 0;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(10px);
+      padding: 12px 14px;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--stroke);
+    }
+    .modal-hd h3{
+      margin:0;
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .modal-bd{ padding: 14px; }
+    pre{
+      margin: 0;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--stroke);
+      background: var(--panel);
+      overflow:auto;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .admin-grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: var(--gap);
+    }
+
+    .row{
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items:center;
+    }
+
+    .muted{ color: var(--muted); }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    .heat{
+      display:grid;
+      grid-template-columns: repeat(288, 1fr);
+      gap: 1px;
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      overflow:hidden;
+      background: var(--panel);
+    }
+    .heat > div{ height: 10px; background: color-mix(in srgb, var(--panel2) 65%, transparent); }
+    .heat > div.on{ background: color-mix(in srgb, var(--accent) 55%, transparent); }
+    .heat-legend{ display:flex; justify-content: space-between; color: var(--muted); font-size: 11.5px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="dot"></div>
+        <div>
+          <h1>Xray Usage</h1>
+          <div class="sub" id="uiStamp">—</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <select id="dateSel" title="Дата (to)"></select>
+
+        <div class="seg" title="Тренды">
+          <button id="segDaily">Daily</button>
+          <button id="segCum">Cumulative</button>
+        </div>
+
+        <div class="seg" title="Тема">
+          <button id="segDark">Dark</button>
+          <button id="segLight">Light</button>
+        </div>
+
+        <div class="seg" title="Единицы">
+          <button id="segGB">GB</button>
+          <button id="segMB">MB</button>
+        </div>
+
+        <button class="btn ghost" id="btnStatus" title="systemctl status xray">⚙️ Status</button>
+        <button class="btn ghost" id="btnRestart" title="systemctl restart xray">⟳ Restart</button>
+        <button class="btn ghost" id="btnJournal" title="journalctl -u xray">🧾 Journal</button>
+
+        <button class="btn primary" id="btnAdmin">🧑‍💻 Управление</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="grid kpis" id="kpiGrid"></div>
+
+    <div class="grid two-col">
+      <div class="card">
+        <div class="hd">
+          <div>
+            <h2>Тренды (7 дней)</h2>
+            <div class="meta">Переключай в шапке: Daily / Cumulative</div>
+          </div>
+        </div>
+        <div class="bd">
+          <div class="mini-grid" id="trendCharts">
+            <div class="chartbox small"><canvas id="chTraffic"></canvas></div>
+            <div class="chartbox small"><canvas id="chConns"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd">
+          <div>
+            <h2>Топ домены (7 дней)</h2>
+            <div class="meta">Топ-10 по трафику и по подключениям</div>
+          </div>
+        </div>
+        <div class="bd">
+          <div class="mini-grid">
+            <div>
+              <div class="kpi-title">По трафику</div>
+              <table class="table" id="tblTopTraffic"></table>
+            </div>
+            <div>
+              <div class="kpi-title">По подключениям</div>
+              <table class="table" id="tblTopConns"></table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hd">
+        <div>
+          <h2>Пользователи</h2>
+          <div class="meta">
+            Фильтр сохраняется. Если выбрать слишком много — карточки не уместятся без прокрутки (и это честно).
+          </div>
+        </div>
+        <div class="row">
+          <div class="seg" title="Сравнение пользователей">
+            <button id="segCmpTraffic">Traffic</button>
+            <button id="segCmpConns">Conns</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="filters" id="userFilters"></div>
+
+      <div class="bd">
+        <div class="mini-grid">
+          <div class="chartbox tiny"><canvas id="chUsersCmp"></canvas></div>
+          <div class="chartbox tiny"><canvas id="chUsersDom"></canvas></div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="users-grid" id="usersGrid"></div>
+      </div>
+
+      <div class="notice" id="usersNotice" style="display:none"></div>
+    </div>
+
+    <div class="card" id="sessionsCard">
+      <div class="hd">
+        <div>
+          <h2>Онлайн по времени</h2>
+          <div class="meta">Оценка по access.log: «был трафик в интервале / не было»</div>
+        </div>
+        <div class="row">
+          <div class="seg" title="Интервал">
+            <button id="segGran5">5m</button>
+            <button id="segGran10">10m</button>
+          </div>
+          <button class="btn" id="btnSessToggle">Показать</button>
+        </div>
+      </div>
+      <div class="bd" id="sessionsBody" style="display:none">
+        <div class="row" style="margin-bottom: 10px">
+          <select id="sessDateSel" title="Дата"></select>
+          <span class="muted" id="sessNote"></span>
+        </div>
+        <div id="sessTop"></div>
+        <div style="height:10px"></div>
+        <div id="sessLines"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal">
+    <div class="modal-card">
+      <div class="modal-hd">
+        <h3 id="modalTitle">—</h3>
+        <button class="btn" id="modalClose">Закрыть</button>
+      </div>
+      <div class="modal-bd" id="modalBody"></div>
+    </div>
+  </div>
+
+<script>
+  const LS = {
+    theme: 'xray_ui_theme_v2',
+    unit:  'xray_ui_unit_v1',
+    date:  'xray_ui_date_v1',
+    users: 'xray_ui_selected_users_v3',
+    trends:'xray_ui_trends_mode_v1',
+    cmp:   'xray_ui_cmp_mode_v1',
+    sessOpen: 'xray_ui_sessions_open_v1',
+    sessGran: 'xray_ui_sessions_gran_v1',
+    sessDate: 'xray_ui_sessions_date_v1'
+  };
+
+  const state = {
+    theme: localStorage.getItem(LS.theme) || 'dark',
+    unit:  localStorage.getItem(LS.unit) || 'GB',
+    date:  localStorage.getItem(LS.date) || '',
+    trends: localStorage.getItem(LS.trends) || 'daily',
+    cmp: localStorage.getItem(LS.cmp) || 'traffic',
+    selectedUsers: (() => {
+      try { return JSON.parse(localStorage.getItem(LS.users) || '[]'); } catch { return []; }
+    })(),
+    sessOpen: (localStorage.getItem(LS.sessOpen) || '0') === '1',
+    sessGran: parseInt(localStorage.getItem(LS.sessGran) || '5', 10),
+    sessDate: localStorage.getItem(LS.sessDate) || ''
+  };
+
+  function persist(){
+    localStorage.setItem(LS.theme, state.theme);
+    localStorage.setItem(LS.unit, state.unit);
+    localStorage.setItem(LS.date, state.date);
+    localStorage.setItem(LS.trends, state.trends);
+    localStorage.setItem(LS.cmp, state.cmp);
+    localStorage.setItem(LS.users, JSON.stringify(state.selectedUsers));
+    localStorage.setItem(LS.sessOpen, state.sessOpen ? '1':'0');
+    localStorage.setItem(LS.sessGran, String(state.sessGran));
+    localStorage.setItem(LS.sessDate, state.sessDate);
+  }
+
+  const nf = new Intl.NumberFormat('ru-RU');
+  const nff = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  function fmtMMDD(ymd){
+    if(!ymd) return '—';
+    const [y,m,d] = ymd.split('-');
+    return `${m}.${d}`;
+  }
+  function bytesTo(bytes, unit){
+    const div = unit === 'MB' ? (1024*1024) : (1024*1024*1024);
+    return bytes / div;
+  }
+  function fmtBytes(bytes){
+    const v = bytesTo(bytes, state.unit);
+    return `${nff.format(v)} ${state.unit}`;
+  }
+  function shortK(n){
+    if(n >= 1e6) return (n/1e6).toFixed(1)+'M';
+    if(n >= 1e3) return (n/1e3).toFixed(1)+'k';
+    return String(n);
+  }
+  function avg(arr){
+    if(!arr.length) return 0;
+    return arr.reduce((a,b)=>a+b,0)/arr.length;
+  }
+  function sum(arr){
+    return arr.reduce((a,b)=>a+b,0);
+  }
+  function pctDelta(val, base){
+    if(!base) return null;
+    return (val - base) / base * 100.0;
+  }
+  function el(id){ return document.getElementById(id); }
+
+  function setTheme(){
+    document.documentElement.dataset.theme = state.theme;
+    el('segDark').classList.toggle('active', state.theme==='dark');
+    el('segLight').classList.toggle('active', state.theme==='light');
+  }
+  function setUnit(){
+    el('segGB').classList.toggle('active', state.unit==='GB');
+    el('segMB').classList.toggle('active', state.unit==='MB');
+  }
+  function setTrends(){
+    el('segDaily').classList.toggle('active', state.trends==='daily');
+    el('segCum').classList.toggle('active', state.trends==='cum');
+  }
+  function setCmp(){
+    el('segCmpTraffic').classList.toggle('active', state.cmp==='traffic');
+    el('segCmpConns').classList.toggle('active', state.cmp==='conns');
+  }
+  function setSessGran(){
+    el('segGran5').classList.toggle('active', state.sessGran===5);
+    el('segGran10').classList.toggle('active', state.sessGran===10);
+  }
+
+  function openModal(title, bodyNode){
+    el('modalTitle').textContent = title;
+    const mb = el('modalBody');
+    mb.innerHTML = '';
+    if(typeof bodyNode === 'string') mb.innerHTML = bodyNode;
+    else mb.appendChild(bodyNode);
+    el('modal').classList.add('on');
+  }
+  function closeModal(){ el('modal').classList.remove('on'); }
+
+  el('modalClose').onclick = closeModal;
+  el('modal').addEventListener('click', (e)=>{ if(e.target === el('modal')) closeModal(); });
+
+  Chart.register(ChartDataLabels);
+  Chart.defaults.font.family = 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
+
+  const charts = {};
+  function destroyChart(k){ if(charts[k]){ charts[k].destroy(); delete charts[k]; } }
+
+  function axisGrid(){
+    const stroke = getComputedStyle(document.documentElement).getPropertyValue('--stroke');
+    const muted2 = getComputedStyle(document.documentElement).getPropertyValue('--muted2');
+    return { grid: { color: stroke, drawBorder: false }, ticks: { color: muted2 } };
+  }
+
+  function mkBar(canvasId, labels, data, title, valueFmt){
+    destroyChart(canvasId);
+    const ctx = el(canvasId).getContext('2d');
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+    charts[canvasId] = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{
+        label: title,
+        data,
+        borderRadius: 10,
+        backgroundColor: `color-mix(in srgb, ${accent} 55%, transparent)`,
+        borderColor: `color-mix(in srgb, ${accent} 85%, transparent)`,
+        borderWidth: 1
+      }]},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display:false },
+          tooltip: { callbacks: { label: (ctx) => valueFmt(ctx.raw) } },
+          datalabels: {
+            color: getComputedStyle(document.documentElement).getPropertyValue('--text'),
+            anchor: 'end',
+            align: 'start',
+            offset: 2,
+            clamp: true,
+            formatter: (v) => (v===0 ? '' : shortK(v)),
+            font: { weight: '700', size: 11 }
+          }
+        },
+        scales: { x: axisGrid(), y: axisGrid() }
+      }
+    });
+  }
+
+  function mkLine(canvasId, labels, data, title, valueFmt){
+    destroyChart(canvasId);
+    const ctx = el(canvasId).getContext('2d');
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+    charts[canvasId] = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets: [{
+        label: title,
+        data,
+        tension: 0.25,
+        borderColor: `color-mix(in srgb, ${accent} 88%, transparent)`,
+        pointRadius: 3,
+        pointHoverRadius: 4,
+        pointBackgroundColor: `color-mix(in srgb, ${accent} 88%, transparent)`,
+        fill: true,
+        backgroundColor: `color-mix(in srgb, ${accent} 12%, transparent)`
+      }]},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display:false },
+          tooltip: { callbacks: { label: (ctx) => valueFmt(ctx.raw) } },
+          datalabels: {
+            color: getComputedStyle(document.documentElement).getPropertyValue('--text'),
+            align: 'top',
+            anchor: 'end',
+            formatter: (v) => (v===0 ? '' : shortK(v)),
+            font: { weight: '700', size: 11 }
+          }
+        },
+        scales: { x: axisGrid(), y: axisGrid() }
+      }
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll('&','&amp;').replaceAll('<','&lt;')
+      .replaceAll('>','&gt;').replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+  }
+
+  function renderKpis(dash){
+    const g = dash.global;
+    const days = dash.meta.days;
+    const lastIdx = days.length - 1;
+
+    const tToday = g.daily_traffic_bytes[lastIdx] || 0;
+    const cToday = g.daily_conns[lastIdx] || 0;
+    const tAvg = avg(g.daily_traffic_bytes);
+    const cAvg = avg(g.daily_conns);
+
+    const t7 = sum(g.daily_traffic_bytes);
+    const c7 = sum(g.daily_conns);
+
+    const topT = (g.top_domains_traffic && g.top_domains_traffic[0]) ? g.top_domains_traffic[0].domain : '—';
+    const topC = (g.top_domains_conns && g.top_domains_conns[0]) ? g.top_domains_conns[0].domain : '—';
+
+    const kpis = [
+      {title:`Today traffic (${state.unit})`, val: fmtBytes(tToday), base: bytesTo(tAvg, state.unit), raw: bytesTo(tToday, state.unit)},
+      {title:'Today conns', val: nf.format(cToday), base: cAvg, raw: cToday},
+      {title:`7d total traffic (${state.unit})`, val: fmtBytes(t7), base: null, raw: null},
+      {title:'7d total conns', val: nf.format(c7), base: null, raw: null},
+      {title:'Top domain (7d) — traffic', val: topT, base: null, raw: null},
+      {title:'Top domain (7d) — conns', val: topC, base: null, raw: null},
+    ];
+
+    const grid = el('kpiGrid');
+    grid.innerHTML = '';
+    for(const k of kpis){
+      const card = document.createElement('div');
+      card.className = 'card';
+      const delta = (k.base !== null) ? pctDelta(k.raw, k.base) : null;
+      const deltaStr = (delta === null) ? '' : `${delta>=0?'+':''}${nff.format(delta)}%`;
+      const deltaClass = (delta === null) ? '' : (delta>=0?'up':'down');
+
+      card.innerHTML = `
+        <div class="bd">
+          <div class="kpi-title">${k.title}</div>
+          <div class="kpi-val">${k.val}</div>
+          <div class="kpi-sub">
+            <span>${(k.base!==null) ? `avg7d: ${nff.format(k.base)}` : ''}</span>
+            ${(delta===null) ? `<span class="delta">—</span>` : `<span class="delta ${deltaClass}">${deltaStr}</span>`}
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    }
+  }
+
+  function renderTopTables(dash){
+    const mk = (rows, isBytes) => {
+      let html = `<thead><tr><th>Domain</th><th class="num">${isBytes?state.unit:'#'}</th><th class="pct">%</th></tr></thead><tbody>`;
+      for(const r of rows.slice(0,10)){
+        const v = isBytes ? nff.format(bytesTo(r.value, state.unit)) : nf.format(r.value);
+        html += `<tr><td>${escapeHtml(r.domain)}</td><td class="num">${v}</td><td class="pct">${nff.format(r.pct)}%</td></tr>`;
+      }
+      html += `</tbody>`;
+      return html;
+    };
+    el('tblTopTraffic').innerHTML = mk(dash.global.top_domains_traffic || [], true);
+    el('tblTopConns').innerHTML   = mk(dash.global.top_domains_conns || [], false);
+  }
+
+  function renderTrends(dash){
+    const labels = dash.meta.days.map(fmtMMDD);
+    const g = dash.global;
+
+    if(state.trends === 'daily'){
+      const t = g.daily_traffic_bytes.map(b => bytesTo(b, state.unit));
+      const c = g.daily_conns;
+      mkBar('chTraffic', labels, t, 'Daily traffic', (v)=>`${nff.format(v)} ${state.unit}`);
+      mkBar('chConns', labels, c, 'Daily conns', (v)=>nf.format(v));
+    } else {
+      const t = g.cumulative_traffic_bytes.map(b => bytesTo(b, state.unit));
+      const c = g.cumulative_conns;
+      mkLine('chTraffic', labels, t, 'Cumulative traffic', (v)=>`${nff.format(v)} ${state.unit}`);
+      mkLine('chConns', labels, c, 'Cumulative conns', (v)=>nf.format(v));
+    }
+  }
+
+  function user7d(dash, u){
+    const uu = dash.users[u];
+    const t = sum(uu.daily_traffic_bytes || []);
+    const c = sum(uu.daily_conns || []);
+    return {t, c};
+  }
+
+  function renderUsersComparison(dash, selected){
+    const users = selected.length ? selected : (dash.meta.users || []);
+    const labels = users.map(u => {
+      const a = (dash.users[u] && dash.users[u].alias) ? dash.users[u].alias : '';
+      return a ? a : u;
+    });
+
+    let data, title, fmt;
+    if(state.cmp === 'traffic'){
+      data = users.map(u => bytesTo(user7d(dash, u).t, state.unit));
+      title = `Traffic 7d (${state.unit})`;
+      fmt = (v)=>`${nff.format(v)} ${state.unit}`;
+    } else {
+      data = users.map(u => user7d(dash, u).c);
+      title = `Conns 7d`;
+      fmt = (v)=>nf.format(v);
+    }
+
+    const pairs = labels.map((l,i)=>({l, v:data[i]}));
+    pairs.sort((a,b)=>b.v-a.v);
+    const top = pairs.slice(0, 12);
+    mkBar('chUsersCmp', top.map(x=>x.l), top.map(x=>x.v), title, fmt);
+  }
+
+  function renderUsersDomainCompare(dash, selected){
+    const dom = (dash.global.top_domains_traffic && dash.global.top_domains_traffic[0]) ? dash.global.top_domains_traffic[0].domain : null;
+    const users = selected.length ? selected : (dash.meta.users || []);
+    const labels = users.map(u => {
+      const a = (dash.users[u] && dash.users[u].alias) ? dash.users[u].alias : '';
+      return a ? a : u;
+    });
+
+    const data = users.map(u => {
+      const rows = (dash.users[u].top_domains_traffic || []);
+      const r = rows.find(x => x.domain === dom);
+      return r ? bytesTo(r.value, state.unit) : 0;
+    });
+
+    const title = dom ? `Traffic to top domain: ${dom}` : `Traffic to top domain`;
+    mkBar('chUsersDom', labels.slice(0, 12), data.slice(0, 12), title, (v)=>`${nff.format(v)} ${state.unit}`);
+  }
+
+  function renderUserFilters(dash){
+    const box = el('userFilters');
+    box.innerHTML = '';
+
+    const users = dash.meta.users || [];
+    const aliases = dash.users || {};
+
+    function pill(user, label){
+      const p = document.createElement('div');
+      p.className = 'pill';
+      p.innerHTML = `<span class="mini"></span><span>${label}</span>`;
+      p.onclick = () => {
+        const idx = state.selectedUsers.indexOf(user);
+        if(idx >= 0) state.selectedUsers.splice(idx,1);
+        else state.selectedUsers.push(user);
+        persist();
+        renderUsers(dash);
+        renderUserFilters(dash);
+      };
+      if(state.selectedUsers.includes(user)) p.classList.add('on');
+      return p;
+    }
+
+    const all = document.createElement('div');
+    all.className = 'pill';
+    const allOn = (state.selectedUsers.length === users.length && users.length>0);
+    all.innerHTML = `<span class="mini"></span><span>Все</span>`;
+    if(allOn) all.classList.add('on');
+    all.onclick = () => {
+      if(allOn) state.selectedUsers = [];
+      else state.selectedUsers = [...users];
+      persist();
+      renderUsers(dash);
+      renderUserFilters(dash);
+    };
+    box.appendChild(all);
+
+    for(const u of users){
+      const a = (aliases[u] && aliases[u].alias) ? aliases[u].alias : '';
+      const label = a ? `${a} · ${u}` : u;
+      box.appendChild(pill(u, label));
+    }
+  }
+
+  function renderUsers(dash){
+    const users = dash.meta.users || [];
+    const grid = el('usersGrid');
+    grid.innerHTML = '';
+    el('usersNotice').style.display = 'none';
+
+    const selected = state.selectedUsers.length ? state.selectedUsers : users;
+    const maxCards = 4;
+    const show = selected.slice(0, maxCards);
+
+    if(selected.length > maxCards){
+      el('usersNotice').textContent = `Выбрано ${selected.length} пользователей — показываю первые ${maxCards}, иначе не уместится без прокрутки.`;
+      el('usersNotice').style.display = 'block';
+    }
+
+    renderUsersComparison(dash, selected);
+    renderUsersDomainCompare(dash, selected);
+
+    for(const u of show){
+      const uu = dash.users[u];
+      const alias = (uu.alias || '').trim();
+      const name = alias ? alias : u;
+      const {t, c} = user7d(dash, u);
+
+      const anomalies = uu.anomaly ? `
+        <span class="tooltip">аномалии
+          <span class="tip">
+            «Аномалии» = подозрительные строки в логах/агрегации: например, дневной трафик слишком большой, время=0, или невалидные записи.
+            Это не приговор, это повод проверить исходные файлы.
+          </span>
+        </span>` : '';
+
+      const head = `
+        <div class="user-hd">
+          <div>
+            <div class="user-name">${escapeHtml(name)}</div>
+            <div class="user-sub">
+              <span class="tag">${fmtBytes(t)}</span>
+              <span class="tag">conns: ${nf.format(c)}</span>
+              ${uu.anomaly ? `<span class="tag bad">${anomalies}</span>` : `<span class="tag good">ok</span>`}
+            </div>
+          </div>
+          <div class="muted" style="font-size:12px">${escapeHtml(u)}</div>
+        </div>
+      `;
+
+      const tbl = (rows, isBytes) => {
+        let html = `<table class="table"><thead><tr><th>Domain</th><th class="num">${isBytes?state.unit:'#'}</th><th class="pct">%</th></tr></thead><tbody>`;
+        for(const r of rows.slice(0,10)){
+          const v = isBytes ? nff.format(bytesTo(r.value, state.unit)) : nf.format(r.value);
+          html += `<tr><td>${escapeHtml(r.domain)}</td><td class="num">${v}</td><td class="pct">${nff.format(r.pct)}%</td></tr>`;
+        }
+        html += `</tbody></table>`;
+        return html;
+      };
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="hd">${head}</div>
+        <div class="bd">
+          <div class="mini-grid">
+            <div>
+              <div class="kpi-title">Top-10 по трафику</div>
+              ${tbl(uu.top_domains_traffic || [], true)}
+            </div>
+            <div>
+              <div class="kpi-title">Top-10 по подключениям</div>
+              ${tbl(uu.top_domains_conns || [], false)}
+            </div>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    }
+  }
+
+  function renderSessionsDays(days){
+    const sel = el('sessDateSel');
+    sel.innerHTML = '';
+    for(const d of days){
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = fmtMMDD(d);
+      sel.appendChild(opt);
+    }
+    if(state.sessDate && days.includes(state.sessDate)) sel.value = state.sessDate;
+    else if(state.date && days.includes(state.date)) sel.value = state.date;
+    else sel.value = days[days.length-1] || '';
+    state.sessDate = sel.value;
+    persist();
+
+    sel.onchange = () => {
+      state.sessDate = sel.value;
+      persist();
+      if(state.sessOpen) loadSessions();
+    };
+  }
+
+  function toggleSessions(open){
+    state.sessOpen = open;
+    persist();
+    el('sessionsBody').style.display = open ? '' : 'none';
+    el('btnSessToggle').textContent = open ? 'Скрыть' : 'Показать';
+    if(open) loadSessions();
+  }
+
+  async function loadSessions(){
+    if(!state.sessDate) return;
+    el('sessNote').textContent = 'loading...';
+    el('sessTop').innerHTML = '';
+    el('sessLines').innerHTML = '';
+
+    const res = await fetch(`/api/sessions/day?date=${encodeURIComponent(state.sessDate)}&gran=${state.sessGran}`, {cache:'no-store'});
+    const js = await res.json();
+    if(js.error){
+      el('sessNote').textContent = js.error;
+      return;
+    }
+    el('sessNote').textContent = js.has_log ? js.note : 'Нет access.log. Если хочешь «по минутам», включи access log в Xray.';
+    if(!js.users || !js.users.length){
+      el('sessTop').innerHTML = `<div class="muted">Нет пользователей или событий за выбранный день.</div>`;
+      return;
+    }
+
+    const top = document.createElement('div');
+    top.className = 'mini-grid';
+    const topTbl = document.createElement('div');
+    let topHtml = `<table class="table"><thead><tr><th>User</th><th class="num">min</th></tr></thead><tbody>`;
+    for(const r of (js.top || [])){
+      const a = (window.__aliases && window.__aliases[r.user]) ? window.__aliases[r.user] : '';
+      topHtml += `<tr><td>${escapeHtml(a ? (a+' · '+r.user) : r.user)}</td><td class="num">${nf.format(r.min)}</td></tr>`;
+    }
+    topHtml += `</tbody></table>`;
+    topTbl.innerHTML = `<div class="kpi-title">Top users by time</div>${topHtml}`;
+    top.appendChild(topTbl);
+
+    const info = document.createElement('div');
+    info.innerHTML = `<div class="kpi-title">Интервал</div><div class="kpi-val">${js.gran_min} минут</div><div class="kpi-sub"><span>слотов: ${js.slots}</span><span class="delta">heuristic</span></div>`;
+    top.appendChild(info);
+
+    el('sessTop').appendChild(top);
+
+    const maxLines = 8;
+    const users = js.users.slice(0, maxLines);
+
+    for(const u of users){
+      const line = document.createElement('div');
+      line.style.marginBottom = '12px';
+
+      const a = (window.__aliases && window.__aliases[u]) ? window.__aliases[u] : '';
+      const nm = a ? `${a} · ${u}` : u;
+      const mins = js.durations_min ? (js.durations_min[u] || 0) : 0;
+
+      const heat = document.createElement('div');
+      heat.className = 'heat';
+      heat.style.gridTemplateColumns = `repeat(${js.slots}, 1fr)`;
+
+      const arr = js.active && js.active[u] ? js.active[u] : [];
+      for(let i=0;i<js.slots;i++){
+        const cell = document.createElement('div');
+        if(arr[i]) cell.classList.add('on');
+        heat.appendChild(cell);
+      }
+
+      line.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <div style="font-weight:800;font-size:12.5px">${escapeHtml(nm)}</div>
+        <div class="muted" style="font-size:12px">${nf.format(mins)} min</div>
+      </div>`;
+      line.appendChild(heat);
+
+      const leg = document.createElement('div');
+      leg.className = 'heat-legend';
+      leg.innerHTML = `<span>00:00</span><span>12:00</span><span>24:00</span>`;
+      line.appendChild(leg);
+
+      el('sessLines').appendChild(line);
+    }
+  }
+
+  async function openAdmin(){
+    const wrap = document.createElement('div');
+    wrap.className = 'admin-grid';
+
+    const header = document.createElement('div');
+    header.innerHTML = `<div class="muted" style="margin-bottom: 6px">
+      Тут всё «боевое»: добавление/удаление реально пишет в xray config и рестартит xray.
+    </div>`;
+    wrap.appendChild(header);
+
+    const tmplCard = document.createElement('div');
+    tmplCard.className = 'card';
+    tmplCard.innerHTML = `
+      <div class="hd"><div><h2>Шаблон ссылки (Reality)</h2><div class="meta">Проще всего: вставь рабочую ссылку → импорт. Тогда новые пользователи будут точно рабочие.</div></div></div>
+      <div class="bd">
+        <div class="row" style="margin-bottom:10px">
+          <input type="text" id="admPublicHost" placeholder="public host (185.235...)" style="min-width: 260px; flex: 1"/>
+          <button class="btn" id="admSaveHost">Сохранить host</button>
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <input type="text" id="admLink" placeholder="Вставь рабочую vless://... ссылку" style="width:100%"/>
+          <button class="btn primary" id="admImport">Импорт</button>
+        </div>
+        <div class="muted" id="admTmplInfo">loading...</div>
+      </div>
+    `;
+    wrap.appendChild(tmplCard);
+
+    const usersCard = document.createElement('div');
+    usersCard.className = 'card';
+    usersCard.innerHTML = `
+      <div class="hd">
+        <div><h2>Пользователи</h2><div class="meta">Alias — чисто отображение; статистика сохраняется.</div></div>
+        <button class="btn primary" id="admAdd">+ Добавить</button>
+      </div>
+      <div class="bd" id="admUsersBody">loading...</div>
+    `;
+    wrap.appendChild(usersCard);
+
+    openModal('Управление', wrap);
+
+    const [tmpl, clients, stats] = await Promise.all([
+      fetch('/api/reality_template', {cache:'no-store'}).then(r=>r.json()),
+      fetch('/api/admin/clients', {cache:'no-store'}).then(r=>r.json()),
+      fetch('/api/admin/stats', {cache:'no-store'}).then(r=>r.json()),
+    ]);
+
+    const info = el('admTmplInfo');
+    if(tmpl.error){
+      info.textContent = `Template error: ${tmpl.error}`;
+    } else {
+      const t = tmpl.template || {};
+      const host = tmpl.public_host || '';
+      el('admPublicHost').value = host;
+      info.innerHTML = `
+        <div class="mono">pbk: ${escapeHtml((t.pbk||'') ? (t.pbk.slice(0,10)+'…'+t.pbk.slice(-6)) : '—')}</div>
+        <div class="mono">sni: ${escapeHtml(t.sni||'—')} · sid: ${escapeHtml(t.sid||'—')} · fp: ${escapeHtml(t.fp||'—')} · port: ${escapeHtml(String(t.port||'—'))}</div>
+        <div class="mono">flow: ${escapeHtml(t.flow||'—')}</div>
+        <div class="muted" style="margin-top:6px">access log: <span class="mono">${escapeHtml(tmpl.access_log||'—')}</span></div>
+      `;
+    }
+
+    el('admSaveHost').onclick = async () => {
+      const v = el('admPublicHost').value.trim();
+      const r = await fetch('/api/admin/public_host', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({public_host: v})});
+      const js = await r.json();
+      info.insertAdjacentHTML('beforeend', `<div class="muted">saved host: <span class="mono">${escapeHtml(js.public_host||'')}</span></div>`);
+    };
+
+    el('admImport').onclick = async () => {
+      const link = el('admLink').value.trim();
+      if(!link) return;
+      const r = await fetch('/api/admin/import_link', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({link})});
+      const js = await r.json();
+      info.insertAdjacentHTML('beforeend', js.error
+        ? `<div style="color:var(--danger)">import error: ${escapeHtml(js.error)}</div>`
+        : `<div style="color:var(--ok)">import ok</div>`
+      );
+    };
+
+    async function refreshUsers(){
+      const [clients2, stats2] = await Promise.all([
+        fetch('/api/admin/clients', {cache:'no-store'}).then(r=>r.json()),
+        fetch('/api/admin/stats', {cache:'no-store'}).then(r=>r.json()),
+      ]);
+      renderUsersAdmin(clients2, stats2);
+    }
+
+    function renderUsersAdmin(clientsArr, statsObj){
+      const body = el('admUsersBody');
+      if(!Array.isArray(clientsArr)){
+        body.innerHTML = `<div style="color:var(--danger)">clients error</div>`;
+        return;
+      }
+
+      window.__aliases = window.__aliases || {};
+      for(const c of clientsArr){
+        if(c.email) window.__aliases[c.email] = c.alias || '';
+      }
+
+      let html = `<table class="table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Alias</th>
+            <th class="num">Days</th>
+            <th class="num">Traffic</th>
+            <th class="num">Conns</th>
+            <th>Top-3 sites</th>
+            <th class="num">Link</th>
+            <th class="num">Delete</th>
+          </tr>
+        </thead><tbody>`;
+
+      for(const c of clientsArr){
+        const st = (statsObj && statsObj[c.email]) ? statsObj[c.email] : null;
+        const days = st ? st.days_used : 0;
+        const t = st ? fmtBytes(st.total_traffic_bytes) : '—';
+        const conns = st ? nf.format(st.total_conns) : '—';
+        const top3 = st ? (st.top3_domains || []) : [];
+        const top3html = top3.length
+          ? top3.map(x => `${escapeHtml(x.domain)} <span class="muted">(${nff.format(bytesTo(x.bytes, state.unit))} ${state.unit})</span>`).join('<br/>')
+          : '<span class="muted">—</span>';
+
+        html += `<tr>
+          <td class="mono">${escapeHtml(c.email)}</td>
+          <td><input type="text" data-alias="${escapeHtml(c.email)}" value="${escapeHtml(c.alias||'')}" placeholder="name" style="width: 160px"/></td>
+          <td class="num">${nf.format(days)}</td>
+          <td class="num">${t}</td>
+          <td class="num">${conns}</td>
+          <td>${top3html}</td>
+          <td class="num">
+            <button class="btn" data-copy="${escapeHtml(c.share_link||'')}">Copy</button>
+          </td>
+          <td class="num">
+            <button class="btn danger" data-del="${escapeHtml(c.email)}">✕</button>
+          </td>
+        </tr>`;
+      }
+      html += `</tbody></table>`;
+      body.innerHTML = html;
+
+      body.querySelectorAll('input[data-alias]').forEach(inp => {
+        inp.addEventListener('change', async () => {
+          const email = inp.getAttribute('data-alias');
+          const alias = inp.value.trim();
+          await fetch('/api/admin/alias', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, alias})});
+          await refreshUsers();
+        });
+      });
+
+      body.querySelectorAll('button[data-copy]').forEach(btn => {
+        btn.onclick = async () => {
+          const link = btn.getAttribute('data-copy') || '';
+          if(!link){ btn.textContent = '—'; return; }
+          await navigator.clipboard.writeText(link);
+          btn.textContent = '✓';
+          setTimeout(()=>btn.textContent='Copy', 800);
+        };
+      });
+
+      body.querySelectorAll('button[data-del]').forEach(btn => {
+        btn.onclick = async () => {
+          const email = btn.getAttribute('data-del');
+          if(!email) return;
+          btn.textContent = '...';
+          await fetch(`/api/admin/clients/${encodeURIComponent(email)}`, {method:'DELETE'});
+          await refreshUsers();
+        };
+      });
+    }
+
+    renderUsersAdmin(clients, stats);
+
+    el('admAdd').onclick = async () => {
+      const btn = el('admAdd');
+      btn.textContent = '...';
+      const r = await fetch('/api/admin/clients', {method:'POST'});
+      const js = await r.json();
+      btn.textContent = '+ Добавить';
+      if(js.error){
+        info.insertAdjacentHTML('beforeend', `<div style="color:var(--danger)">add error: ${escapeHtml(js.error)}</div>`);
+      } else {
+        const node = document.createElement('div');
+        node.innerHTML = `<div class="kpi-title">Новый пользователь</div>
+          <div style="font-weight:800">${escapeHtml(js.email||'')}</div>
+          <div style="height:10px"></div>
+          <div class="kpi-title">Ссылка</div>
+          <pre class="mono">${escapeHtml(js.share_link||'')}</pre>
+          <div style="height:10px"></div>
+          <button class="btn primary" id="copyNew">Copy</button>`;
+        openModal('Новый пользователь', node);
+        setTimeout(()=>{
+          const b = document.getElementById('copyNew');
+          if(b) b.onclick = async ()=>{ await navigator.clipboard.writeText(js.share_link||''); b.textContent='✓'; };
+        }, 0);
+      }
+    };
+  }
+
+  async function runCmd(title, url, method='GET'){
+    const node = document.createElement('div');
+    node.innerHTML = `<div class="muted">running…</div>`;
+    openModal(title, node);
+    const r = await fetch(url, {method, cache:'no-store'});
+    const js = await r.json();
+    node.innerHTML = `<pre class="mono">${escapeHtml(js.output || JSON.stringify(js, null, 2))}</pre>`;
+  }
+
+  async function load(){
+    setTheme(); setUnit(); setTrends(); setCmp(); setSessGran();
+    persist();
+
+    try{
+      const ui = await fetch('/__ui', {cache:'no-store'}).then(r=>r.json());
+      el('uiStamp').textContent = `ui ${ui.sha12 || '—'}`;
+    }catch{
+      el('uiStamp').textContent = 'ui —';
+    }
+
+    const days = await fetch('/api/days', {cache:'no-store'}).then(r=>r.json());
+    const ds = el('dateSel');
+    ds.innerHTML = '';
+    for(const d of days){
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = fmtMMDD(d);
+      ds.appendChild(opt);
+    }
+
+    if(state.date && days.includes(state.date)) ds.value = state.date;
+    else ds.value = days[days.length-1] || '';
+    state.date = ds.value;
+    persist();
+
+    ds.onchange = async () => {
+      state.date = ds.value;
+      persist();
+      await reloadDashboard();
+    };
+
+    renderSessionsDays(days);
+
+    el('btnSessToggle').onclick = () => toggleSessions(!state.sessOpen);
+    toggleSessions(state.sessOpen);
+
+    await reloadDashboard();
+  }
+
+  async function reloadDashboard(){
+    if(!state.date) return;
+    const dash = await fetch(`/api/dashboard?days=7&to=${encodeURIComponent(state.date)}`, {cache:'no-store'}).then(r=>r.json());
+
+    window.__aliases = window.__aliases || {};
+    for(const u of (dash.meta.users || [])){
+      window.__aliases[u] = (dash.users[u] && dash.users[u].alias) ? dash.users[u].alias : '';
+    }
+
+    const set = new Set(dash.meta.users || []);
+    state.selectedUsers = state.selectedUsers.filter(u => set.has(u));
+    persist();
+
+    renderKpis(dash);
+    renderTopTables(dash);
+    renderTrends(dash);
+    renderUserFilters(dash);
+    renderUsers(dash);
+
+    if(state.sessOpen) loadSessions();
+  }
+
+  el('segDark').onclick = () => { state.theme='dark'; persist(); setTheme(); reloadDashboard(); };
+  el('segLight').onclick = () => { state.theme='light'; persist(); setTheme(); reloadDashboard(); };
+
+  el('segGB').onclick = () => { state.unit='GB'; persist(); setUnit(); reloadDashboard(); };
+  el('segMB').onclick = () => { state.unit='MB'; persist(); setUnit(); reloadDashboard(); };
+
+  el('segDaily').onclick = () => { state.trends='daily'; persist(); setTrends(); reloadDashboard(); };
+  el('segCum').onclick = () => { state.trends='cum'; persist(); setTrends(); reloadDashboard(); };
+
+  el('segCmpTraffic').onclick = () => { state.cmp='traffic'; persist(); setCmp(); reloadDashboard(); };
+  el('segCmpConns').onclick = () => { state.cmp='conns'; persist(); setCmp(); reloadDashboard(); };
+
+  el('segGran5').onclick = () => { state.sessGran=5; persist(); setSessGran(); if(state.sessOpen) loadSessions(); };
+  el('segGran10').onclick = () => { state.sessGran=10; persist(); setSessGran(); if(state.sessOpen) loadSessions(); };
+
+  el('btnAdmin').onclick = openAdmin;
+
+  el('btnStatus').onclick = () => runCmd('xray status', '/api/sys/xray_status', 'GET');
+  el('btnRestart').onclick = () => runCmd('xray restart', '/api/sys/xray_restart', 'POST');
+  el('btnJournal').onclick = () => runCmd('xray journal (last 30)', '/api/sys/xray_journal', 'GET');
+
+  setTheme(); setUnit(); setTrends(); setCmp(); setSessGran();
+  load();
+</script>
+</body>
+</html>

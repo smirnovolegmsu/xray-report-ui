@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "ui": {
+    "theme": "light",
+    "realtime_mode": "eco",
+    "eco_poll_sec": 300,
+    "live_push_sec": 5,
+    "selected_tenant": ""
+  },
+  "xray": {
+    "service_name": "xray",
+    "config_path": "/usr/local/etc/xray/config.json",
+    "inbound_tag": "",
+    "server_host": "",
+    "server_port": 443,
+    "sni": "www.cloudflare.com",
+    "fp": "chrome",
+    "flow": "xtls-rprx-vision",
+    "reality_pbk": "",
+    "server_ip": "",
+    "fingerprint": "chrome",
+    "transport_type": "tcp"
+  },
+  "collector": {
+    "usage_dir": "/var/log/xray/usage",
+    "enabled": false,
+    "note": "Источник метрик остаётся CSV + cron. Панель только читает CSV и показывает лаг/статус."
+  },
+  "realtime": {
+    "mode": "ws",
+    "eco_poll_seconds": 300
+  },
+  "collectors": {
+    "enabled": true,
+    "interval_minutes": 5
+  },
+  "security": {
+    "allow_unsafe_shell": false
+  }
+}

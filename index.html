@@ -1,0 +1,4906 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Xray Admin Panel</title>
+<!-- amCharts 5 - профессиональные графики (бесплатно для некоммерческого использования) -->
+<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Dark.js"></script>
+<style>
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel2: #21262d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent-light: rgba(88, 166, 255, 0.3);
+  --accent-gradient: linear-gradient(135deg, #58a6ff 0%, #3d8bfd 100%);
+  --ok: #3fb950;
+  --ok-light: rgba(63, 185, 80, 0.2);
+  --warn: #d29922;
+  --bad: #f85149;
+  --bad-light: rgba(248, 81, 73, 0.2);
+  --line: #30363d;
+  --grid: rgba(48, 54, 61, 0.5);
+  --radius: 12px;
+  --shadow: 0 8px 24px rgba(0,0,0,.4);
+  --bar-normal: rgba(88, 166, 255, 0.6);
+  --bar-anomaly: rgba(248, 81, 73, 0.6);
+  --bar-border: rgba(88, 166, 255, 0.9);
+}
+[data-theme="light"] {
+  --bg: #f6f8fa;
+  --panel: #ffffff;
+  --panel2: #f6f8fa;
+  --text: #24292f;
+  --muted: #57606a;
+  --accent: #0969da;
+  --accent-light: rgba(9, 105, 218, 0.15);
+  --accent-gradient: linear-gradient(135deg, #0969da 0%, #0550ae 100%);
+  --ok: #1a7f37;
+  --ok-light: rgba(26, 127, 55, 0.15);
+  --warn: #9a6700;
+  --bad: #cf222e;
+  --bad-light: rgba(207, 34, 46, 0.15);
+  --line: #d0d7de;
+  --grid: rgba(208, 215, 222, 0.5);
+  --shadow: 0 8px 24px rgba(0,0,0,.1);
+  --bar-normal: rgba(9, 105, 218, 0.4);
+  --bar-anomaly: rgba(207, 34, 46, 0.4);
+  --bar-border: rgba(9, 105, 218, 0.8);
+}
+* { box-sizing: border-box; }
+body { 
+  margin: 0; 
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  background: var(--bg); 
+  color: var(--text);
+  line-height: 1.5;
+  overflow: hidden; /* Убираем прокрутку body */
+  height: 100vh;
+}
+
+/* Header - компактный для 2500x1300 */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-height: 55px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.logo {
+  font-weight: 700;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo svg { width: 24px; height: 24px; }
+.status-badges {
+  display: flex;
+  gap: 8px;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.badge .dot.ok { background: var(--ok); }
+.badge .dot.bad { background: var(--bad); }
+
+/* Compact status badges */
+.status-badges-compact {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.badge-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.2;
+}
+.badge-compact .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+.badge-compact .dot.ok { background: var(--ok); }
+.badge-compact .dot.bad { background: var(--bad); }
+.header-nav {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  margin: 0 12px;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+.theme-toggle:hover { border-color: var(--accent); }
+.lang-toggle {
+  padding: 6px 12px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+.lang-toggle:hover { border-color: var(--accent); }
+
+/* Layout - оптимизировано для 2500x1300 */
+.container {
+  max-width: 2500px;
+  margin: 0 auto;
+  padding: 12px;
+  height: calc(100vh - 65px); /* Header ~55px + padding */
+  overflow: hidden; /* Убираем прокрутку - всё должно помещаться */
+}
+/* Кастомный скроллбар для контейнера */
+.container::-webkit-scrollbar {
+  width: 8px;
+}
+.container::-webkit-scrollbar-track {
+  background: var(--panel2);
+  border-radius: 4px;
+}
+.container::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
+.container::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.tab {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  transition: all .15s;
+  white-space: nowrap;
+}
+.tab:hover { 
+  background: var(--panel2);
+  color: var(--text); 
+}
+.tab.active { 
+  background: var(--accent); 
+  border-color: var(--accent); 
+  color: #fff; 
+  font-weight: 600;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow);
+  min-width: 0;
+  max-width: 100%;
+}
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.card-desc {
+  font-size: 13px;
+  color: var(--muted);
+  margin: -12px 0 16px;
+  padding: 12px;
+  background: var(--panel2);
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  transition: all .15s;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { opacity: .9; }
+.btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn.danger:hover { opacity: .9; }
+.btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+.btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+#usersTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+#usersTable th,
+#usersTable td {
+  padding: 12px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+#usersTable th {
+  background: var(--panel2);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--muted);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+#usersTable td {
+  font-size: 13px;
+}
+#usersTable tr:hover td {
+  background: var(--panel2);
+}
+#usersTable .mono {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+th, td {
+  padding: 6px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+/* Компактные таблицы в карточках пользователей */
+.users-grid .table th,
+.users-grid .table td {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+th { 
+  font-weight: 600; 
+  color: var(--muted); 
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.users-grid .table th {
+  font-size: 10px;
+  padding: 6px 8px;
+}
+tr:hover td { background: var(--panel2); }
+
+/* KPI Cards */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+/* Segmented controls */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.seg button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.seg button.active {
+  color: #fff;
+  background: var(--accent);
+  font-weight: 600;
+}
+.seg button:hover:not(.active) {
+  background: var(--panel);
+  color: var(--text);
+}
+
+/* Nav pills */
+.nav-pills {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.nav-pill {
+  padding: 6px 12px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  transition: all .15s;
+  white-space: nowrap;
+}
+.nav-pill:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--panel);
+}
+.nav-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.nav-pill-warn {
+  border-color: var(--bad);
+}
+.nav-pill-warn:hover {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  color: var(--bad);
+}
+.nav-pill-warn.active {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+
+/* KPI Row (6 cards) - компактный */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin-bottom: 6px;
+}
+@media (max-width: 1600px) {
+  .kpi-row { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 1000px) {
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .kpi-row { grid-template-columns: 1fr; }
+}
+
+.kpi-card {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  position: relative;
+}
+.kpi-card .kpi-title {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.kpi-card .kpi-subtitle {
+  font-size: 10px;
+  color: var(--muted2);
+  margin-bottom: 4px;
+}
+.kpi-card .kpi-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+  line-height: 1.2;
+}
+.kpi-card .kpi-subline {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+  line-height: 1.3;
+}
+.kpi-card .kpi-list {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.kpi-card .kpi-list-item {
+  padding: 2px 0;
+  color: var(--text);
+  display: flex;
+  justify-content: space-between;
+}
+.kpi-card .kpi-bubble {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-card .kpi-bubble.up {
+  color: var(--ok);
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 15%, transparent);
+}
+.kpi-card .kpi-bubble.down {
+  color: var(--bad);
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 15%, transparent);
+}
+.kpi-card .kpi-bubble.na {
+  color: var(--muted2);
+}
+
+/* Card header/body */
+.card-hd {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+/* Компактные заголовки в карточках пользователей */
+.users-grid .card-hd {
+  padding: 8px;
+}
+.users-grid .card-hd h3 {
+  font-size: 14px;
+  margin: 0;
+}
+.users-grid .card-hd .meta {
+  font-size: 11px;
+}
+.card-hd h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.card-hd .meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+.card-bd {
+  padding: 8px;
+}
+/* Компактные карточки пользователей */
+.users-grid .card-bd {
+  padding: 8px;
+}
+
+/* Trends grid - компактный */
+.trends-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 8px;
+}
+@media (max-width: 1000px) {
+  .trends-grid { grid-template-columns: 1fr; }
+}
+
+/* Объединённый layout: Тренды + Топ домены */
+.trends-domains-combined {
+  display: grid;
+  grid-template-columns: 750px 1fr 600px;
+  gap: 16px;
+  align-items: stretch;
+}
+@media (max-width: 1900px) {
+  .trends-domains-combined {
+    grid-template-columns: 750px 1fr;
+  }
+  .users-charts-column {
+    display: none;
+  }
+}
+@media (max-width: 1400px) {
+  .trends-domains-combined {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Левая колонка: Тренды (графики друг под другом) */
+.trends-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 750px;
+  flex-shrink: 0;
+  align-items: stretch;
+  max-height: 380px;
+}
+
+/* Средняя колонка: Топ домены */
+.domains-column {
+  min-width: 0; /* Предотвращает переполнение */
+}
+
+/* Правая колонка: Графики пользователей */
+.users-charts-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 600px;
+  flex-shrink: 0;
+  align-items: stretch;
+}
+.users-charts-column .chartbox {
+  height: 200px;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+}
+.users-charts-column .chartbox .kpi-title {
+  font-size: 13px;
+  margin: 0 0 4px 0;
+  padding: 0;
+  flex-shrink: 0;
+  height: auto;
+}
+.users-charts-column .chartbox > div[id^="chUsers"] {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+/* Контейнер для таблиц с ограничением высоты */
+.table-container {
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.table-container::-webkit-scrollbar {
+  width: 6px;
+}
+.table-container::-webkit-scrollbar-track {
+  background: var(--panel2);
+  border-radius: 3px;
+}
+.table-container::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Domains grid - компактный */
+.domains-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+/* Компактные таблицы в карточках пользователей */
+.users-grid .domains-grid {
+  gap: 8px;
+}
+.users-grid .domains-grid .table {
+  font-size: 11px;
+}
+.users-grid .domains-grid th,
+.users-grid .domains-grid td {
+  padding: 6px 8px;
+}
+@media (max-width: 1000px) {
+  .domains-grid { grid-template-columns: 1fr; }
+}
+
+/* Users charts grid - компактный */
+.users-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 6px;
+}
+@media (max-width: 1000px) {
+  .users-charts-grid { grid-template-columns: 1fr; }
+}
+
+/* Users grid (cards) - оптимизировано для 2500x1300 */
+.users-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-height: 350px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+/* Скроллбар для users-grid */
+.users-grid::-webkit-scrollbar {
+  width: 6px;
+}
+.users-grid::-webkit-scrollbar-track {
+  background: var(--panel2);
+  border-radius: 3px;
+}
+.users-grid::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+.users-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+@media (max-width: 2000px) {
+  .users-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 1200px) {
+  .users-grid { grid-template-columns: 1fr; }
+}
+
+/* Filters (chips) - компактный */
+.filters {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.filters-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+  flex: 1;
+  min-width: 0;
+}
+.users-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.filter-chip {
+  padding: 6px 12px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+  transition: all .15s;
+}
+.filter-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.filter-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Chart boxes - оптимизировано для 2500x1300 */
+.chartbox {
+  position: relative;
+  height: 180px;
+  min-height: 180px;
+}
+.chartbox.small { height: 185px; min-height: 185px; }
+.chartbox.tiny { height: 140px; min-height: 140px; }
+.chartbox > div {
+  width: 100%;
+  height: 100%;
+}
+
+/* Online now - компактный */
+.online-now {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+@media (max-width: 800px) {
+  .online-now { grid-template-columns: 1fr; }
+}
+
+/* Row (flex) */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Notice */
+.notice {
+  padding: 12px 20px;
+  background: var(--panel2);
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Chart containers - amCharts 5 */
+.chart-container {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 20px;
+  position: relative;
+  height: 300px;
+}
+
+/* Forms */
+input, select, textarea {
+  padding: 10px 12px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+}
+textarea {
+  width: 100%;
+  min-height: 150px;
+  font-family: monospace;
+  font-size: 12px;
+}
+.form-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Help tooltip */
+.help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: help;
+  position: relative;
+}
+.help:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: var(--bg);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-width: 300px;
+  z-index: 1000;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow);
+}
+
+  /* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: var(--shadow);
+}
+.modal h3 { margin: 0 0 16px; }
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  box-shadow: var(--shadow);
+  display: none;
+  z-index: 300;
+  max-width: 400px;
+}
+.toast.show { display: block; }
+.toast-title { font-weight: 600; margin-bottom: 4px; }
+.toast-text { font-size: 13px; color: var(--muted); }
+
+/* Panes */
+.pane { 
+  display: none; 
+}
+.pane.active { 
+  display: block !important; 
+}
+
+/* Progress bar */
+.progress-bar {
+  width: 100%;
+  height: 20px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--ok));
+  transition: width .3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Utils */
+.mono { font-family: monospace; }
+.muted { color: var(--muted); }
+.text-ok { color: var(--ok); }
+.text-bad { color: var(--bad); }
+.text-warn { color: var(--warn); }
+.mb-0 { margin-bottom: 0; }
+.mt-16 { margin-top: 16px; }
+.flex { display: flex; }
+.gap-8 { gap: 8px; }
+.items-center { align-items: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      <span>Xray Usage</span>
+    </div>
+    <div class="status-badges-compact">
+      <div class="badge-compact">
+        <span class="dot" id="dotUI"></span>
+        <span id="statusUI">—</span>
+      </div>
+      <div class="badge-compact">
+        <span class="dot" id="dotXray"></span>
+        <span id="statusXray">—</span>
+      </div>
+      <div class="badge-compact" id="badgeLive">
+        <span class="dot"></span>
+        <span id="liveStatus">—</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Main Navigation Tabs -->
+  <div class="header-nav">
+    <div class="tabs">
+      <div class="tab active" data-tab="dashboard">📊 <span data-i18n="dashboard">Обзор</span></div>
+      <div class="tab" data-tab="users">👥 <span data-i18n="users">Пользователи</span></div>
+      <div class="tab" data-tab="events">📋 <span data-i18n="events">События</span></div>
+      <div class="tab" data-tab="xray">⚙️ <span data-i18n="xray">Xray</span></div>
+      <div class="tab" data-tab="settings">🔧 <span data-i18n="settings">Настройки</span></div>
+    </div>
+  </div>
+  
+  <div class="header-right">
+    <!-- DateSelect -->
+    <select id="dateSelect" title="Дата отчёта" style="width:150px;"></select>
+    
+    <!-- Segmented: Daily/Cumulative -->
+    <div class="seg" title="Режим отображения трендов">
+      <button id="segDaily" class="active">📈 Daily</button>
+      <button id="segCum">📊 Cumulative</button>
+    </div>
+    
+    <!-- Segmented: Dark/Light -->
+    <div class="seg" title="Тема оформления">
+      <button id="segDark" class="active">🌙 Dark</button>
+      <button id="segLight">☀️ Light</button>
+    </div>
+    
+    <!-- Segmented: GB/MB -->
+    <div class="seg" title="Единицы измерения">
+      <button id="segGB" class="active">💾 GB</button>
+      <button id="segMB">📦 MB</button>
+    </div>
+    
+    <!-- Nav pills: Онлайн / Status / Restart / Journal -->
+    <div class="nav-pills">
+      <button class="nav-pill" id="navOnline" data-nav="online">⚡ Онлайн</button>
+      <button class="nav-pill" id="navStatus" data-nav="status">✅ Status</button>
+      <button class="nav-pill nav-pill-warn" id="navRestart" data-nav="restart">🔄 Restart</button>
+      <button class="nav-pill" id="navJournal" data-nav="journal">📜 Journal</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- УПРАВЛЕНИЕ (История) -->
+  <div class="pane active" data-pane="management" id="paneManagement">
+    <!-- KPIRow: 6 карточек -->
+    <div class="kpi-row" id="kpiRow">
+      <!-- KPIStatCard: Today traffic -->
+      <div class="kpi-card stat-card" id="kpiTodayTraffic">
+        <div class="kpi-title">Today traffic (GB)</div>
+        <div class="kpi-value" id="kpiTodayTrafficValue">—</div>
+        <div class="kpi-subline">avg7d: <span id="kpiTodayTrafficAvg">—</span></div>
+        <div class="kpi-bubble" id="kpiTodayTrafficBubble"></div>
+      </div>
+      
+      <!-- KPIStatCard: Today conns -->
+      <div class="kpi-card stat-card" id="kpiTodayConns">
+        <div class="kpi-title">Today conns</div>
+        <div class="kpi-value" id="kpiTodayConnsValue">—</div>
+        <div class="kpi-subline">avg7d: <span id="kpiTodayConnsAvg">—</span></div>
+        <div class="kpi-bubble" id="kpiTodayConnsBubble"></div>
+      </div>
+      
+      <!-- KPITotalCard: 7d total traffic -->
+      <div class="kpi-card total-card" id="kpiTotal7dTraffic">
+        <div class="kpi-title">7d total traffic (GB)</div>
+        <div class="kpi-value" id="kpiTotal7dTrafficValue">—</div>
+        <div class="kpi-bubble" id="kpiTotal7dTrafficBubble"></div>
+      </div>
+      
+      <!-- KPITotalCard: 7d total conns -->
+      <div class="kpi-card total-card" id="kpiTotal7dConns">
+        <div class="kpi-title">7d total conns</div>
+        <div class="kpi-value" id="kpiTotal7dConnsValue">—</div>
+        <div class="kpi-bubble" id="kpiTotal7dConnsBubble"></div>
+      </div>
+      
+      <!-- KPITopMiniList: Top domains (7d) — traffic (top-3) -->
+      <div class="kpi-card top-card" id="kpiTopDomainsTraffic">
+        <div class="kpi-title">Top domains (7d) — traffic (top-3)</div>
+        <div class="kpi-list" id="kpiTopDomainsTrafficList"></div>
+        <div class="kpi-bubble" id="kpiTopDomainsTrafficBubble"></div>
+      </div>
+      
+      <!-- KPITopMiniList: Top domains (7d) — conns (top-3) -->
+      <div class="kpi-card top-card" id="kpiTopDomainsConns">
+        <div class="kpi-title">Top domains (7d) — conns (top-3)</div>
+        <div class="kpi-list" id="kpiTopDomainsConnsList"></div>
+        <div class="kpi-bubble" id="kpiTopDomainsConnsBubble"></div>
+      </div>
+    </div>
+    
+    <!-- TrendsPanel + TopDomainsPanel: Объединённая карточка -->
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <h2>Тренды (7 дней) & Топ домены (7 дней)</h2>
+          <div class="meta">Переключай в шапке: Daily / Cumulative (мгновенно) | Топ-7 по трафику и по подключениям</div>
+        </div>
+      </div>
+      <div class="card-bd">
+        <div class="trends-domains-combined">
+          <!-- Левая колонка: Тренды (750px) -->
+          <div class="trends-column">
+            <div class="chartbox small">
+              <div id="chTraffic" style="width:100%;height:100%;"></div>
+            </div>
+            <div class="chartbox small">
+              <div id="chConns" style="width:100%;height:100%;"></div>
+            </div>
+          </div>
+          <!-- Средняя колонка: Топ домены -->
+          <div class="domains-column">
+            <div class="domains-grid">
+              <div>
+                <div class="kpi-title">По трафику</div>
+                <div class="table-container">
+                  <table class="table" id="tblTopTraffic">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>GB/MB</th>
+                        <th>%</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+              <div>
+                <div class="kpi-title">По подключениям</div>
+                <div class="table-container">
+                  <table class="table" id="tblTopConns">
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>#</th>
+                        <th>%</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Правая колонка: Графики пользователей (600px) -->
+          <div class="users-charts-column">
+            <div class="chartbox">
+              <div class="kpi-title">По трафику</div>
+              <div id="chUsersTraffic" style="width:100%;height:100%;"></div>
+            </div>
+            <div class="chartbox">
+              <div class="kpi-title">По подключениям</div>
+              <div id="chUsersConns" style="width:100%;height:100%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- UsersPanel: Пользователи -->
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <h2>Пользователи</h2>
+          <div class="meta">Фильтр сохраняется. Если выбрать слишком много — не уместится без скролла (и это нормально).</div>
+        </div>
+        <div class="users-controls-row">
+          <div class="seg" title="Сравнение пользователей">
+            <button id="segCmpTraffic" class="">Traffic</button>
+            <button id="segCmpConns" class="active">Conns</button>
+          </div>
+          <div class="seg" title="Мини-график в карточках">
+            <button id="segMiniTraffic" class="active">Mini: Traffic</button>
+            <button id="segMiniConns" class="">Mini: Conns</button>
+          </div>
+          <div class="filters-inline" id="userFilters"></div>
+        </div>
+      </div>
+      <div class="card-bd">
+        <div class="users-grid" id="usersGrid"></div>
+      </div>
+      <div class="notice" id="usersNotice" style="display:none"></div>
+    </div>
+  </div>
+  
+  <!-- ОНЛАЙН (near-realtime) -->
+  <div class="pane" data-pane="online" id="paneOnline">
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <h2>Онлайн</h2>
+          <div class="meta" id="onlineMeta">Источник: <span id="onlineSource">—</span></div>
+        </div>
+        <div class="row">
+          <div class="seg" title="Scope">
+            <button id="segScopeGlobal" class="active">Global</button>
+            <button id="segScopeUsers">By users</button>
+          </div>
+          <div class="seg" title="Метрика">
+            <button id="segMetricTraffic" class="">Traffic</button>
+            <button id="segMetricConns" class="active">Conns</button>
+            <button id="segMetricOnline">Online users</button>
+          </div>
+          <div class="seg" title="Период">
+            <button id="segPeriod60m" class="active">60m</button>
+            <button id="segPeriod6h">6h</button>
+            <button id="segPeriod24h">24h</button>
+          </div>
+          <div class="seg" title="Гранулярность">
+            <button id="segGran1m">1m</button>
+            <button id="segGran5m" class="active">5m</button>
+            <button id="segGran10m">10m</button>
+          </div>
+          <button class="btn" id="btnPause">Pause</button>
+        </div>
+      </div>
+      <div class="card-bd">
+        <div class="online-now" id="onlineNow">
+          <div class="kpi-card">
+            <div class="kpi-title">Online users</div>
+            <div class="kpi-value" id="onlineUsersValue">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">Connections</div>
+            <div class="kpi-value" id="onlineConnsValue">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">Traffic</div>
+            <div class="kpi-value" id="onlineTrafficValue">—</div>
+            <div class="kpi-subline" id="onlineTrafficNote" style="display:none;">Traffic unavailable</div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+          <div class="chartbox" style="position: relative;">
+            <div class="kpi-title" style="position: absolute; top: 4px; left: 4px; right: 4px; z-index: 10; font-size: 13px; margin: 0; padding: 0;">Подключения</div>
+            <div id="chOnlineConns" style="width:100%;height:100%;"></div>
+          </div>
+          <div class="chartbox" style="position: relative;">
+            <div class="kpi-title" style="position: absolute; top: 4px; left: 4px; right: 4px; z-index: 10; font-size: 13px; margin: 0; padding: 0;">Трафик</div>
+            <div id="chOnlineTraffic" style="width:100%;height:100%;"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Top users (сегодня)</h3>
+          <table class="table" id="tblOnlineTop">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Статус</th>
+                <th>Трафик</th>
+                <th>Подключения</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- STATUS / RESTART / JOURNAL -->
+  <div class="pane" data-pane="status" id="paneStatus">
+    <div class="card">
+      <h3>System Status</h3>
+      <div id="statusContent"></div>
+    </div>
+  </div>
+  
+  <div class="pane" data-pane="restart" id="paneRestart">
+    <div class="card">
+      <h3>Restart Services</h3>
+      <div class="btn-group">
+        <button class="btn" id="btnRestartUI">Restart UI</button>
+        <button class="btn" id="btnRestartXray">Restart Xray</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="pane" data-pane="journal" id="paneJournal">
+    <div class="card">
+      <h3>Journal Logs</h3>
+      <select id="journalTarget">
+        <option value="ui">UI</option>
+        <option value="xray" selected>Xray</option>
+      </select>
+      <pre id="journalContent" style="max-height:600px;overflow:auto;font-size:12px;"></pre>
+    </div>
+  </div>
+
+      <!-- USERS -->
+  <div class="pane" data-pane="users">
+    <div class="card">
+      <h3 class="card-title">
+        <span data-i18n="usersManagement">Управление пользователями</span>
+        <span class="help" data-tip="Список пользователей из Xray config. Можно добавлять, удалять и кикать (сменить UUID чтобы отключить текущие сессии).">?</span>
+      </h3>
+      <div class="card-desc" data-i18n="usersDesc">
+        Здесь показаны все пользователи из конфига Xray. Вы можете добавить нового, удалить существующего или "кикнуть" — сменить UUID, чтобы текущие подключения оборвались.
+        </div>
+      
+      <div class="btn-group">
+        <button class="btn primary" id="btnAddUser">➕ <span data-i18n="addUser">Добавить</span></button>
+        <button class="btn" id="btnRefreshUsers">🔄 <span data-i18n="refresh">Обновить</span></button>
+      </div>
+
+      <div class="table-wrap">
+        <table id="usersTable">
+          <thead>
+            <tr>
+              <th data-i18n="name">Имя/Alias</th>
+              <th>UUID</th>
+              <th>ТОП-3 домена</th>
+              <th>Дней подключения</th>
+              <th>Суммарный трафик</th>
+              <th>Статус</th>
+              <th data-i18n="actions">Действия</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        </div>
+        </div>
+      </div>
+
+  <!-- EVENTS -->
+  <div class="pane" data-pane="events">
+    <div class="card">
+      <h3 class="card-title">
+        <span data-i18n="eventLog">Журнал событий</span>
+        <span class="help" data-tip="Все действия в панели логируются: добавление/удаление пользователей, рестарты, изменения настроек.">?</span>
+      </h3>
+      <div class="card-desc" data-i18n="eventsDesc">
+        Журнал всех действий в панели. Помогает отслеживать кто и когда вносил изменения.
+        </div>
+      
+      <div class="form-row">
+        <input type="text" id="eventsFilter" placeholder="Поиск..." style="flex:1;max-width:300px;">
+        <button class="btn" id="btnRefreshEvents">🔄 <span data-i18n="refresh">Обновить</span></button>
+      </div>
+
+      <div class="table-wrap">
+        <table id="eventsTable">
+          <thead>
+            <tr>
+              <th data-i18n="time">Время</th>
+              <th data-i18n="type">Тип</th>
+              <th data-i18n="action">Действие</th>
+              <th data-i18n="details">Детали</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        </div>
+        </div>
+      </div>
+
+  <!-- XRAY -->
+  <div class="pane" data-pane="xray">
+    <div class="card">
+      <h3 class="card-title">
+        <span data-i18n="xrayConfig">Конфигурация Xray</span>
+        <span class="help" data-tip="Просмотр текущего конфига Xray и параметров Reality. Изменять конфиг напрямую не рекомендуется — используйте управление пользователями.">?</span>
+      </h3>
+      <div class="card-desc" data-i18n="xrayDesc">
+        Просмотр конфигурации Xray и параметров Reality (pbk, sid, sni). Для добавления/удаления пользователей используйте вкладку "Пользователи".
+        </div>
+      
+      <div class="btn-group">
+        <button class="btn" id="btnReloadXray">🔄 <span data-i18n="reload">Загрузить</span></button>
+        <button class="btn danger" id="btnRestartXray">⚡ <span data-i18n="restartXray">Перезапустить Xray</span></button>
+      </div>
+
+      <div class="mt-16">
+        <label><strong>Reality параметры:</strong></label>
+        <pre id="realityParams" class="mono" style="background:var(--panel2);padding:12px;border-radius:8px;overflow-x:auto;font-size:12px;"></pre>
+        </div>
+      
+      <div class="mt-16">
+        <label><strong>Конфиг (только чтение):</strong></label>
+        <textarea id="xrayConfig" readonly></textarea>
+        </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS -->
+  <div class="pane" data-pane="settings">
+    <div class="card">
+      <h3 class="card-title">
+        <span data-i18n="settingsTitle">Настройки панели</span>
+        <span class="help" data-tip="Настройки сохраняются автоматически при нажатии 'Сохранить'. После изменения server_host ссылки будут генерироваться с новым адресом.">?</span>
+      </h3>
+      <div class="card-desc" data-i18n="settingsDesc">
+        Здесь можно настроить адрес сервера для генерации ссылок, путь к CSV-отчётам и другие параметры.
+        </div>
+      
+      <div class="form-row">
+        <label>
+          Server Host
+          <span class="help" data-tip="IP-адрес или домен вашего сервера. Используется при генерации VLESS-ссылок.">?</span>
+        </label>
+        <input type="text" id="setServerHost" placeholder="123.45.67.89" style="width:200px;">
+        </div>
+
+      <div class="form-row">
+        <label>
+          Reality PBK (override)
+          <span class="help" data-tip="Публичный ключ Reality. Оставьте пустым для автоматического вычисления из privateKey.">?</span>
+        </label>
+        <input type="text" id="setPbk" placeholder="(авто)" style="width:300px;">
+        </div>
+
+      <div class="form-row">
+        <label>
+          CSV директория
+          <span class="help" data-tip="Путь к директории с CSV-отчётами от сборщика статистики.">?</span>
+        </label>
+        <input type="text" id="setUsageDir" placeholder="/var/log/xray/usage" style="width:300px;">
+      </div>
+
+      <div class="btn-group mt-16">
+        <button class="btn primary" id="btnSaveSettings">💾 <span data-i18n="save">Сохранить</span></button>
+        <button class="btn" id="btnReloadSettings">🔄 <span data-i18n="reload">Загрузить</span></button>
+        </div>
+      </div>
+
+    <div class="card">
+      <h3 class="card-title">Collector (сборщик статистики)</h3>
+      <div class="card-desc">
+        <strong>Что это:</strong> Сборщик работает по cron и генерирует CSV-файлы с трафиком из Xray access.log.<br/>
+        <strong>Что можно делать:</strong> Просматривать статус (включен/выключен), количество файлов, последний файл, лаг сборщика.<br/>
+        <strong>Управление:</strong> Включение/выключение и изменение интервала выполняется через cron (не из панели).
+      </div>
+      <div id="collectorStatus"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">Подтверждение</h3>
+    <p id="modalText" class="muted"></p>
+    <div id="modalInput"></div>
+    <div class="modal-actions">
+      <button class="btn" id="modalCancel">Отмена</button>
+      <button class="btn danger" id="modalConfirm">Подтвердить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-title" id="toastTitle"></div>
+  <div class="toast-text" id="toastText"></div>
+</div>
+
+<script>
+// ==================== I18N ====================
+const i18n = {
+  ru: {
+    dashboard: 'Обзор',
+    users: 'Пользователи',
+    events: 'События',
+    xray: 'Xray',
+    settings: 'Настройки',
+    topUsers: 'Топ пользователей по трафику',
+    user: 'Пользователь',
+    traffic: 'Трафик',
+    daysActive: 'Дней активен',
+    usersManagement: 'Управление пользователями',
+    usersDesc: 'Здесь показаны все пользователи из конфига Xray. Вы можете добавить нового, удалить существующего или "кикнуть" — сменить UUID.',
+    addUser: 'Добавить',
+    refresh: 'Обновить',
+    name: 'Имя',
+    actions: 'Действия',
+    eventLog: 'Журнал событий',
+    eventsDesc: 'Журнал всех действий в панели.',
+    time: 'Время',
+    type: 'Тип',
+    action: 'Действие',
+    details: 'Детали',
+    xrayConfig: 'Конфигурация Xray',
+    xrayDesc: 'Просмотр конфигурации Xray и параметров Reality.',
+    reload: 'Загрузить',
+    restartXray: 'Перезапустить Xray',
+    settingsTitle: 'Настройки панели',
+    settingsDesc: 'Настройте адрес сервера и другие параметры.',
+    save: 'Сохранить',
+    todayTraffic: 'Трафик сегодня',
+    yesterdayTraffic: 'Трафик вчера',
+    totalTraffic: 'Всего за период',
+    activeUsers: 'Активных юзеров',
+    collectorLag: 'Лаг сборщика',
+    getLink: 'Ссылка',
+    kick: 'Кикнуть',
+    delete: 'Удалить',
+    confirmDelete: 'Вы уверены что хотите удалить пользователя',
+    confirmKick: 'Сменить UUID пользователя? Все текущие подключения оборвутся.',
+    userAdded: 'Пользователь добавлен',
+    userDeleted: 'Пользователь удалён',
+    userKicked: 'UUID сменён, пользователь кикнут',
+    linkCopied: 'Ссылка скопирована',
+    settingsSaved: 'Настройки сохранены',
+    error: 'Ошибка',
+  },
+  en: {
+    dashboard: 'Dashboard',
+    users: 'Users',
+    events: 'Events',
+    xray: 'Xray',
+    settings: 'Settings',
+    topUsers: 'Top users by traffic',
+    user: 'User',
+    traffic: 'Traffic',
+    daysActive: 'Days active',
+    usersManagement: 'Users management',
+    usersDesc: 'All users from Xray config. You can add, delete or kick (change UUID to disconnect current sessions).',
+    addUser: 'Add',
+    refresh: 'Refresh',
+    name: 'Name',
+    actions: 'Actions',
+    eventLog: 'Event log',
+    eventsDesc: 'Log of all actions in the panel.',
+    time: 'Time',
+    type: 'Type',
+    action: 'Action',
+    details: 'Details',
+    xrayConfig: 'Xray Configuration',
+    xrayDesc: 'View Xray config and Reality params.',
+    reload: 'Reload',
+    restartXray: 'Restart Xray',
+    settingsTitle: 'Panel Settings',
+    settingsDesc: 'Configure server address and other params.',
+    save: 'Save',
+    todayTraffic: 'Today traffic',
+    yesterdayTraffic: 'Yesterday traffic',
+    totalTraffic: 'Total for period',
+    activeUsers: 'Active users',
+    collectorLag: 'Collector lag',
+    getLink: 'Link',
+    kick: 'Kick',
+    delete: 'Delete',
+    confirmDelete: 'Are you sure you want to delete user',
+    confirmKick: 'Change user UUID? All current connections will be dropped.',
+    userAdded: 'User added',
+    userDeleted: 'User deleted',
+    userKicked: 'UUID changed, user kicked',
+    linkCopied: 'Link copied',
+    settingsSaved: 'Settings saved',
+    error: 'Error',
+  }
+};
+
+function t(key) {
+  return i18n[state.lang]?.[key] || i18n.en[key] || key;
+}
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    el.textContent = t(key);
+  });
+}
+
+// ==================== UTILS ====================
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return document.querySelectorAll(sel); }
+
+function fmtBytes(n) {
+  n = Number(n || 0);
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return (i === 0 ? n.toFixed(0) : n.toFixed(2)) + ' ' + units[i];
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(state.lang === 'ru' ? 'ru-RU' : 'en-US', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+    });
+  } catch { return iso; }
+}
+
+function showToast(title, text) {
+  $('#toastTitle').textContent = title;
+  $('#toastText').textContent = text || '';
+  $('#toast').classList.add('show');
+  setTimeout(() => $('#toast').classList.remove('show'), 3000);
+}
+
+async function api(path, opts = {}) {
+  try {
+    const res = await fetch(path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...opts
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    const data = await res.json();
+    // If response has 'ok' field, check it
+    if (data.hasOwnProperty('ok') && !data.ok && data.error) {
+      throw new Error(data.error);
+    }
+    return data;
+  } catch (e) {
+    console.error('API error:', path, e);
+    const msg = e.message || 'Ошибка запроса';
+    if ($('#toast')) {
+      showToast('❌', msg);
+    }
+    throw e;
+  }
+}
+
+function modal(title, text, inputHtml = '', cancelText = 'Отмена', confirmText = 'Подтвердить', confirmDanger = false) {
+  return new Promise(resolve => {
+    $('#modalTitle').textContent = title;
+    $('#modalText').innerHTML = text; // Use innerHTML to support HTML
+    $('#modalInput').innerHTML = inputHtml;
+    
+    // Update button texts
+    const cancelBtn = $('#modalCancel');
+    const confirmBtn = $('#modalConfirm');
+    if (cancelBtn) cancelBtn.textContent = cancelText;
+    if (confirmBtn) {
+      confirmBtn.textContent = confirmText;
+      if (confirmDanger) {
+        confirmBtn.classList.add('danger');
+      } else {
+        confirmBtn.classList.remove('danger');
+      }
+    }
+    
+    $('#modalOverlay').classList.add('show');
+    
+    const cleanup = () => {
+      $('#modalOverlay').classList.remove('show');
+      $('#modalConfirm').onclick = null;
+      $('#modalCancel').onclick = null;
+    };
+    
+    $('#modalConfirm').onclick = () => {
+      cleanup();
+      const input = $('#modalInput input') || $('#modalInput textarea') || null;
+      if (input) {
+        resolve(input.value);
+      } else {
+        resolve(true);
+      }
+    };
+    $('#modalCancel').onclick = () => {
+      cleanup();
+      resolve(null);
+    };
+  });
+}
+
+// ==================== THEME ====================
+function setTheme(theme) {
+  state.theme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  const themeIcon = $('#themeIcon');
+  const themeText = $('#themeText');
+  if (themeIcon) themeIcon.textContent = theme === 'dark' ? '🌙' : '☀️';
+  if (themeText) themeText.textContent = theme === 'dark' ? 'Тёмная' : 'Светлая';
+  localStorage.setItem('theme', theme);
+  localStorage.setItem('ui.theme', theme);
+}
+
+// ==================== TABS ====================
+function setTab(tab) {
+  if (!tab) {
+    console.warn('setTab called without tab parameter');
+    return;
+  }
+  
+  // Update tabs
+  $$('.tab').forEach(t => {
+    if (t && t.dataset) {
+      t.classList.toggle('active', t.dataset.tab === tab);
+    }
+  });
+  
+  // Update panes - hide all, show active
+  // Map dashboard tab to management pane
+  const targetPane = (tab === 'dashboard') ? 'management' : tab;
+  const navPillPanes = ['online', 'status', 'restart', 'journal'];
+  
+  $$('.pane').forEach(p => {
+    if (p && p.dataset) {
+      const paneName = p.dataset.pane;
+      
+      // Show target pane if it matches
+      if (paneName === targetPane) {
+        p.classList.add('active');
+        p.style.display = 'block';
+      } 
+      // Hide all other panes
+      else {
+        p.classList.remove('active');
+        p.style.display = 'none';
+      }
+    }
+  });
+  
+  // Deactivate nav pills when switching to tabs
+  $$('.nav-pill').forEach(p => {
+    if (p) p.classList.remove('active');
+  });
+  
+  // Load content for active tab
+  if (tab === 'dashboard') {
+    // Dashboard directly shows management pane (no nav pill needed)
+    loadManagement();
+  } else if (tab === 'users') {
+    loadUsers();
+  } else if (tab === 'events') {
+    loadEvents();
+  } else if (tab === 'xray') {
+    loadXrayConfig();
+  } else if (tab === 'settings') {
+    loadSettings();
+  }
+}
+
+// ==================== STATE & LOCALSTORAGE ====================
+const state = {
+  settings: null,
+  users: [],
+  lang: localStorage.getItem('ui.lang') || 'ru',
+  theme: localStorage.getItem('ui.theme') || 'dark',
+  unit: localStorage.getItem('ui.unit') || 'gb',
+  mode: localStorage.getItem('usage.mode') || 'daily',
+  date: localStorage.getItem('usage.date') || '',
+  selectedUsers: JSON.parse(localStorage.getItem('users.selected') || '[]'),
+  mainMetric: localStorage.getItem('users.mainMetric') || 'traffic',
+  miniMetric: localStorage.getItem('users.miniMetric') || 'traffic',
+  livePeriod: parseInt(localStorage.getItem('live.period') || '3600'),
+  liveGran: parseInt(localStorage.getItem('live.gran') || '300'),
+  liveMetric: localStorage.getItem('live.metric') || 'conns',
+  liveScope: localStorage.getItem('live.scope') || 'global',
+  livePaused: localStorage.getItem('live.paused') === 'true',
+  dashboard: null,
+};
+
+// ==================== NAVIGATION ====================
+function setNav(nav) {
+  if (!nav) {
+    console.warn('setNav called without nav parameter');
+    return;
+  }
+  
+  // Update nav pills
+  const navPills = $$('.nav-pill');
+  navPills.forEach(p => {
+    if (p && p.dataset) {
+      const isActive = p.dataset.nav === nav;
+      if (isActive) {
+        p.classList.add('active');
+      } else {
+        p.classList.remove('active');
+      }
+    }
+  });
+  
+  // Update panes - hide all, show active
+  const panes = $$('.pane');
+  panes.forEach(p => {
+    if (p && p.dataset) {
+      const paneName = p.dataset.pane;
+      
+      // Show target nav pane
+      if (paneName === nav) {
+        p.classList.add('active');
+        p.style.display = 'block';
+      } 
+      // Hide all other panes
+      else {
+        p.classList.remove('active');
+        p.style.display = 'none';
+      }
+    }
+  });
+  
+  // Deactivate tabs when switching to nav pills
+  $$('.tab').forEach(t => {
+    if (t) t.classList.remove('active');
+  });
+  
+  // Load content for active pane
+  if (nav === 'online') {
+    startOnlinePolling(); // Запустить online polling только на вкладке online
+  } else if (nav === 'status') {
+    stopOnlinePolling();
+    loadStatus();
+  } else if (nav === 'restart') {
+    stopOnlinePolling();
+    loadRestart();
+  } else if (nav === 'journal') {
+    stopOnlinePolling();
+    loadJournal();
+  }
+}
+
+// ==================== MANAGEMENT (История) ====================
+async function loadManagement() {
+  try {
+    let date = state.date;
+    if (!date) {
+      date = await getLastAvailableDate();
+    }
+    if (!date) {
+      console.warn('No date available for dashboard');
+      showToast('⚠️', 'Нет доступных дат для отображения');
+      return;
+    }
+    
+    console.log('Loading dashboard for date:', date, 'mode:', state.mode);
+    const data = await api(`/api/usage/dashboard?date=${date}&mode=${state.mode}&windowDays=7`);
+    
+    // API returns {ok: true, ...} or just data
+    if (data && (data.ok !== false)) {
+      console.log('Dashboard data loaded successfully:', {
+        summary: data.summary ? 'present' : 'missing',
+        trends: data.trends ? 'present' : 'missing',
+        users: data.users ? `${data.users.length} users` : 'missing',
+        meta: data.meta || {}
+      });
+      state.dashboard = data;
+      renderManagement(data);
+    } else {
+      console.error('Dashboard data invalid:', data);
+      showToast('❌', 'Неверный формат данных');
+    }
+  } catch (e) {
+    console.error('Management load error:', e);
+    showToast('❌', 'Ошибка загрузки данных: ' + (e.message || 'неизвестная ошибка'));
+  }
+}
+
+async function getLastAvailableDate() {
+  try {
+    const res = await api('/api/usage/dates');
+    // Handle both {ok: true, dates: [...]} and {dates: [...]} formats
+    const dates = (res && res.ok && res.dates) ? res.dates : (res && res.dates ? res.dates : []);
+    if (dates && dates.length > 0) {
+      // Prefer today's date, otherwise use the first (most recent) date
+      const today = new Date().toISOString().split('T')[0];
+      const date = dates.includes(today) ? today : dates[0];
+      state.date = date;
+      localStorage.setItem('usage.date', state.date);
+      return date;
+    }
+  } catch (e) {
+    console.error('Error getting last available date:', e);
+  }
+  return null;
+}
+
+function renderManagement(data) {
+  if (!data) {
+    console.warn('renderManagement: no data');
+    return;
+  }
+  // Handle both {ok: true, ...} and direct data formats
+  if (data.hasOwnProperty('ok') && !data.ok) {
+    console.warn('renderManagement: data.ok is false', data);
+    return;
+  }
+  
+  console.log('renderManagement: rendering data', {
+    summary: data.summary ? 'present' : 'missing',
+    trends: data.trends ? 'present' : 'missing',
+    topDomains: data.topDomains ? 'present' : 'missing',
+    users: data.users ? `${data.users.length} users` : 'missing',
+    userDetails: data.userDetails ? `${Object.keys(data.userDetails).length} details` : 'missing',
+    meta: data.meta || {}
+  });
+  
+  const s = data.summary || {};
+  const t = data.trends || {};
+  const td = data.topDomains || { traffic: [], conns: [] };
+  const u = data.users || [];
+  const ud = data.userDetails || {};
+  const meta = data.meta || {};
+  
+  // Render KPI cards
+  try {
+    renderKPICards(s, td, state.unit);
+  } catch (e) {
+    console.error('Error rendering KPI cards:', e);
+  }
+  
+  // Render trends charts - force update by disposing old charts first
+  if (typeof trafficChart !== 'undefined' && trafficChart) {
+    try {
+      trafficChart.dispose();
+      trafficChart = null;
+    } catch (e) {
+      console.warn('Error disposing traffic chart:', e);
+    }
+  }
+  if (typeof connsChart !== 'undefined' && connsChart) {
+    try {
+      connsChart.dispose();
+      connsChart = null;
+    } catch (e) {
+      console.warn('Error disposing conns chart:', e);
+    }
+  }
+  renderTrendsCharts(t, state.mode, state.unit);
+  
+  // Render top domains tables
+  renderTopDomainsTables(td, state.unit);
+  
+  // Render users histograms (always show ALL users, not filtered)
+  // These are separate from the user filter in the Users section
+  renderUsersHistograms(u, state.unit);
+  
+  // Render users section
+  renderUsersSection(u, ud, state.selectedUsers, state.mainMetric, state.miniMetric, state.mode, state.unit);
+  
+  // Update date select
+  updateDateSelect();
+}
+
+function renderKPICards(summary, topDomains, unit) {
+  if (!summary) {
+    console.warn('renderKPICards: no summary data');
+    return;
+  }
+  if (!topDomains) {
+    console.warn('renderKPICards: no topDomains data');
+    topDomains = { traffic: [], conns: [], top3TrafficDomains: [], top3ConnsDomains: [] };
+  }
+  
+  const gbBase = 1000000000;
+  const mbBase = 1000000;
+  const base = unit === 'gb' ? gbBase : mbBase;
+  const unitLabel = unit === 'gb' ? 'GB' : 'MB';
+  
+  // Today traffic
+  const todayTraffic = (summary.todayTrafficBytes || 0) / base;
+  const yesterdayTraffic = (summary.yesterdayTrafficBytes || 0) / base;
+  const avg7dTraffic = (summary.avg7dTrafficBytes || 0) / base;
+  const deltaTodayTraffic = summary.deltaTodayTrafficPct;
+  
+  const el1 = $('#kpiTodayTrafficValue');
+  const el2 = $('#kpiTodayTrafficAvg');
+  if (el1) el1.textContent = todayTraffic.toFixed(2) + ' ' + unitLabel;
+  if (el2) el2.textContent = avg7dTraffic.toFixed(2) + ' ' + unitLabel;
+  renderBubble($('#kpiTodayTrafficBubble'), deltaTodayTraffic);
+  
+  // Today conns
+  const todayConns = summary.todayConns || 0;
+  const yesterdayConns = summary.yesterdayConns || 0;
+  const avg7dConns = Math.round(summary.avg7dConns || 0);
+  const deltaTodayConns = summary.deltaTodayConnsPct;
+  
+  const el3 = $('#kpiTodayConnsValue');
+  const el4 = $('#kpiTodayConnsAvg');
+  if (el3) el3.textContent = todayConns.toLocaleString('ru-RU');
+  if (el4) el4.textContent = avg7dConns.toLocaleString('ru-RU');
+  renderBubble($('#kpiTodayConnsBubble'), deltaTodayConns);
+  
+  // 7d total traffic
+  const total7dTraffic = (summary.total7dTrafficBytes || 0) / base;
+  const prevTotal7dTraffic = (summary.prevTotal7dTrafficBytes || 0) / base;
+  const deltaTotal7dTraffic = summary.deltaTotal7dTrafficPct;
+  
+  const el5 = $('#kpiTotal7dTrafficValue');
+  if (el5) el5.textContent = total7dTraffic.toFixed(2) + ' ' + unitLabel;
+  renderBubble($('#kpiTotal7dTrafficBubble'), deltaTotal7dTraffic);
+  
+  // 7d total conns
+  const total7dConns = summary.total7dConns || 0;
+  const prevTotal7dConns = summary.prevTotal7dConns || 0;
+  const deltaTotal7dConns = summary.deltaTotal7dConnsPct;
+  
+  const el6 = $('#kpiTotal7dConnsValue');
+  if (el6) el6.textContent = total7dConns.toLocaleString('ru-RU');
+  renderBubble($('#kpiTotal7dConnsBubble'), deltaTotal7dConns);
+  
+  // Top domains traffic (top-3) - display with traffic data
+  const top3TrafficData = (topDomains.traffic || []).slice(0, 3);
+  const el7 = $('#kpiTopDomainsTrafficList');
+  if (el7) {
+    if (top3TrafficData.length > 0) {
+      const domainsText = top3TrafficData.map(d => {
+        const domain = d.domain || '—';
+        const traffic = ((d.trafficBytes || 0) / base).toFixed(2);
+        return `${domain} (${traffic} ${unitLabel})`;
+      }).join(' | ');
+      el7.innerHTML = `<div class="kpi-list-item" style="padding:2px 0;justify-content:flex-start;"><span>${domainsText}</span></div>`;
+    } else {
+      el7.innerHTML = '<div class="kpi-list-item" style="padding:2px 0;"><span>—</span></div>';
+    }
+  }
+  renderBubble($('#kpiTopDomainsTrafficBubble'), deltaTotal7dTraffic);
+  
+  // Top domains conns (top-3) - display with conns data
+  const top3ConnsData = (topDomains.conns || []).slice(0, 3);
+  const el8 = $('#kpiTopDomainsConnsList');
+  if (el8) {
+    if (top3ConnsData.length > 0) {
+      const domainsText = top3ConnsData.map(d => {
+        const domain = d.domain || '—';
+        const conns = (d.conns || 0).toLocaleString('ru-RU');
+        return `${domain} (${conns})`;
+      }).join(' | ');
+      el8.innerHTML = `<div class="kpi-list-item" style="padding:2px 0;justify-content:flex-start;"><span>${domainsText}</span></div>`;
+    } else {
+      el8.innerHTML = '<div class="kpi-list-item" style="padding:2px 0;"><span>—</span></div>';
+    }
+  }
+  renderBubble($('#kpiTopDomainsConnsBubble'), deltaTotal7dConns);
+}
+
+function renderBubble(el, delta) {
+  if (!el) return;
+  if (delta === null || delta === undefined) {
+    el.textContent = '—';
+    el.className = 'kpi-bubble na';
+    return;
+  }
+  const sign = delta >= 0 ? '+' : '';
+  el.textContent = `${sign}${delta.toFixed(2)}%`;
+  el.className = `kpi-bubble ${delta >= 0 ? 'up' : 'down'}`;
+}
+
+// ==================== HELPERS ====================
+/**
+ * Получает вычисленное значение CSS переменной
+ * @param {string} varName - имя переменной (например "--text" или "--muted")
+ * @param {string} fallback - значение по умолчанию если переменная не найдена
+ * @returns {string} - вычисленное значение цвета (например "#e6edf3")
+ */
+function getCSSColor(varName, fallback = '#8b949e') {
+  try {
+    const root = document.documentElement;
+    if (!root || typeof root !== 'object') {
+      return fallback;
+    }
+    const style = getComputedStyle(root);
+    if (!style) {
+      return fallback;
+    }
+    const value = style.getPropertyValue(varName).trim();
+    return value || fallback;
+  } catch (e) {
+    console.warn(`Failed to get CSS color for ${varName}:`, e);
+    return fallback;
+  }
+}
+
+/**
+ * Обёртка для am5.color с поддержкой CSS переменных
+ * @param {string} varName - имя CSS переменной (например "--text")
+ * @param {string} fallback - значение по умолчанию
+ * @returns {am5.Color} - объект цвета amCharts
+ */
+function amColorVar(varName, fallback = '#8b949e') {
+  const colorValue = getCSSColor(varName, fallback);
+  return am5.color(colorValue);
+}
+
+/**
+ * Проверяет, можно ли рендерить график в элементе
+ * @param {HTMLElement} el - элемент контейнера
+ * @returns {boolean} - true если элемент готов для рендеринга
+ */
+function isRenderable(el) {
+  if (!el || !(el instanceof Element)) {
+    return false;
+  }
+  try {
+    const rect = el.getBoundingClientRect();
+    // Элемент должен быть в DOM и иметь размеры
+    return rect.width > 0 && rect.height > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+let trafficChart = null;
+let connsChart = null;
+
+function renderTrendsCharts(trends, mode, unit) {
+  const gbBase = 1000000000;
+  const mbBase = 1000000;
+  const base = unit === 'gb' ? gbBase : mbBase;
+  const unitLabel = unit === 'gb' ? 'GB' : 'MB';
+  
+  // Traffic chart
+  const trafficData = trends.trafficDailyBytes || [];
+  if (trafficData.length === 0) {
+    console.warn('renderTrendsCharts: no traffic data');
+  }
+  
+  const trafficLabels = trafficData.map(t => {
+    try {
+      const dateStr = typeof t === 'object' ? (t.date || '') : '';
+      if (!dateStr) return '—';
+      const d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+    } catch (e) {
+      console.error('Error parsing traffic date:', t, e);
+      return '—';
+    }
+  });
+  const trafficValues = trafficData.map(t => {
+    const val = typeof t === 'object' ? (t.value || 0) : (t || 0);
+    return Number(val) / base;
+  });
+  
+  const elTraffic = document.getElementById('chTraffic');
+  if (!elTraffic) {
+    console.warn('chTraffic element not found');
+    return;
+  }
+  
+  // Destroy existing chart if exists
+  if (trafficChart) {
+    try {
+      trafficChart.dispose();
+    } catch (e) {
+      console.warn('Error disposing traffic chart:', e);
+    }
+  }
+  
+  am5.ready(() => {
+    try {
+      // Повторная проверка элемента
+      const elCheck = document.getElementById('chTraffic');
+      if (!elCheck || elCheck !== elTraffic) {
+        console.warn('renderTrendsCharts: chTraffic element changed');
+        return;
+      }
+      
+      const maxValue = Math.max(...trafficValues, 1);
+      
+      // Create root element
+      const root = am5.Root.new(elCheck);
+    root.setThemes([
+      am5themes_Animated.new(root)
+    ]);
+    
+    // Create chart
+    const chart = root.container.children.push(am5xy.XYChart.new(root, {
+      panX: false,
+      panY: false,
+      wheelX: "none",
+      wheelY: "none",
+      paddingLeft: 0,
+      paddingRight: 0
+    }));
+    
+    // Create axes
+    const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
+      categoryField: "category",
+      renderer: am5xy.AxisRendererX.new(root, {
+        cellStartLocation: 0.1,
+        cellEndLocation: 0.9,
+        minGridDistance: 30
+      })
+    }));
+    
+    xAxis.data.setAll(trafficLabels.map((label, idx) => ({
+      category: label
+    })));
+    
+    const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+      renderer: am5xy.AxisRendererY.new(root, {})
+    }));
+    
+    // Create series
+    const series = chart.series.push(am5xy.ColumnSeries.new(root, {
+      name: `Traffic (${unitLabel})`,
+      xAxis: xAxis,
+      yAxis: yAxis,
+      valueYField: "value",
+      categoryXField: "category"
+    }));
+    
+    // Configure columns with gradient fill
+    series.columns.template.setAll({
+      tooltipText: "{categoryX}: {valueY.formatNumber('#.00')} {unitLabel}",
+      tooltipY: 0,
+      strokeOpacity: 0,
+      cornerRadiusTL: 8,
+      cornerRadiusTR: 8,
+      cornerRadiusBL: 8,
+      cornerRadiusBR: 8
+    });
+    
+    // Dynamic fill color based on value
+    series.columns.template.adapters.add("fill", (fill, target) => {
+      const dataItem = target.dataItem;
+      if (dataItem) {
+        const value = dataItem.get("valueY");
+        const ratio = maxValue > 0 ? value / maxValue : 0;
+        const opacity = 0.4 + ratio * 0.4;
+        return am5.color(`rgba(88, 166, 255, ${opacity})`);
+      }
+      return fill;
+    });
+    
+    // Labels added via bullets for ColumnSeries
+    series.bullets.push(function() {
+      const label = am5.Label.new(root, {
+        text: "",
+        fill: amColorVar("--text"),
+        centerY: 0,
+        centerX: am5.p50,
+        fontSize: 11,
+        fontWeight: "bold",
+        dy: -5
+      });
+      // Format text using adapter
+      label.adapters.add("text", (text, target) => {
+        const dataItem = target.dataItem;
+        if (dataItem) {
+          const value = dataItem.get("valueY");
+          return value ? value.toFixed(2) : "";
+        }
+        return "";
+      });
+      return am5.Bullet.new(root, {
+        locationY: 1,
+        sprite: label
+      });
+    });
+    
+    // Set data
+    series.data.setAll(trafficValues.map((val, idx) => ({
+      category: trafficLabels[idx],
+      value: val,
+      unitLabel: unitLabel
+    })));
+    
+    // Add cursor
+    chart.set("cursor", am5xy.XYCursor.new(root, {}));
+    
+      trafficChart = root;
+    } catch (e) {
+      console.error('Error creating traffic chart:', e);
+      trafficChart = null;
+    }
+  });
+  
+  // Conns chart
+  const connsData = trends.connsDaily || [];
+  if (connsData.length === 0) {
+    console.warn('renderTrendsCharts: no conns data');
+  }
+  
+  const connsLabels = connsData.map(t => {
+    try {
+      const dateStr = typeof t === 'object' ? (t.date || '') : '';
+      if (!dateStr) {
+        console.warn('renderTrendsCharts: empty dateStr in conns data:', t);
+        return '—';
+      }
+      const d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d.getTime())) {
+        console.warn('renderTrendsCharts: invalid date for conns:', dateStr, t);
+        return '—';
+      }
+      const label = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+      return label;
+    } catch (e) {
+      console.error('Error parsing conns date:', t, e);
+      return '—';
+    }
+  });
+  const connsValues = connsData.map(t => {
+    const val = typeof t === 'object' ? (t.value || 0) : (t || 0);
+    const numVal = Number(val) || 0;
+    return numVal;
+  });
+  
+  // Debug: log data for troubleshooting
+  console.log('renderTrendsCharts: connsData length:', connsData.length);
+  console.log('renderTrendsCharts: connsLabels:', connsLabels);
+  console.log('renderTrendsCharts: connsValues:', connsValues);
+  
+  const elConns = document.getElementById('chConns');
+  if (!elConns) {
+    console.warn('chConns element not found');
+    return;
+  }
+  
+  // Destroy existing chart if exists
+  if (connsChart) {
+    try {
+      connsChart.dispose();
+    } catch (e) {
+      console.warn('Error disposing conns chart:', e);
+    }
+  }
+  
+  am5.ready(() => {
+    try {
+      // Повторная проверка элемента
+      const elCheck = document.getElementById('chConns');
+      if (!elCheck || elCheck !== elConns) {
+        console.warn('renderTrendsCharts: chConns element changed');
+        return;
+      }
+      
+      const maxValue = Math.max(...connsValues, 1);
+      
+      // Create root element
+      const root = am5.Root.new(elCheck);
+    root.setThemes([
+      am5themes_Animated.new(root)
+    ]);
+    
+    // Create chart
+    const chart = root.container.children.push(am5xy.XYChart.new(root, {
+      panX: false,
+      panY: false,
+      wheelX: "none",
+      wheelY: "none",
+      paddingLeft: 0,
+      paddingRight: 0
+    }));
+    
+    // Create axes
+    const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
+      categoryField: "category",
+      renderer: am5xy.AxisRendererX.new(root, {
+        cellStartLocation: 0.1,
+        cellEndLocation: 0.9,
+        minGridDistance: 30
+      })
+    }));
+    
+    // Set X-axis data - ensure all categories are included, even with 0 values
+    const xAxisData = connsLabels.map((label, idx) => ({
+      category: label
+    }));
+    xAxis.data.setAll(xAxisData);
+    console.log('renderTrendsCharts: xAxis data set:', xAxisData.length, 'categories');
+    
+    const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+      renderer: am5xy.AxisRendererY.new(root, {}),
+      min: 0  // Ensure Y-axis starts at 0 to show zero values
+    }));
+    
+    // Create series
+    const series = chart.series.push(am5xy.ColumnSeries.new(root, {
+      name: "Connections",
+      xAxis: xAxis,
+      yAxis: yAxis,
+      valueYField: "value",
+      categoryXField: "category"
+    }));
+    
+    // Configure columns with gradient fill
+    series.columns.template.setAll({
+      tooltipText: "{categoryX}: {valueY.formatNumber('#,###')} connections",
+      tooltipY: 0,
+      strokeOpacity: 0,
+      cornerRadiusTL: 8,
+      cornerRadiusTR: 8,
+      cornerRadiusBL: 8,
+      cornerRadiusBR: 8
+    });
+    
+    // Ensure zero values create visible columns (minimum height)
+    series.columns.template.adapters.add("height", (height, target) => {
+      const dataItem = target.dataItem;
+      if (dataItem) {
+        const value = dataItem.get("valueY");
+        // For zero values, show a minimal visible bar (2px) so the date is visible on graph
+        if (value === 0 || value === null || value === undefined) {
+          return 2;  // 2px minimum height for zero values
+        }
+      }
+      return height;
+    });
+    
+    // Dynamic fill color based on value
+    series.columns.template.adapters.add("fill", (fill, target) => {
+      const dataItem = target.dataItem;
+      if (dataItem) {
+        const value = dataItem.get("valueY");
+        // For zero values, use a very light color but still visible
+        if (value === 0 || value === null || value === undefined) {
+          return am5.color(`rgba(63, 185, 80, 0.15)`);  // Very light green for zero (slightly more visible)
+        }
+        const ratio = maxValue > 0 ? value / maxValue : 0;
+        const opacity = 0.4 + ratio * 0.4;
+        return am5.color(`rgba(63, 185, 80, ${opacity})`);
+      }
+      return fill;
+    });
+    
+    // Labels added via bullets for ColumnSeries
+    series.bullets.push(function() {
+      const label = am5.Label.new(root, {
+        text: "",
+        fill: amColorVar("--text"),
+        centerY: 0,
+        centerX: am5.p50,
+        fontSize: 11,
+        fontWeight: "bold",
+        dy: -5
+      });
+      // Format text using adapter
+      label.adapters.add("text", (text, target) => {
+        const dataItem = target.dataItem;
+        if (dataItem) {
+          const value = dataItem.get("valueY");
+          return value ? value.toLocaleString('ru-RU') : "";
+        }
+        return "";
+      });
+      return am5.Bullet.new(root, {
+        locationY: 1,
+        sprite: label
+      });
+    });
+    
+    // Set data - ensure all data points are included, even with 0 values
+    const seriesData = connsValues.map((val, idx) => ({
+      category: connsLabels[idx],
+      value: val
+    }));
+    console.log('renderTrendsCharts: series data set:', seriesData.length, 'points');
+    console.log('renderTrendsCharts: series data sample:', seriesData.slice(0, 3));
+    series.data.setAll(seriesData);
+    
+    // Add cursor
+    chart.set("cursor", am5xy.XYCursor.new(root, {}));
+    
+      connsChart = root;
+    } catch (e) {
+      console.error('Error creating conns chart:', e);
+      connsChart = null;
+    }
+  });
+}
+
+function renderTopDomainsTables(topDomains, unit) {
+  if (!topDomains) return;
+  
+  const gbBase = 1000000000;
+  const mbBase = 1000000;
+  const base = unit === 'gb' ? gbBase : mbBase;
+  const unitLabel = unit === 'gb' ? 'GB' : 'MB';
+  
+  // Traffic table - ограничено до top-7
+  const trafficTbody = $('#tblTopTraffic tbody');
+  if (trafficTbody) {
+    const trafficRows = (topDomains.traffic || []).slice(0, 7).map(d => `
+      <tr>
+        <td>${d.domain || '—'}</td>
+        <td>${((d.trafficBytes || 0) / base).toFixed(2)} ${unitLabel}</td>
+        <td>${(d.sharePct || 0).toFixed(2)}%</td>
+      </tr>
+    `).join('') || '<tr><td colspan="3">Нет данных</td></tr>';
+    trafficTbody.innerHTML = trafficRows;
+  }
+  
+  // Conns table - ограничено до top-7
+  const connsTbody = $('#tblTopConns tbody');
+  if (connsTbody) {
+    const connsRows = (topDomains.conns || []).slice(0, 7).map(d => `
+      <tr>
+        <td>${d.domain || '—'}</td>
+        <td>${(d.conns || 0).toLocaleString('ru-RU')}</td>
+        <td>${(d.sharePct || 0).toFixed(2)}%</td>
+      </tr>
+    `).join('') || '<tr><td colspan="3">Нет данных</td></tr>';
+    connsTbody.innerHTML = connsRows;
+  }
+}
+
+let usersCmpChart = null;
+let usersTrafficChart = null;
+let usersConnsChart = null;
+let usersDomChart = null;
+const userColors = {}; // userId -> color
+
+function getColorForUser(userId) {
+  if (!userColors[userId]) {
+    const colors = [
+      '#8ab4ff', '#26c281', '#ff5d5d', '#d29922', '#a371f7',
+      '#58a6ff', '#3fb950', '#f85149', '#d29922', '#bc8cff'
+    ];
+    const idx = Object.keys(userColors).length % colors.length;
+    userColors[userId] = colors[idx];
+  }
+  return userColors[userId];
+}
+
+// Helper function to darken a hex color (for line stroke)
+function darkenColor(hex, percent) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.max(0, Math.min(255, (num >> 16) - Math.round(255 * percent / 100)));
+  const g = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) - Math.round(255 * percent / 100)));
+  const b = Math.max(0, Math.min(255, (num & 0x0000FF) - Math.round(255 * percent / 100)));
+  return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+}
+
+function renderUsersSection(users, userDetails, selectedUsers, mainMetric, miniMetric, mode, unit) {
+  // Filter users
+  const filteredUsers = selectedUsers.length === 0 || selectedUsers.includes('all') 
+    ? users 
+    : users.filter(u => selectedUsers.includes(u.userId));
+  
+  // Render filter chips
+  renderUserFilters(users, selectedUsers);
+  
+  // Note: comparison charts are now rendered separately in renderUsersHistograms
+  // and are NOT affected by the user filter - they always show ALL users
+  
+  // Render user cards
+  renderUserCards(filteredUsers, userDetails, mode, unit, miniMetric);
+}
+
+function renderUserFilters(users, selectedUsers) {
+  const container = $('#userFilters');
+  if (!container) return;
+  
+  const allSelected = selectedUsers.length === 0 || selectedUsers.includes('all');
+  const html = `
+    <div class="filter-chip ${allSelected ? 'active' : ''}" data-user="all">Все</div>
+    ${users.map(u => {
+      const isSelected = selectedUsers.includes(u.userId);
+      return `<div class="filter-chip ${isSelected ? 'active' : ''}" data-user="${u.userId}">${u.displayName || u.userId}</div>`;
+    }).join('')}
+  `;
+  container.innerHTML = html;
+  
+  // Add click handlers
+  container.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.onclick = () => {
+      const userId = chip.dataset.user;
+      if (userId === 'all') {
+        state.selectedUsers = ['all'];
+      } else {
+        if (state.selectedUsers.includes('all')) {
+          state.selectedUsers = [userId];
+        } else {
+          const idx = state.selectedUsers.indexOf(userId);
+          if (idx >= 0) {
+            state.selectedUsers.splice(idx, 1);
+            if (state.selectedUsers.length === 0) {
+              state.selectedUsers = ['all'];
+            }
+          } else {
+            state.selectedUsers.push(userId);
+          }
+        }
+      }
+      localStorage.setItem('users.selected', JSON.stringify(state.selectedUsers));
+      if (state.dashboard) {
+        renderUsersSection(state.dashboard.users, state.dashboard.userDetails, 
+                          state.selectedUsers, state.mainMetric, state.miniMetric, state.mode, state.unit);
+      }
+    };
+  });
+}
+
+function renderUsersComparisonChart(users, metric, unit) {
+  const el = document.getElementById('chUsersCmp');
+  if (!el) return;
+  
+  const gbBase = 1000000000;
+  const mbBase = 1000000;
+  const base = unit === 'gb' ? gbBase : mbBase;
+  const unitLabel = unit === 'gb' ? 'GB' : 'MB';
+  
+  // Prepare data with users
+  const userData = users.map(u => {
+    const value = metric === 'traffic' 
+      ? Number(((u.traffic7dBytes || 0) / base).toFixed(2))
+      : Number(u.conns7d || 0);
+    return {
+      user: u,
+      label: u.displayName || u.userId,
+      value: value,
+      color: getColorForUser(u.userId)
+    };
+  });
+  
+  // Sort by value descending (top user first)
+  userData.sort((a, b) => b.value - a.value);
+  
+  const labels = userData.map(d => d.label);
+  const data = userData.map(d => d.value);
+  const colors = userData.map(d => d.color);
+  
+  // Destroy existing chart if exists
+  if (usersCmpChart) {
+    try {
+      usersCmpChart.dispose();
+    } catch (e) {
+      console.warn('Error disposing users comparison chart:', e);
+    }
+  }
+  
+  am5.ready(() => {
+    try {
+      // Повторная проверка элемента
+      const elCheck = document.getElementById('chUsersCmp');
+      if (!elCheck || elCheck !== el) {
+        console.warn('renderUsersComparisonChart: element changed');
+        return;
+      }
+      
+      // Create root element
+      const root = am5.Root.new(elCheck);
+      root.setThemes([
+        am5themes_Animated.new(root)
+      ]);
+      
+      // Create chart
+      const chart = root.container.children.push(am5xy.XYChart.new(root, {
+        panX: false,
+        panY: false,
+        wheelX: "none",
+        wheelY: "none",
+        paddingLeft: 0,
+        paddingRight: 0
+      }));
+      
+      // Create axes - vertical bar chart (categories on Y, values on X)
+      const yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, {
+        categoryField: "category",
+        renderer: am5xy.AxisRendererY.new(root, {
+          cellStartLocation: 0.1,
+          cellEndLocation: 0.9,
+          minGridDistance: 20,
+          inversed: false
+        })
+      }));
+      
+      yAxis.data.setAll(labels.map((label, idx) => ({
+        category: label
+      })));
+      
+      const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, {
+        renderer: am5xy.AxisRendererX.new(root, {})
+      }));
+      
+      // Create series - horizontal bar chart
+      const series = chart.series.push(am5xy.ColumnSeries.new(root, {
+        name: metric === 'traffic' ? `Traffic (${unitLabel})` : 'Connections',
+        xAxis: xAxis,
+        yAxis: yAxis,
+        valueXField: "value",
+        categoryYField: "category"
+      }));
+      
+      // Configure columns with user-specific colors (horizontal bars)
+      series.columns.template.setAll({
+        tooltipText: "{categoryY}: {valueX.formatNumber(metric === 'traffic' ? '#.00' : '#,###')} {unitLabel}",
+        tooltipX: 0,
+        strokeOpacity: 0,
+        cornerRadiusTL: 4,
+        cornerRadiusTR: 4,
+        cornerRadiusBL: 4,
+        cornerRadiusBR: 4
+      });
+      
+      // Dynamic fill color based on user
+      series.columns.template.adapters.add("fill", (fill, target) => {
+        const dataItem = target.dataItem;
+        if (dataItem) {
+          const idx = dataItem.get("index");
+          if (idx !== undefined && colors[idx]) {
+            return am5.color(colors[idx] + 'CC');
+          }
+        }
+        return fill;
+      });
+      
+      series.columns.template.adapters.add("stroke", (stroke, target) => {
+        const dataItem = target.dataItem;
+        if (dataItem) {
+          const idx = dataItem.get("index");
+          if (idx !== undefined && colors[idx]) {
+            return am5.color(colors[idx]);
+          }
+        }
+        return stroke;
+      });
+      
+      // Labels added via bullets for ColumnSeries (horizontal bars)
+      series.bullets.push(function() {
+        const label = am5.Label.new(root, {
+          text: "",
+          fill: amColorVar("--text"),
+          centerY: am5.p50,
+          centerX: 0,
+          fontSize: 10,
+          fontWeight: "bold",
+          dx: 5
+        });
+        // Format text using adapter
+        label.adapters.add("text", (text, target) => {
+          const dataItem = target.dataItem;
+          if (dataItem) {
+            const value = dataItem.get("valueX");
+            if (!value) return "";
+            if (metric === 'traffic') {
+              return value.toFixed(2);
+            } else {
+              return value.toLocaleString('ru-RU');
+            }
+          }
+          return "";
+        });
+        return am5.Bullet.new(root, {
+          locationX: 1,
+          sprite: label
+        });
+      });
+      
+      // Set data
+      series.data.setAll(data.map((val, idx) => ({
+        category: labels[idx],
+        value: val,
+        unitLabel: metric === 'traffic' ? unitLabel : 'connections',
+        metric: metric
+      })));
+      
+      // Add cursor
+      chart.set("cursor", am5xy.XYCursor.new(root, {}));
+      
+      usersCmpChart = root;
+    } catch (e) {
+      console.error('Error creating users comparison chart:', e);
+      usersCmpChart = null;
+    }
+  });
+}
+
+// Render two histograms for users: traffic (top) and connections (bottom)
+// These always show ALL users, regardless of filter in Users section
+function renderUsersHistograms(users, unit) {
+  if (!users || !Array.isArray(users) || users.length === 0) {
+    console.warn('renderUsersHistograms: no users data');
+    return;
+  }
+  
+  const gbBase = 1000000000;
+  const mbBase = 1000000;
+  const base = unit === 'gb' ? gbBase : mbBase;
+  const unitLabel = unit === 'gb' ? 'GB' : 'MB';
+  
+  // Prepare data for traffic histogram
+  const trafficData = users.map(u => ({
+    user: u,
+    label: u.displayName || u.userId,
+    value: Number(((u.traffic7dBytes || 0) / base).toFixed(2)),
+    color: getColorForUser(u.userId)
+  })).sort((a, b) => b.value - a.value); // Sort descending
+  
+  // Prepare data for connections histogram
+  const connsData = users.map(u => ({
+    user: u,
+    label: u.displayName || u.userId,
+    value: Number(u.conns7d || 0),
+    color: getColorForUser(u.userId)
+  })).sort((a, b) => b.value - a.value); // Sort descending
+  
+  // Render traffic histogram
+  renderUserHistogram('chUsersTraffic', trafficData, unitLabel, 'traffic', unit);
+  
+  // Render connections histogram
+  renderUserHistogram('chUsersConns', connsData, 'connections', 'conns', unit);
+}
+
+function renderUserHistogram(elementId, userData, unitLabel, metric, unit) {
+  const el = document.getElementById(elementId);
+  if (!el) {
+    console.warn(`renderUserHistogram: element ${elementId} not found`);
+    return;
+  }
+  
+  const labels = userData.map(d => d.label);
+  const values = userData.map(d => d.value);
+  const colors = userData.map(d => d.color);
+  
+  // Destroy existing chart if exists
+  if (metric === 'traffic' && usersTrafficChart) {
+    try {
+      usersTrafficChart.dispose();
+      usersTrafficChart = null;
+    } catch (e) {
+      console.warn('Error disposing users traffic chart:', e);
+    }
+  }
+  if (metric === 'conns' && usersConnsChart) {
+    try {
+      usersConnsChart.dispose();
+      usersConnsChart = null;
+    } catch (e) {
+      console.warn('Error disposing users conns chart:', e);
+    }
+  }
+  
+  am5.ready(() => {
+    try {
+      const elCheck = document.getElementById(elementId);
+      if (!elCheck) {
+        console.warn(`renderUserHistogram: element ${elementId} not found in am5.ready`);
+        return;
+      }
+      
+      // Проверяем размеры элемента
+      const rect = elCheck.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        console.warn(`renderUserHistogram: element ${elementId} has zero size, retrying...`);
+        setTimeout(() => renderUserHistogram(elementId, userData, unitLabel, metric, unit), 200);
+        return;
+      }
+      
+      console.log(`renderUserHistogram: creating chart for ${elementId}, size: ${rect.width}x${rect.height}`);
+      
+      // Create root element
+      const root = am5.Root.new(elCheck);
+      root.setThemes([
+        am5themes_Animated.new(root)
+      ]);
+      
+      // Create chart
+      const chart = root.container.children.push(am5xy.XYChart.new(root, {
+        panX: false,
+        panY: false,
+        wheelX: "none",
+        wheelY: "none",
+        paddingLeft: 0,
+        paddingRight: 0,
+        paddingTop: 20,
+        paddingBottom: 0
+      }));
+      
+      // Create axes - horizontal bar chart (categories on Y, values on X)
+      const yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, {
+        categoryField: "category",
+        renderer: am5xy.AxisRendererY.new(root, {
+          cellStartLocation: 0.1,
+          cellEndLocation: 0.9,
+          minGridDistance: 20,
+          inversed: false
+        })
+      }));
+      
+      yAxis.data.setAll(labels.map((label) => ({
+        category: label
+      })));
+      
+      const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, {
+        renderer: am5xy.AxisRendererX.new(root, {}),
+        min: 0
+      }));
+      
+      // Create series - horizontal bar chart
+      const series = chart.series.push(am5xy.ColumnSeries.new(root, {
+        name: metric === 'traffic' ? `Traffic (${unitLabel})` : 'Connections',
+        xAxis: xAxis,
+        yAxis: yAxis,
+        valueXField: "value",
+        categoryYField: "category"
+      }));
+      
+      // Configure columns
+      const formatPattern = metric === 'traffic' ? '#.00' : '#,###';
+      series.columns.template.setAll({
+        tooltipText: `{categoryY}: {valueX.formatNumber('${formatPattern}')} ${unitLabel}`,
+        tooltipX: 0,
+        strokeOpacity: 0,
+        cornerRadiusTL: 4,
+        cornerRadiusTR: 4,
+        cornerRadiusBL: 4,
+        cornerRadiusBR: 4
+      });
+      
+      // Dynamic fill color based on user
+      series.columns.template.adapters.add("fill", (fill, target) => {
+        const dataItem = target.dataItem;
+        if (dataItem) {
+          const idx = dataItem.get("index");
+          if (idx !== undefined && colors[idx]) {
+            return am5.color(colors[idx] + 'CC');
+          }
+        }
+        return fill;
+      });
+      
+      series.columns.template.adapters.add("stroke", (stroke, target) => {
+        const dataItem = target.dataItem;
+        if (dataItem) {
+          const idx = dataItem.get("index");
+          if (idx !== undefined && colors[idx]) {
+            return am5.color(colors[idx]);
+          }
+        }
+        return stroke;
+      });
+      
+      // Labels on bars
+      series.bullets.push(function() {
+        const label = am5.Label.new(root, {
+          text: "",
+          fill: amColorVar("--text"),
+          centerY: am5.p50,
+          centerX: 0,
+          fontSize: 10,
+          fontWeight: "bold",
+          dx: 5
+        });
+        label.adapters.add("text", (text, target) => {
+          const dataItem = target.dataItem;
+          if (dataItem) {
+            const value = dataItem.get("valueX");
+            if (!value) return "";
+            if (metric === 'traffic') {
+              return value.toFixed(2);
+            } else {
+              return value.toLocaleString('ru-RU');
+            }
+          }
+          return "";
+        });
+        return am5.Bullet.new(root, {
+          locationX: 1,
+          sprite: label
+        });
+      });
+      
+      // Set data
+      series.data.setAll(values.map((val, idx) => ({
+        category: labels[idx],
+        value: val
+      })));
+      
+      // Add cursor
+      chart.set("cursor", am5xy.XYCursor.new(root, {}));
+      
+      // Store chart reference
+      if (metric === 'traffic') {
+        usersTrafficChart = root;
+      } else {
+        usersConnsChart = root;
+      }
+      
+      console.log(`renderUserHistogram: chart created successfully for ${elementId}`);
+    } catch (e) {
+      console.error(`Error creating users ${metric} histogram:`, e);
+      if (metric === 'traffic') {
+        usersTrafficChart = null;
+      } else {
+        usersConnsChart = null;
+      }
+    }
+  });
+}
+
+function renderUsersDomainsChart(users, metric) {
+  const el = document.getElementById('chUsersDom');
+  if (!el) {
+    console.warn('renderUsersDomainsChart: chUsersDom element not found');
+    return;
+  }
+  
+  if (!users || !Array.isArray(users) || users.length === 0) {
+    console.warn('renderUsersDomainsChart: no users data');
+    return;
+  }
+  
+  const labels = users.map(u => u.displayName || u.userId);
+  const data = users.map(u => {
+    if (metric === 'traffic') {
+      return Number((u.traffic7dBytes || 0) / 1000000000); // GB
+    } else {
+      return Number(u.conns7d || 0);
+    }
+  });
+  const colors = users.map(u => getColorForUser(u.userId));
+  
+  // Destroy existing chart if exists
+  if (usersDomChart) {
+    try {
+      usersDomChart.dispose();
+    } catch (e) {
+      console.warn('Error disposing users domains chart:', e);
+    }
+  }
+  
+  am5.ready(() => {
+    try {
+      // Повторная проверка элемента
+      const elCheck = document.getElementById('chUsersDom');
+      if (!elCheck || elCheck !== el) {
+        console.warn('renderUsersDomainsChart: element changed');
+        return;
+      }
+      
+      const maxValue = Math.max(...data, 1);
+      const unitLabel = metric === 'traffic' ? 'GB' : 'connections';
+      
+      // Create root element
+      const root = am5.Root.new(elCheck);
+      root.setThemes([
+        am5themes_Animated.new(root)
+      ]);
+      
+      // Create chart
+      const chart = root.container.children.push(am5xy.XYChart.new(root, {
+        panX: false,
+        panY: false,
+        wheelX: "none",
+        wheelY: "none",
+        paddingLeft: 0,
+        paddingRight: 0
+      }));
+      
+      // Create axes
+      const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
+        categoryField: "category",
+        renderer: am5xy.AxisRendererX.new(root, {
+          cellStartLocation: 0.1,
+          cellEndLocation: 0.9,
+          minGridDistance: 30
+        })
+      }));
+      
+      xAxis.data.setAll(labels.map((label, idx) => ({
+        category: label
+      })));
+      
+      const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+        renderer: am5xy.AxisRendererY.new(root, {})
+      }));
+      
+      // Create series
+      const series = chart.series.push(am5xy.ColumnSeries.new(root, {
+        name: metric === 'traffic' ? `Traffic (${unitLabel})` : 'Connections',
+        xAxis: xAxis,
+        yAxis: yAxis,
+        valueYField: "value",
+        categoryXField: "category"
+      }));
+      
+      // Configure columns with user-specific colors
+      series.columns.template.setAll({
+        tooltipText: "{categoryX}: {valueY.formatNumber(metric === 'traffic' ? '#.00' : '#,###')} {unitLabel}",
+        tooltipY: 0,
+        strokeOpacity: 0,
+        cornerRadiusTL: 8,
+        cornerRadiusTR: 8,
+        cornerRadiusBL: 8,
+        cornerRadiusBR: 8
+      });
+      
+      // Dynamic fill color based on user
+      series.columns.template.adapters.add("fill", (fill, target) => {
+        const dataItem = target.dataItem;
+        if (dataItem) {
+          const idx = dataItem.get("index");
+          if (idx !== undefined && colors[idx]) {
+            return am5.color(colors[idx] + 'CC');
+          }
+        }
+        return fill;
+      });
+      
+      series.columns.template.adapters.add("stroke", (stroke, target) => {
+        const dataItem = target.dataItem;
+        if (dataItem) {
+          const idx = dataItem.get("index");
+          if (idx !== undefined && colors[idx]) {
+            return am5.color(colors[idx]);
+          }
+        }
+        return stroke;
+      });
+      
+      // Labels added via bullets for ColumnSeries
+      series.bullets.push(function() {
+        const label = am5.Label.new(root, {
+          text: "",
+          fill: amColorVar("--text"),
+          centerY: 0,
+          centerX: am5.p50,
+          fontSize: 10,
+          fontWeight: "bold",
+          dy: -5
+        });
+        // Format text using adapter
+        label.adapters.add("text", (text, target) => {
+          const dataItem = target.dataItem;
+          if (dataItem) {
+            const value = dataItem.get("valueY");
+            if (!value) return "";
+            if (metric === 'traffic') {
+              return value.toFixed(2);
+            } else {
+              return value.toLocaleString('ru-RU');
+            }
+          }
+          return "";
+        });
+        return am5.Bullet.new(root, {
+          locationY: 1,
+          sprite: label
+        });
+      });
+      
+      // Set data
+      series.data.setAll(data.map((val, idx) => ({
+        category: labels[idx],
+        value: val,
+        unitLabel: unitLabel,
+        metric: metric
+      })));
+      
+      // Add cursor
+      chart.set("cursor", am5xy.XYCursor.new(root, {}));
+      
+      usersDomChart = root;
+    } catch (e) {
+      console.error('Error creating users domains chart:', e);
+      usersDomChart = null;
+    }
+  });
+}
+
+function renderUserCards(users, userDetails, mode, unit, miniMetric) {
+  const container = $('#usersGrid');
+  if (!container) return;
+  
+  const gbBase = 1000000000;
+  const mbBase = 1000000;
+  const base = unit === 'gb' ? gbBase : mbBase;
+  const unitLabel = unit === 'gb' ? 'GB' : 'MB';
+  
+  const html = users.map(u => {
+    const details = userDetails[u.userId] || {};
+    const status = u.status === 'anomaly' ? 'аномалии' : 'ok';
+    const statusClass = u.status === 'anomaly' ? 'bad' : 'ok';
+    
+    const traffic7d = ((u.traffic7dBytes || 0) / base).toFixed(2);
+    const conns7d = (u.conns7d || 0).toLocaleString('ru-RU');
+    
+    const topTraffic = (details.topDomainsTraffic || []).slice(0, 10);
+    const topConns = (details.topDomainsConns || []).slice(0, 10);
+    
+    return `
+      <div class="card">
+        <div class="card-hd">
+          <div>
+            <h3>${u.displayName || u.userId}</h3>
+            <div class="meta">${u.userId}</div>
+          </div>
+          <span class="badge ${statusClass}">${status}</span>
+        </div>
+        <div class="card-bd">
+          <div class="row" style="margin-bottom:8px;">
+            <span class="badge">traffic7d: ${traffic7d} ${unitLabel}</span>
+            <span class="badge">conns7d: ${conns7d}</span>
+          </div>
+          <div style="height:70px;margin-bottom:6px;">
+            <div id="userChart_${u.userId}" style="width:100%;height:100%;"></div>
+          </div>
+          <div class="domains-grid">
+            <div>
+              <div class="kpi-title" style="font-size:11px;margin-bottom:6px;">Top-10 Traffic</div>
+              <table class="table">
+                <thead><tr><th>Domain</th><th>${unitLabel}</th><th>%</th></tr></thead>
+                <tbody>
+                  ${topTraffic.map(d => `
+                    <tr>
+                      <td>${d.domain}</td>
+                      <td>${((d.trafficBytes || 0) / base).toFixed(2)}</td>
+                      <td>${(d.sharePct || 0).toFixed(2)}%</td>
+                    </tr>
+                  `).join('') || '<tr><td colspan="3">Нет данных</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div class="kpi-title" style="font-size:11px;margin-bottom:6px;">Top-10 Conns</div>
+              <table class="table">
+                <thead><tr><th>Domain</th><th>#</th><th>%</th></tr></thead>
+                <tbody>
+                  ${(topConns && topConns.length > 0) ? topConns.map(d => {
+                    const domain = d.domain || '—';
+                    const conns = typeof d === 'object' ? (d.conns || 0) : 0;
+                    const pct = typeof d === 'object' ? (d.sharePct || 0) : 0;
+                    return `
+                    <tr>
+                      <td>${domain}</td>
+                      <td>${conns.toLocaleString('ru-RU')}</td>
+                      <td>${pct.toFixed(2)}%</td>
+                    </tr>
+                  `;
+                  }).join('') : '<tr><td colspan="3">Нет данных</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  container.innerHTML = html;
+  
+  // Render mini charts for each user - use miniMetric to determine which trend to show
+  users.forEach(u => {
+    const details = userDetails[u.userId] || {};
+    const trend = miniMetric === 'traffic' 
+      ? (details.trafficTrendDailyBytes || [])
+      : (details.connsTrendDaily || []);
+    renderUserMiniChart(u.userId, trend, mode, unit, miniMetric);
+  });
+}
+
+function renderUserMiniChart(userId, trend, mode, unit, miniMetric) {
+  const el = document.getElementById(`userChart_${userId}`);
+  if (!el) {
+    console.warn(`Element userChart_${userId} not found`);
+    return;
+  }
+  
+  if (!trend || !Array.isArray(trend) || trend.length === 0) {
+    console.warn(`No trend data for user ${userId}`);
+    return;
+  }
+  
+  const gbBase = 1000000000;
+  const mbBase = 1000000;
+  const base = unit === 'gb' ? gbBase : mbBase;
+  const unitLabel = miniMetric === 'traffic' ? (unit === 'gb' ? 'GB' : 'MB') : 'connections';
+  
+  const labels = trend.map(t => {
+    try {
+      const dateStr = typeof t === 'object' ? (t.date || '') : '';
+      if (!dateStr) return '—';
+      const d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+    } catch (e) {
+      console.error('Error parsing mini chart date:', t, e);
+      return '—';
+    }
+  });
+  const data = trend.map(t => {
+    const val = typeof t === 'object' ? (t.value || 0) : (t || 0);
+    // For traffic, divide by base; for conns, use value as-is
+    return miniMetric === 'traffic' ? (Number(val) / base) : Number(val);
+  });
+  const color = getColorForUser(userId);
+  
+  // Destroy existing chart if exists (store in a map)
+  if (!window.userMiniCharts) {
+    window.userMiniCharts = {};
+  }
+  if (window.userMiniCharts[userId]) {
+    try {
+      window.userMiniCharts[userId].dispose();
+    } catch (e) {
+      console.warn(`Error disposing mini chart for user ${userId}:`, e);
+    }
+  }
+  
+  am5.ready(() => {
+    try {
+      // Повторная проверка элемента
+      const elCheck = document.getElementById(`userChart_${userId}`);
+      if (!elCheck || elCheck !== el) {
+        console.warn(`renderUserMiniChart: element changed for user ${userId}`);
+        return;
+      }
+      
+      // Create root element
+      const root = am5.Root.new(elCheck);
+      root.setThemes([
+        am5themes_Animated.new(root)
+      ]);
+      
+      // Create chart
+      const chart = root.container.children.push(am5xy.XYChart.new(root, {
+        panX: false,
+        panY: false,
+        wheelX: "none",
+        wheelY: "none",
+        paddingLeft: 0,
+        paddingRight: 0,
+        paddingTop: 0,
+        paddingBottom: 0
+      }));
+      
+      // Create axes
+      const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
+        categoryField: "category",
+        renderer: am5xy.AxisRendererX.new(root, {
+          minGridDistance: 20
+        })
+      }));
+      xAxis.get("renderer").labels.template.setAll({
+        fontSize: 8,
+        fill: amColorVar("--muted")
+      });
+      
+      xAxis.data.setAll(labels.map((label, idx) => ({
+        category: label
+      })));
+      
+      const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+        renderer: am5xy.AxisRendererY.new(root, {})
+      }));
+      yAxis.get("renderer").labels.template.setAll({
+        fontSize: 8,
+        fill: amColorVar("--muted")
+      });
+      
+      // Create series with darker line and lighter fill (same color direction)
+      const darkerColor = darkenColor(color, 20); // Darker for line (20% darker)
+      
+      const seriesName = miniMetric === 'traffic' ? `Traffic (${unitLabel})` : 'Connections';
+      const lineSeries = chart.series.push(am5xy.LineSeries.new(root, {
+        name: seriesName,
+        xAxis: xAxis,
+        yAxis: yAxis,
+        valueYField: "value",
+        categoryXField: "category",
+        stroke: am5.color(darkerColor), // Darker line (same color direction, just darker)
+        fill: am5.color(color) // Same color for fill, opacity will be set separately
+      }));
+      
+      // Set tooltip format based on metric type
+      lineSeries.set("tooltip", am5.Tooltip.new(root, {
+        labelText: miniMetric === 'traffic' 
+          ? "{categoryX}: {valueY.formatNumber('#.00')} {unitLabel}"
+          : "{categoryX}: {valueY.formatNumber('#,###')} {unitLabel}"
+      }));
+      
+      lineSeries.fills.template.setAll({
+        fillOpacity: 0.3,
+        visible: true
+      });
+      
+      lineSeries.strokes.template.setAll({
+        strokeWidth: 2
+      });
+      
+      // Add bullets (points) with darker color
+      lineSeries.bullets.push(() => {
+        return am5.Bullet.new(root, {
+          sprite: am5.Circle.new(root, {
+            radius: 2,
+            fill: am5.color(darkerColor), // Use darker color for consistency
+            stroke: am5.color("#fff"),
+            strokeWidth: 1
+          })
+        });
+      });
+      
+      // Note: LineSeries doesn't have labels.template by default in amCharts 5
+      // For mini charts, we skip labels to keep them clean and readable
+      
+      // Set data
+      lineSeries.data.setAll(data.map((val, idx) => ({
+        category: labels[idx],
+        value: val,
+        unitLabel: unitLabel
+      })));
+      
+      // Store chart reference
+      window.userMiniCharts[userId] = root;
+    } catch (e) {
+      console.error(`Error creating mini chart for user ${userId}:`, e);
+      if (window.userMiniCharts) {
+        window.userMiniCharts[userId] = null;
+      }
+    }
+  });
+}
+
+async function updateDateSelect() {
+  try {
+    const res = await api('/api/usage/dates');
+    const select = $('#dateSelect');
+    if (!select) {
+      console.warn('dateSelect element not found');
+      return;
+    }
+    
+    // Handle both {ok: true, dates: [...]} and {dates: [...]} formats
+    const dates = (res.ok && res.dates) ? res.dates : (res.dates || []);
+    
+    if (dates && dates.length > 0) {
+      // Prefer today's date if available, otherwise use saved date or first date
+      const today = new Date().toISOString().split('T')[0];
+      if (!state.date) {
+        state.date = dates.includes(today) ? today : dates[0];
+        localStorage.setItem('usage.date', state.date);
+      }
+      
+      select.innerHTML = dates.map(d => 
+        `<option value="${d}" ${d === state.date ? 'selected' : ''}>${formatDate(d)}</option>`
+      ).join('');
+    } else {
+      select.innerHTML = '<option value="">Нет доступных дат</option>';
+    }
+  } catch (e) {
+    console.error('Failed to load dates:', e);
+    const select = $('#dateSelect');
+    if (select) {
+      select.innerHTML = '<option value="">Ошибка загрузки</option>';
+    }
+  }
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+// ==================== ONLINE ====================
+let onlinePollInterval = null;
+let onlineLoading = false;
+
+/**
+ * Запускает polling для online данных (только если вкладка online активна)
+ */
+function startOnlinePolling() {
+  // Очистить предыдущий интервал если есть
+  if (onlinePollInterval) {
+    clearInterval(onlinePollInterval);
+    onlinePollInterval = null;
+  }
+  
+  // Проверить что мы на вкладке online
+  const paneOnline = document.querySelector('[data-pane="online"]');
+  if (!paneOnline || !paneOnline.classList.contains('active')) {
+    return; // Не на вкладке online - не запускаем
+  }
+  
+  // Проверить что не на паузе
+  if (state.livePaused) {
+    return;
+  }
+  
+  // Загрузить сразу
+  loadOnline();
+  
+  // Запустить интервал
+  onlinePollInterval = setInterval(() => {
+    // Повторная проверка что мы всё ещё на вкладке online
+    const paneCheck = document.querySelector('[data-pane="online"]');
+    if (!paneCheck || !paneCheck.classList.contains('active') || state.livePaused) {
+      stopOnlinePolling();
+      return;
+    }
+    loadOnline();
+  }, 5000);
+}
+
+/**
+ * Останавливает polling для online данных
+ */
+function stopOnlinePolling() {
+  if (onlinePollInterval) {
+    clearInterval(onlinePollInterval);
+    onlinePollInterval = null;
+  }
+}
+
+async function loadOnline() {
+  if (state.livePaused) return;
+  
+  // Проверка что мы на вкладке online
+  const paneOnline = document.querySelector('[data-pane="online"]');
+  if (!paneOnline || !paneOnline.classList.contains('active')) {
+    return; // Не на вкладке online - не загружаем
+  }
+  
+  // Защита от параллельных вызовов
+  if (onlineLoading) {
+    return;
+  }
+  
+  onlineLoading = true;
+  
+  try {
+    // Load "now"
+    const nowRes = await api('/api/live/now');
+    if (nowRes.ok) {
+      renderOnlineNow(nowRes.now, nowRes.meta);
+    }
+    
+    // Load series for both charts
+    const [connsRes, trafficRes] = await Promise.all([
+      api(`/api/live/series?metric=conns&period=${state.livePeriod}&gran=${state.liveGran}&scope=${state.liveScope}`),
+      api(`/api/live/series?metric=traffic&period=${state.livePeriod}&gran=${state.liveGran}&scope=${state.liveScope}`)
+    ]);
+    
+    if (connsRes.ok && connsRes.series) {
+      renderOnlineChart('conns', connsRes.series, connsRes.meta);
+    }
+    if (trafficRes.ok && trafficRes.series) {
+      renderOnlineChart('traffic', trafficRes.series, trafficRes.meta);
+    }
+    
+    // Load top users for today with online status
+    const today = new Date().toISOString().split('T')[0];
+    const topRes = await api(`/api/usage/dashboard?date=${today}&mode=daily&windowDays=1`);
+    if (topRes.ok) {
+      // Get online users from now data
+      const onlineUsersList = nowRes?.now?.onlineUsers || [];
+      renderOnlineTop(topRes, onlineUsersList);
+    }
+  } catch (e) {
+    console.error('Online load error:', e);
+  } finally {
+    onlineLoading = false;
+  }
+}
+
+function renderOnlineNow(now, meta) {
+  if (!now || !meta) return;
+  const el1 = $('#onlineUsersValue');
+  const el2 = $('#onlineConnsValue');
+  const el3 = $('#onlineTrafficValue');
+  const el4 = $('#onlineTrafficNote');
+  const el5 = $('#onlineSource');
+  // Use onlineUsersCount if available, otherwise onlineUsers (for backward compatibility)
+  const onlineCount = now.onlineUsersCount !== undefined ? now.onlineUsersCount : (Array.isArray(now.onlineUsers) ? now.onlineUsers.length : (now.onlineUsers || 0));
+  if (el1) el1.textContent = onlineCount.toLocaleString('ru-RU');
+  if (el2) el2.textContent = (now.conns || 0).toLocaleString('ru-RU');
+  if (el3) {
+    if (now.trafficAvailable) {
+      el3.textContent = fmtBytes(now.trafficBytes || 0);
+      if (el4) el4.style.display = 'none';
+    } else {
+      el3.textContent = '—';
+      if (el4) el4.style.display = 'block';
+    }
+  }
+  if (el5) el5.textContent = meta.source || '—';
+}
+
+let onlineConnsChart = null;
+let onlineTrafficChart = null;
+let onlineChartInitializing = { conns: false, traffic: false };
+
+function renderOnlineChart(metric, series, meta) {
+  const chartId = metric === 'traffic' ? 'chOnlineTraffic' : 'chOnlineConns';
+  const chartVar = metric === 'traffic' ? 'onlineTrafficChart' : 'onlineConnsChart';
+  
+  // Проверка элемента и защита от множественных вызовов
+  const el = document.getElementById(chartId);
+  if (!el) {
+    return; // Тихий выход, без warn
+  }
+  
+  // Проверка что элемент готов для рендеринга
+  if (!isRenderable(el)) {
+    return; // Тихий выход, без warn
+  }
+  
+  if (!series || !Array.isArray(series) || series.length === 0) {
+    console.warn(`renderOnlineChart(${metric}): no data`);
+    return;
+  }
+  
+  // Защита от параллельных инициализаций
+  if (onlineChartInitializing[metric]) {
+    console.warn(`renderOnlineChart(${metric}): already initializing, skipping`);
+    return;
+  }
+  
+  const labels = series.map(s => {
+    const d = new Date(s.ts);
+    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  });
+  const data = series.map(s => s.value || 0);
+  
+  const unit = meta.unit === 'bytes' ? 'bytes' : 'count';
+  const label = metric === 'traffic' ? 'Traffic' : 'Connections';
+  const color = metric === 'traffic' ? '#58a6ff' : '#4caf50';
+  
+  // Destroy existing chart if exists (перед am5.ready)
+  if (window[chartVar]) {
+    try {
+      window[chartVar].dispose();
+      window[chartVar] = null;
+    } catch (e) {
+      console.warn(`Error disposing ${metric} chart:`, e);
+      window[chartVar] = null;
+    }
+  }
+  
+  onlineChartInitializing[metric] = true;
+  
+  am5.ready(() => {
+    try {
+      // Повторная проверка элемента (на случай если он был удалён)
+      const elCheck = document.getElementById(chartId);
+      if (!elCheck || elCheck !== el) {
+        console.warn(`renderOnlineChart(${metric}): element changed or removed`);
+        onlineChartInitializing[metric] = false;
+        return;
+      }
+      
+      // Create root element
+      const root = am5.Root.new(elCheck);
+      root.setThemes([
+        am5themes_Animated.new(root)
+      ]);
+      
+      // Create chart
+      const chart = root.container.children.push(am5xy.XYChart.new(root, {
+        panX: false,
+        panY: false,
+        wheelX: "none",
+        wheelY: "none",
+        paddingLeft: 0,
+        paddingRight: 0
+      }));
+      
+      // Create axes
+      const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
+        categoryField: "category",
+        renderer: am5xy.AxisRendererX.new(root, {
+          minGridDistance: 30
+        })
+      }));
+      
+      xAxis.data.setAll(labels.map((label, idx) => ({
+        category: label
+      })));
+      
+      const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+        renderer: am5xy.AxisRendererY.new(root, {})
+      }));
+      
+      // Create series
+      // Convert hex color to rgba
+      const hexToRgba = (hex, alpha) => {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      };
+      
+      const lineSeries = chart.series.push(am5xy.LineSeries.new(root, {
+        name: label,
+        xAxis: xAxis,
+        yAxis: yAxis,
+        valueYField: "value",
+        categoryXField: "category",
+        stroke: am5.color(color),
+        fill: am5.color(hexToRgba(color, 0.3))
+      }));
+      
+      lineSeries.fills.template.setAll({
+        fillOpacity: 0.3,
+        visible: true
+      });
+      
+      lineSeries.strokes.template.setAll({
+        strokeWidth: 3
+      });
+      
+      lineSeries.bullets.push(() => {
+        return am5.Bullet.new(root, {
+          sprite: am5.Circle.new(root, {
+            radius: 4,
+            fill: am5.color(color),
+            stroke: am5.color("#fff"),
+            strokeWidth: 2
+          })
+        });
+      });
+      
+      // Set data
+      lineSeries.data.setAll(data.map((val, idx) => ({
+        category: labels[idx],
+        value: val,
+        unit: unit,
+        label: label
+      })));
+      
+      // Add cursor
+      chart.set("cursor", am5xy.XYCursor.new(root, {}));
+      
+      window[chartVar] = root;
+      onlineChartInitializing[metric] = false;
+    } catch (e) {
+      console.error(`Error creating ${metric} chart:`, e);
+      window[chartVar] = null;
+      onlineChartInitializing[metric] = false;
+    }
+  });
+}
+
+function renderOnlineTop(dashboardData, onlineUsers) {
+  if (!dashboardData || !dashboardData.users) {
+    $('#tblOnlineTop tbody').innerHTML = '<tr><td colspan="4">Нет данных</td></tr>';
+    return;
+  }
+  
+  const users = dashboardData.users || [];
+  const onlineUsersSet = new Set(onlineUsers || []);
+  const userDetails = dashboardData.userDetails || {};
+  
+  // Build user list with today's data
+  // users is an array of objects with userId, displayName, traffic7dBytes, conns7d, etc.
+  // For today's data, we need to get from userDetails which has daily data
+  const userList = users.map(userData => {
+    const userId = userData.userId;
+    const details = userDetails[userId] || {};
+    
+    // Get today's data from trends (last day in the array)
+    const trafficTrend = details.trafficDailyBytes || [];
+    const connsTrend = details.connsDaily || [];
+    const userTodayTraffic = trafficTrend.length > 0 ? trafficTrend[trafficTrend.length - 1] : 0;
+    const userTodayConns = connsTrend.length > 0 ? connsTrend[connsTrend.length - 1] : 0;
+    
+    const isOnline = onlineUsersSet.has(userId);
+    
+    return {
+      userId: userId,
+      displayName: userData.displayName || userId,
+      traffic: userTodayTraffic,
+      conns: userTodayConns,
+      isOnline
+    };
+  }).filter(u => u.traffic > 0 || u.conns > 0 || u.isOnline) // Show only users with activity or online
+    .sort((a, b) => {
+      // Sort: online first, then by traffic
+      if (a.isOnline && !b.isOnline) return -1;
+      if (!a.isOnline && b.isOnline) return 1;
+      return (b.traffic || 0) - (a.traffic || 0);
+    });
+  
+  const html = userList.length > 0 ? userList.map(r => `
+    <tr>
+      <td>${r.displayName || r.userId}</td>
+      <td>${r.isOnline ? '<span style="color: var(--ok);">🟢 Онлайн</span>' : '<span style="color: var(--muted);">⚪ Офлайн</span>'}</td>
+      <td>${fmtBytes(r.traffic || 0)}</td>
+      <td>${(r.conns || 0).toLocaleString('ru-RU')}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="4">Нет данных</td></tr>';
+  
+  $('#tblOnlineTop tbody').innerHTML = html;
+}
+
+// ==================== STATUS ====================
+async function loadStatus() {
+  try {
+    const res = await api('/api/system/status');
+    if (res.ok) {
+      const s = res.services || {};
+      const html = `
+        <div class="card">
+          <h4>UI Service</h4>
+          <p>Name: ${s.ui?.name || '—'}</p>
+          <p>Active: ${s.ui?.active ? '✅' : '❌'}</p>
+          <p>State: ${s.ui?.state || '—'}</p>
+        </div>
+        <div class="card">
+          <h4>Xray Service</h4>
+          <p>Name: ${s.xray?.name || '—'}</p>
+          <p>Active: ${s.xray?.active ? '✅' : '❌'}</p>
+          <p>State: ${s.xray?.state || '—'}</p>
+        </div>
+      `;
+      $('#statusContent').innerHTML = html;
+    }
+  } catch (e) {
+    console.error('Status load error:', e);
+  }
+}
+
+// ==================== RESTART ====================
+function loadRestart() {
+  $('#btnRestartUI').onclick = async () => {
+    if (!await modal('Подтверждение', 'Перезапустить UI сервис?')) return;
+    try {
+      const res = await api('/api/system/restart?target=ui', { method: 'POST' });
+      if (res.ok) {
+        showToast('✅', 'UI перезапущен');
+      }
+    } catch (e) {
+      showToast('❌', 'Ошибка перезапуска');
+    }
+  };
+  
+  $('#btnRestartXray').onclick = async () => {
+    if (!await modal('Подтверждение', 'Перезапустить Xray сервис?')) return;
+    try {
+      const res = await api('/api/system/restart?target=xray', { method: 'POST' });
+      if (res.ok) {
+        showToast('✅', 'Xray перезапущен');
+      }
+    } catch (e) {
+      showToast('❌', 'Ошибка перезапуска');
+    }
+  };
+}
+
+// ==================== JOURNAL ====================
+async function loadJournal() {
+  const target = $('#journalTarget').value || 'xray';
+  try {
+    const res = await api(`/api/system/journal?target=${target}&limit=200`);
+    if (res.ok) {
+      $('#journalContent').textContent = res.journal || 'Нет данных';
+    }
+  } catch (e) {
+    console.error('Journal load error:', e);
+  }
+  
+  $('#journalTarget').onchange = loadJournal;
+}
+
+// ==================== OLD DASHBOARD (legacy) ====================
+async function loadDashboard() {
+  // Legacy function, redirect to management
+  setNav('management');
+}
+
+function renderDashboard(data) {
+  const kpi = data.kpi || {};
+  const global = data.global || {};
+  const usersObj = data.users || {};
+  const meta = data.meta || {};
+  
+  // Convert users object to array, sorted by sum7_traffic_bytes
+  const usersArray = Object.values(usersObj).sort((a, b) => 
+    (b.sum7_traffic_bytes || 0) - (a.sum7_traffic_bytes || 0)
+  );
+  
+  // Top users for today (from last day of daily_traffic_bytes)
+  const todayTraffic = global.daily_traffic_bytes || [];
+  const todayIdx = todayTraffic.length - 1;
+  const todayUsers = usersArray
+    .map(u => ({
+      email: u.email,
+      bytes: (u.daily_traffic_bytes || [])[todayIdx] || 0
+    }))
+    .sort((a, b) => b.bytes - a.bytes)
+    .slice(0, 5);
+  
+  // KPI Cards with icons and top users
+  const changeColor = kpi.change_pct >= 0 ? 'var(--ok)' : 'var(--bad)';
+  const changePct = kpi.change_pct !== null ? `${kpi.change_pct >= 0 ? '+' : ''}${kpi.change_pct.toFixed(1)}%` : '—';
+  
+  const topUsersHtml = todayUsers.length > 0 ? `
+    <div style="margin-top:12px;font-size:12px;">
+      <div style="color:var(--muted);margin-bottom:6px;">Top-5 пользователей:</div>
+      ${todayUsers.map((u, idx) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">${u.email}</span>
+          <span style="color:var(--text);font-weight:600;white-space:nowrap;">${fmtBytes(u.bytes || 0)}</span>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+  
+  // Top domains for KPI
+  const topDomainsTraffic = (global.top_domains_traffic || []).slice(0, 3);
+  const topDomainsConns = (global.top_domains_conns || []).slice(0, 3);
+  
+  $('#kpiGrid').innerHTML = `
+    <div class="kpi-card" style="border-left: 4px solid var(--accent);">
+      <div class="kpi-label">📊 ${t('todayTraffic')}</div>
+      <div class="kpi-value" style="color:var(--accent);">${fmtBytes(kpi.today_bytes)}</div>
+      <div class="kpi-change ${kpi.change_pct >= 0 ? 'up' : 'down'}" style="color:${changeColor};">
+        ${changePct}
+        <span style="font-size:11px;color:var(--muted);margin-left:8px;">vs вчера</span>
+      </div>
+      ${topUsersHtml}
+    </div>
+    <div class="kpi-card" style="border-left: 4px solid var(--muted);">
+      <div class="kpi-label">📅 ${t('yesterdayTraffic')}</div>
+      <div class="kpi-value">${fmtBytes(kpi.yesterday_bytes)}</div>
+    </div>
+    <div class="kpi-card" style="border-left: 4px solid var(--ok);">
+      <div class="kpi-label">💾 ${t('totalTraffic')}</div>
+      <div class="kpi-value" style="color:var(--ok);">${fmtBytes(kpi.total_bytes)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">за период</div>
+    </div>
+    <div class="kpi-card" style="border-left: 4px solid var(--warn);">
+      <div class="kpi-label">👥 ${t('activeUsers')}</div>
+      <div class="kpi-value" style="color:var(--warn);">${kpi.active_users || 0} <span style="font-size:16px;color:var(--muted);">/ ${kpi.total_users || 0}</span></div>
+    </div>
+    <div class="kpi-card" style="border-left: 4px solid ${data.collector?.lag_days > 1 ? 'var(--bad)' : 'var(--ok)'};">
+      <div class="kpi-label">⏱️ ${t('collectorLag')}</div>
+      <div class="kpi-value ${data.collector?.lag_days > 1 ? 'text-warn' : 'text-ok'}">${data.collector?.lag_days ?? '—'} <span style="font-size:14px;">дн.</span></div>
+    </div>
+    ${topDomainsTraffic.length > 0 ? `
+    <div class="kpi-card" style="border-left: 4px solid var(--accent);">
+      <div class="kpi-label">🌐 Топ домены (7д) - трафик</div>
+      <div style="margin-top:8px;font-size:12px;">
+        ${topDomainsTraffic.map((d, idx) => `
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">${idx + 1}. ${d.domain}</span>
+            <span style="color:var(--text);font-weight:600;white-space:nowrap;">${fmtBytes(d.value)}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    ` : ''}
+    ${topDomainsConns.length > 0 ? `
+    <div class="kpi-card" style="border-left: 4px solid var(--warn);">
+      <div class="kpi-label">🌐 Топ домены (7д) - подключения</div>
+      <div style="margin-top:8px;font-size:12px;">
+        ${topDomainsConns.map((d, idx) => `
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">${idx + 1}. ${d.domain}</span>
+            <span style="color:var(--text);font-weight:600;white-space:nowrap;">${d.value.toLocaleString()}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    ` : ''}
+  `;
+  
+  // Chart - use global.daily_traffic_bytes with meta.days as labels
+  const days = meta.days || [];
+  const dailyData = global.daily_traffic_bytes || [];
+  const chartData = days.map((d, i) => ({
+    date: d,
+    bytes: dailyData[i] || 0
+  }));
+  renderChart(chartData);
+  
+  // Top Users Table with progress bars
+  const totalBytes = usersArray.reduce((sum, u) => sum + (u.sum7_traffic_bytes || 0), 0);
+  const tbody = $('#topUsersTable tbody');
+  tbody.innerHTML = usersArray.slice(0, 20).map((u, idx) => {
+    const pct = totalBytes > 0 ? ((u.sum7_traffic_bytes || 0) / totalBytes * 100) : 0;
+    return `
+      <tr>
+        <td style="text-align:center;color:var(--muted);">${idx + 1}</td>
+        <td><strong class="mono">${u.email}</strong></td>
+        <td><strong>${fmtBytes(u.sum7_traffic_bytes || 0)}</strong></td>
+        <td>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:${pct}%;">${pct.toFixed(1)}%</div>
+          </div>
+        </td>
+        <td style="text-align:center;">${(u.daily_traffic_bytes || []).filter(x => x > 0).length}</td>
+      </tr>
+    `;
+  }).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;">Нет данных</td></tr>';
+  
+  // Store for other functions
+  state.dashboard = data;
+}
+
+let chartInstance = null;
+
+function renderChart(perDay) {
+  const el = $('#trafficChart');
+  if (!el) return;
+  
+  if (chartInstance) {
+    try {
+      chartInstance.dispose();
+    } catch (e) {
+      console.warn('Error disposing legacy chart:', e);
+    }
+    chartInstance = null;
+  }
+  
+  if (!perDay || !perDay.length) {
+    el.parentElement.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">Нет данных за период</div>';
+    return;
+  }
+  
+  const labels = perDay.map(d => d.date.slice(5)); // MM-DD
+  const data = perDay.map(d => d.bytes);
+  const maxValue = Math.max(...data, 1);
+  
+  am5.ready(() => {
+    try {
+      // Повторная проверка элемента
+      const elCheck = $('#trafficChart');
+      if (!elCheck || elCheck !== el) {
+        console.warn('renderChart: element changed or not found');
+        return;
+      }
+      
+      // Create root element
+      const root = am5.Root.new(elCheck);
+      root.setThemes([
+        am5themes_Animated.new(root)
+      ]);
+      
+      // Create chart
+      const chart = root.container.children.push(am5xy.XYChart.new(root, {
+        panX: false,
+        panY: false,
+        wheelX: "none",
+        wheelY: "none",
+        paddingLeft: 0,
+        paddingRight: 0
+      }));
+      
+      // Create axes
+      const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
+        categoryField: "category",
+        renderer: am5xy.AxisRendererX.new(root, {
+          cellStartLocation: 0.1,
+          cellEndLocation: 0.9,
+          minGridDistance: 30
+        })
+      }));
+      
+      xAxis.data.setAll(labels.map((label, idx) => ({
+        category: label
+      })));
+      
+      const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+        renderer: am5xy.AxisRendererY.new(root, {})
+      }));
+      
+      // Create series
+      const series = chart.series.push(am5xy.ColumnSeries.new(root, {
+        name: 'Трафик',
+        xAxis: xAxis,
+        yAxis: yAxis,
+        valueYField: "value",
+        categoryXField: "category"
+      }));
+      
+      // Configure columns
+      series.columns.template.setAll({
+        tooltipY: 0,
+        strokeOpacity: 0,
+        cornerRadiusTL: 8,
+        cornerRadiusTR: 8,
+        cornerRadiusBL: 8,
+        cornerRadiusBR: 8
+      });
+      
+      // Custom tooltip formatter
+      series.columns.template.adapters.add("tooltipText", (text, target) => {
+        const dataItem = target.dataItem;
+        if (dataItem) {
+          const value = dataItem.get("valueY");
+          const category = dataItem.get("categoryX");
+          return `${category}: ${fmtBytes(value)}`;
+        }
+        return text;
+      });
+      
+      // Dynamic fill color
+      series.columns.template.adapters.add("fill", (fill, target) => {
+        const dataItem = target.dataItem;
+        if (dataItem) {
+          const value = dataItem.get("valueY");
+          const ratio = maxValue > 0 ? value / maxValue : 0;
+          const opacity = 0.4 + ratio * 0.4;
+          return am5.color(`rgba(88, 166, 255, ${opacity})`);
+        }
+        return fill;
+      });
+      
+      // Labels added via bullets for ColumnSeries
+      series.bullets.push(function() {
+        const label = am5.Label.new(root, {
+          text: "{valueY}",
+          fill: amColorVar("--text"),
+          centerY: 0,
+          centerX: am5.p50,
+          fontSize: 10,
+          fontWeight: "bold",
+          dy: -5
+        });
+        // Custom text formatting
+        label.adapters.add("text", (text, target) => {
+          const dataItem = target.dataItem;
+          if (dataItem) {
+            const value = dataItem.get("valueY");
+            return fmtBytes(value);
+          }
+          return text;
+        });
+        return am5.Bullet.new(root, {
+          locationY: 1,
+          sprite: label
+        });
+      });
+      
+      // Set data
+      series.data.setAll(data.map((val, idx) => ({
+        category: labels[idx],
+        value: val
+      })));
+      
+      // Add cursor
+      chart.set("cursor", am5xy.XYCursor.new(root, {}));
+      
+      chartInstance = root;
+    } catch (e) {
+      console.error('Error creating legacy chart:', e);
+      chartInstance = null;
+    }
+  });
+}
+
+// ==================== USERS ====================
+async function loadUsers() {
+  try {
+    // Load users first (required)
+    const usersRes = await api('/api/users');
+    state.users = usersRes.users || [];
+    
+    // Try to load stats (optional - if fails, just show users without stats)
+    let statsMap = {};
+    try {
+      const statsRes = await api('/api/users/stats');
+      if (statsRes && statsRes.users) {
+        statsRes.users.forEach(s => {
+          statsMap[s.email] = s;
+        });
+      }
+    } catch (statsError) {
+      console.warn('Failed to load user stats, continuing without stats:', statsError);
+      // Continue without stats - users will be shown with default values
+    }
+    
+    renderUsers(state.users, statsMap);
+  } catch (e) {
+    console.error('Users load error:', e);
+    showToast('❌', 'Ошибка загрузки пользователей: ' + (e.message || 'неизвестная ошибка'));
+    // Show empty table on error
+    const tbody = $('#usersTable tbody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="7" class="muted">Ошибка загрузки данных</td></tr>';
+    }
+  }
+}
+
+function renderUsers(users, statsMap = {}) {
+  const tbody = $('#usersTable tbody');
+  if (!users || users.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="muted">Нет пользователей</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = users.map(u => {
+    const stats = statsMap[u.email] || {};
+    const alias = stats.alias || u.alias || '';
+    const displayName = alias || u.email;
+    const daysUsed = stats.daysUsed || 0;
+    const totalTraffic = stats.totalTrafficBytes || 0;
+    const top3Domains = stats.top3Domains || [];
+    const isOnline = stats.isOnline || false;
+    
+    // Format top 3 domains
+    let top3Html = '—';
+    if (top3Domains.length > 0) {
+      top3Html = top3Domains.map(d => {
+        const trafficGB = (d.trafficBytes / 1000000000).toFixed(2);
+        return `<span style="display: inline-block; margin-right: 8px;" title="${d.domain}: ${trafficGB} GB (${d.sharePct}%)">${escapeHtml(d.domain)}</span>`;
+      }).join('');
+    }
+    
+    // Status indicator
+    const statusHtml = isOnline 
+      ? '<span style="color: var(--ok);">🟢 Онлайн</span>' 
+      : '<span style="color: var(--muted);">⚪ Офлайн</span>';
+    
+    return `
+    <tr>
+      <td>
+        <span class="user-name" data-email="${u.email}" style="cursor: pointer; position: relative;">
+          <strong>${escapeHtml(displayName)}</strong>
+          <span style="margin-left: 4px; opacity: 0.6; font-size: 10px;" onclick="event.stopPropagation(); editUserAlias('${u.email}', '${escapeHtml(alias)}')" title="Редактировать alias">✏️</span>
+        </span>
+      </td>
+      <td class="mono" style="font-size:11px;">${u.uuid}</td>
+      <td style="font-size:11px; max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="${top3Domains.map(d => `${d.domain}: ${(d.trafficBytes / 1000000000).toFixed(2)} GB (${d.sharePct}%)`).join('\\n')}">${top3Html}</td>
+      <td style="text-align: center;">${daysUsed}</td>
+      <td>${fmtBytes(totalTraffic)}</td>
+      <td>${statusHtml}</td>
+      <td>
+        <div class="flex gap-8">
+          <button class="btn" onclick="copyUserLink('${u.email}')" title="Скопировать VLESS ссылку">🔗 ${t('getLink')}</button>
+          <button class="btn" onclick="kickUser('${u.email}')" title="Отключить пользователя (сменить UUID)">🔄 ${t('kick')}</button>
+          <button class="btn danger" onclick="deleteUser('${u.email}')" title="Удалить пользователя навсегда">🗑️ ${t('delete')}</button>
+        </div>
+      </td>
+    </tr>
+  `;
+  }).join('');
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+async function addUser() {
+  const email = await modal(t('addUser'), 'Введите имя пользователя (email):', '<input type="text" id="newUserEmail" placeholder="user_12" style="width:100%;">');
+  if (!email) return;
+  
+  try {
+    await api('/api/users/add', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+    showToast('✅', t('userAdded'));
+    loadUsers();
+    loadDashboard();
+  } catch (e) {}
+}
+
+async function copyUserLink(email) {
+  try {
+    const res = await api(`/api/users/link?email=${encodeURIComponent(email)}`);
+    if (res.ok && res.link) {
+      // Copy to clipboard
+      await navigator.clipboard.writeText(res.link);
+      showToast('✅', 'Ссылка скопирована в буфер обмена');
+    } else {
+      showToast('❌', res.error || 'Ошибка получения ссылки');
+    }
+  } catch (e) {
+    console.error('Copy link error:', e);
+    showToast('❌', 'Ошибка копирования ссылки');
+  }
+}
+
+async function deleteUser(email) {
+  const confirmed = await modal(
+    '⚠️ ВНИМАНИЕ: Необратимое действие',
+    `Вы уверены, что хотите удалить пользователя "${email}"?<br><br><strong style="color: var(--bad);">Это действие нельзя отменить.</strong><br>UUID будет удалён из конфигурации безвозвратно.`,
+    '',
+    'Отмена',
+    'Удалить навсегда'
+  );
+  if (!confirmed) return;
+  
+  try {
+    const res = await api('/api/users/delete', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+    if (res.ok) {
+      showToast('✅', 'Пользователь удалён');
+      loadUsers();
+      loadDashboard();
+    } else {
+      showToast('❌', res.error || 'Ошибка удаления');
+    }
+  } catch (e) {
+    console.error('Delete user error:', e);
+    showToast('❌', 'Ошибка удаления пользователя');
+  }
+}
+
+async function kickUser(email) {
+  const confirmed = await modal(
+    'Отключить пользователя',
+    `Вы уверены, что хотите отключить пользователя "${email}"?<br><br>Текущие подключения будут разорваны, но пользователь сможет подключиться снова по той же ссылке (UUID будет изменён, но ссылка останется валидной).`,
+    '',
+    'Отмена',
+    'Кикнуть'
+  );
+  if (!confirmed) return;
+  
+  try {
+    const res = await api('/api/users/kick', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+    if (res.ok) {
+      showToast('✅', 'Пользователь отключён');
+      loadUsers();
+    } else {
+      showToast('❌', res.error || 'Ошибка отключения');
+    }
+  } catch (e) {
+    console.error('Kick user error:', e);
+    showToast('❌', 'Ошибка отключения пользователя');
+  }
+}
+
+async function editUserAlias(email, currentAlias) {
+  const alias = await modal(
+    'Редактировать Alias',
+    `Введите alias для пользователя "${email}":`,
+    `<input type="text" id="userAliasInput" placeholder="Введите alias (или оставьте пустым)" value="${escapeHtml(currentAlias)}" style="width:100%;">`,
+    'Отмена',
+    'Сохранить',
+    false
+  );
+  
+  if (alias === null) return; // Cancelled
+  
+  const aliasInput = document.getElementById('userAliasInput');
+  const newAlias = aliasInput ? aliasInput.value.trim() : '';
+  
+  try {
+    const res = await api('/api/users/update-alias', {
+      method: 'POST',
+      body: JSON.stringify({ email, alias: newAlias })
+    });
+    if (res.ok) {
+      showToast('✅', 'Alias обновлён');
+      loadUsers();
+    } else {
+      showToast('❌', res.error || 'Ошибка обновления alias');
+    }
+  } catch (e) {
+    console.error('Update alias error:', e);
+    showToast('❌', 'Ошибка обновления alias');
+  }
+}
+
+// Legacy function - redirect to copyUserLink
+async function getLink(email) {
+  return copyUserLink(email);
+}
+
+// ==================== EVENTS ====================
+async function loadEvents() {
+  try {
+    const filter = $('#eventsFilter').value.trim();
+    const url = filter ? `/api/events?text=${encodeURIComponent(filter)}` : '/api/events';
+    const data = await api(url);
+    renderEvents(data.events || []);
+  } catch (e) {
+    console.error('Events load error:', e);
+  }
+}
+
+function renderEvents(events) {
+  const tbody = $('#eventsTable tbody');
+  
+  function interpretEvent(e) {
+    const type = e.type || 'UNKNOWN';
+    const action = e.action || '';
+    const severity = e.severity || 'INFO';
+    
+    let interpretation = '';
+    let icon = '📋';
+    
+    if (type === 'USER') {
+      if (action.includes('add')) {
+        interpretation = `Добавлен пользователь: ${e.email || e.userId || '—'}`;
+        icon = '➕';
+      } else if (action.includes('delete')) {
+        interpretation = `Удалён пользователь: ${e.email || e.userId || '—'}`;
+        icon = '🗑️';
+      } else if (action.includes('kick')) {
+        interpretation = `Пользователь отключён (UUID изменён): ${e.email || e.userId || '—'}`;
+        icon = '🔄';
+      } else {
+        interpretation = `Действие с пользователем: ${action}`;
+      }
+    } else if (type === 'SYSTEM') {
+      if (action.includes('restart')) {
+        interpretation = `Перезапуск сервиса: ${e.target || '—'}`;
+        icon = '⚡';
+      } else {
+        interpretation = `Системное действие: ${action}`;
+      }
+    } else if (type === 'SETTINGS') {
+      interpretation = `Изменены настройки: ${action}`;
+      icon = '⚙️';
+    } else if (type === 'XRAY') {
+      interpretation = `Действие с Xray: ${action}`;
+      icon = '🔧';
+    } else {
+      interpretation = `${type}: ${action}`;
+    }
+    
+    return { interpretation, icon, severity };
+  }
+  
+  tbody.innerHTML = events.slice(0, 100).map(e => {
+    const { interpretation, icon, severity } = interpretEvent(e);
+    const severityClass = severity === 'ERROR' ? 'bad' : severity === 'WARN' ? 'warn' : 'ok';
+    
+    return `
+      <tr>
+        <td class="mono" style="font-size:11px;">${fmtDate(e.ts)}</td>
+        <td><span class="badge ${severityClass}">${e.type || '—'}</span></td>
+        <td>${icon} ${interpretation}</td>
+        <td class="muted" style="font-size:11px;">${e.action || '—'}</td>
+      </tr>
+    `;
+  }).join('') || '<tr><td colspan="4" class="muted">Нет событий</td></tr>';
+}
+
+// ==================== XRAY ====================
+async function loadXrayConfig() {
+  try {
+    const data = await api('/api/xray/config');
+    $('#xrayConfig').value = JSON.stringify(data.config, null, 2);
+    
+    const reality = data.reality || {};
+    $('#realityParams').textContent = `pbk: ${reality.pbk || '(не определён)'}
+sni: ${reality.sni || '—'}
+sid: ${reality.sid || '—'}
+port: ${reality.port || 443}
+server_host: ${reality.server_host || '(не задан в настройках)'}`;
+  } catch (e) {
+    console.error('Xray config load error:', e);
+  }
+}
+
+async function restartXray() {
+  const ok = await modal('Перезапуск Xray', 'Xray будет перезапущен. Все подключения временно оборвутся. Продолжить?');
+  if (!ok) return;
+  
+  try {
+    await api('/api/xray/restart', { method: 'POST', body: '{}' });
+    showToast('✅', 'Xray перезапущен');
+    loadSystemStatus();
+  } catch (e) {}
+}
+
+// ==================== SETTINGS ====================
+async function loadSettings() {
+  try {
+    const data = await api('/api/settings');
+    state.settings = data.settings;
+    
+    $('#setServerHost').value = state.settings.xray?.server_host || '';
+    $('#setPbk').value = state.settings.xray?.reality_pbk || '';
+    $('#setUsageDir').value = state.settings.collector?.usage_dir || '/var/log/xray/usage';
+    
+    // Collector status (read-only, no auto-toggle)
+    try {
+      const collector = await api('/api/collector/status');
+      if (collector && collector.ok !== false) {
+        $('#collectorStatus').innerHTML = `
+          <div class="form-row">
+            <span>Статус: <strong>${collector.enabled ? '✅ Включен' : '❌ Выключен'}</strong></span>
+            <span>Файлов: <strong>${collector.files_count || 0}</strong></span>
+            <span>Последний файл: <strong>${collector.newest_file || '—'}</strong></span>
+            <span>Лаг: <strong class="${collector.lag_days > 1 ? 'text-warn' : ''}">${collector.lag_days ?? '—'} дней</strong></span>
+          </div>
+        `;
+      } else {
+        $('#collectorStatus').innerHTML = '<div class="muted">Не удалось загрузить статус сборщика</div>';
+      }
+    } catch (e) {
+      $('#collectorStatus').innerHTML = '<div class="muted">Ошибка загрузки статуса сборщика</div>';
+    }
+  } catch (e) {
+    console.error('Settings load error:', e);
+  }
+}
+
+async function saveSettings() {
+  try {
+    const settings = {
+      xray: {
+        server_host: $('#setServerHost').value.trim(),
+        reality_pbk: $('#setPbk').value.trim(),
+      },
+      collector: {
+        usage_dir: $('#setUsageDir').value.trim(),
+      }
+    };
+    
+    await api('/api/settings', {
+      method: 'POST',
+      body: JSON.stringify(settings)
+    });
+    
+    showToast('✅', t('settingsSaved'));
+  } catch (e) {}
+}
+
+// ==================== SYSTEM STATUS ====================
+async function loadSystemStatus() {
+  try {
+    const data = await api('/api/system/status');
+    
+    // Compact status: show only state, no "UI:" or "Xray:" prefix
+    $('#statusUI').textContent = data.ui?.state || '—';
+    $('#dotUI').className = 'dot ' + (data.ui?.active ? 'ok' : 'bad');
+    
+    $('#statusXray').textContent = data.xray?.state || '—';
+    $('#dotXray').className = 'dot ' + (data.xray?.active ? 'ok' : 'bad');
+  } catch (e) {
+    console.error('Status load error:', e);
+  }
+}
+
+// ==================== INIT ====================
+let initCalled = false;
+async function init() {
+  if (initCalled) {
+    console.warn('init() already called, skipping');
+    return;
+  }
+  initCalled = true;
+  
+  // Theme
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  setTheme(savedTheme);
+  
+  // Lang
+  const savedLang = localStorage.getItem('lang') || 'ru';
+  state.lang = savedLang;
+  const langToggle = $('#langToggle');
+  if (langToggle) langToggle.textContent = savedLang.toUpperCase();
+  applyI18n();
+  
+  // Event handlers for tabs (Пользователи, События, Xray, Настройки)
+  const tabsContainer = document.querySelector('.tabs');
+  if (tabsContainer) {
+    tabsContainer.addEventListener('click', (e) => {
+      const tab = e.target.closest('.tab');
+      if (tab && tab.dataset && tab.dataset.tab) {
+        e.preventDefault();
+        e.stopPropagation();
+        setTab(tab.dataset.tab);
+      }
+    });
+  } else {
+    // Fallback: direct handlers
+    const tabs = $$('.tab');
+    if (tabs.length > 0) {
+      tabs.forEach(tab => {
+        if (tab && tab.dataset && tab.dataset.tab) {
+          tab.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setTab(tab.dataset.tab);
+          };
+        }
+      });
+    }
+  }
+  
+  const themeToggle = $('#themeToggle');
+  if (themeToggle) {
+    themeToggle.onclick = () => {
+      setTheme(state.theme === 'dark' ? 'light' : 'dark');
+    };
+  }
+  
+  if (langToggle) {
+    langToggle.onclick = () => {
+      state.lang = state.lang === 'ru' ? 'en' : 'ru';
+      localStorage.setItem('lang', state.lang);
+      langToggle.textContent = state.lang.toUpperCase();
+      applyI18n();
+      loadDashboard();
+    };
+  }
+  
+  // User management buttons
+  const btnAddUser = $('#btnAddUser');
+  if (btnAddUser) btnAddUser.onclick = addUser;
+  const btnRefreshUsers = $('#btnRefreshUsers');
+  if (btnRefreshUsers) btnRefreshUsers.onclick = loadUsers;
+  const btnRefreshEvents = $('#btnRefreshEvents');
+  if (btnRefreshEvents) btnRefreshEvents.onclick = loadEvents;
+  const eventsFilter = $('#eventsFilter');
+  if (eventsFilter) {
+    eventsFilter.onkeyup = (e) => { if (e.key === 'Enter') loadEvents(); };
+  }
+  const btnReloadXray = $('#btnReloadXray');
+  if (btnReloadXray) btnReloadXray.onclick = loadXrayConfig;
+  const btnRestartXray = $('#btnRestartXray');
+  if (btnRestartXray) btnRestartXray.onclick = restartXray;
+  const btnSaveSettings = $('#btnSaveSettings');
+  if (btnSaveSettings) btnSaveSettings.onclick = saveSettings;
+  const btnReloadSettings = $('#btnReloadSettings');
+  if (btnReloadSettings) btnReloadSettings.onclick = loadSettings;
+  // Navigation pills - use event delegation
+  const navContainer = document.querySelector('.nav-pills') || document.querySelector('.header-right');
+  if (navContainer) {
+    navContainer.addEventListener('click', (e) => {
+      const pill = e.target.closest('.nav-pill');
+      if (pill && pill.dataset && pill.dataset.nav) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Nav pill clicked:', pill.dataset.nav);
+        setNav(pill.dataset.nav);
+      }
+    });
+  }
+  
+  // Date select
+  const dateSelect = $('#dateSelect');
+  if (dateSelect) {
+    dateSelect.onchange = () => {
+      state.date = dateSelect.value;
+      localStorage.setItem('usage.date', state.date);
+      loadManagement();
+    };
+  } else {
+    console.warn('dateSelect element not found');
+  }
+  
+  // Segmented controls - use event delegation
+  document.addEventListener('click', (e) => {
+    // Daily/Cumulative
+    if (e.target.id === 'segDaily' || e.target.id === 'segCum') {
+      e.preventDefault();
+      e.stopPropagation();
+      const isDaily = e.target.id === 'segDaily';
+      state.mode = isDaily ? 'daily' : 'cumulative';
+      localStorage.setItem('usage.mode', state.mode);
+      const segDaily = $('#segDaily');
+      const segCum = $('#segCum');
+      if (segDaily && segCum) {
+        if (isDaily) {
+          segDaily.classList.add('active');
+          segCum.classList.remove('active');
+        } else {
+          segCum.classList.add('active');
+          segDaily.classList.remove('active');
+        }
+      }
+      loadManagement();
+      return;
+    }
+    
+    // Dark/Light
+    if (e.target.id === 'segDark' || e.target.id === 'segLight') {
+      e.preventDefault();
+      e.stopPropagation();
+      const isDark = e.target.id === 'segDark';
+      setTheme(isDark ? 'dark' : 'light');
+      const segDark = $('#segDark');
+      const segLight = $('#segLight');
+      if (segDark && segLight) {
+        if (isDark) {
+          segDark.classList.add('active');
+          segLight.classList.remove('active');
+        } else {
+          segLight.classList.add('active');
+          segDark.classList.remove('active');
+        }
+      }
+      return;
+    }
+    
+    // GB/MB
+    if (e.target.id === 'segGB' || e.target.id === 'segMB') {
+      e.preventDefault();
+      e.stopPropagation();
+      const isGB = e.target.id === 'segGB';
+      state.unit = isGB ? 'gb' : 'mb';
+      localStorage.setItem('ui.unit', state.unit);
+      const segGB = $('#segGB');
+      const segMB = $('#segMB');
+      if (segGB && segMB) {
+        if (isGB) {
+          segGB.classList.add('active');
+          segMB.classList.remove('active');
+        } else {
+          segMB.classList.add('active');
+          segGB.classList.remove('active');
+        }
+      }
+      if (state.dashboard) renderManagement(state.dashboard);
+      return;
+    }
+    
+    // Users: Traffic/Conns comparison toggle
+    if (e.target.id === 'segCmpTraffic' || e.target.id === 'segCmpConns') {
+      e.preventDefault();
+      e.stopPropagation();
+      const isTraffic = e.target.id === 'segCmpTraffic';
+      state.mainMetric = isTraffic ? 'traffic' : 'conns';
+      localStorage.setItem('users.mainMetric', state.mainMetric);
+      const segCmpTraffic = $('#segCmpTraffic');
+      const segCmpConns = $('#segCmpConns');
+      if (segCmpTraffic && segCmpConns) {
+        if (isTraffic) {
+          segCmpTraffic.classList.add('active');
+          segCmpConns.classList.remove('active');
+        } else {
+          segCmpConns.classList.add('active');
+          segCmpTraffic.classList.remove('active');
+        }
+      }
+      // Re-render users section with new metric
+      if (state.dashboard && state.dashboard.users && state.dashboard.userDetails) {
+        renderUsersSection(state.dashboard.users, state.dashboard.userDetails, 
+                          state.selectedUsers, state.mainMetric, state.miniMetric, state.mode, state.unit);
+      }
+      return;
+    }
+    
+    // Users: Mini Traffic/Conns toggle
+    if (e.target.id === 'segMiniTraffic' || e.target.id === 'segMiniConns') {
+      e.preventDefault();
+      e.stopPropagation();
+      const isTraffic = e.target.id === 'segMiniTraffic';
+      state.miniMetric = isTraffic ? 'traffic' : 'conns';
+      localStorage.setItem('users.miniMetric', state.miniMetric);
+      const segMiniTraffic = $('#segMiniTraffic');
+      const segMiniConns = $('#segMiniConns');
+      if (segMiniTraffic && segMiniConns) {
+        if (isTraffic) {
+          segMiniTraffic.classList.add('active');
+          segMiniConns.classList.remove('active');
+        } else {
+          segMiniConns.classList.add('active');
+          segMiniTraffic.classList.remove('active');
+        }
+      }
+      // Re-render users section with new metric
+      if (state.dashboard && state.dashboard.users && state.dashboard.userDetails) {
+        renderUsersSection(state.dashboard.users, state.dashboard.userDetails, 
+                          state.selectedUsers, state.mainMetric, state.miniMetric, state.mode, state.unit);
+      }
+      return;
+    }
+  });
+  
+  // Segmented controls handlers are already set via event delegation above
+  // Just initialize visual state here
+  
+  // Legacy handlers (if elements exist)
+  const btnRefreshDashboard = $('#btnRefreshDashboard');
+  if (btnRefreshDashboard) btnRefreshDashboard.onclick = () => loadManagement();
+  const periodSelect = $('#periodSelect');
+  if (periodSelect) periodSelect.onchange = () => loadManagement();
+  
+  // Online pause button
+  const btnPause = $('#btnPause');
+  if (btnPause) {
+    btnPause.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      state.livePaused = !state.livePaused;
+      localStorage.setItem('live.paused', state.livePaused);
+      btnPause.textContent = state.livePaused ? 'Resume' : 'Pause';
+      if (state.livePaused) {
+        stopOnlinePolling();
+      } else {
+        // Resume - запустить polling только если на вкладке online
+        const paneOnline = document.querySelector('[data-pane="online"]');
+        if (paneOnline && paneOnline.classList.contains('active')) {
+          startOnlinePolling();
+        }
+      }
+    };
+  }
+  
+  // Initialize theme/unit/mode from state (with null checks)
+  const segDark = $('#segDark');
+  const segLight = $('#segLight');
+  if (segDark && segLight) {
+    if (state.theme === 'dark') {
+      segDark.classList.add('active');
+      segLight.classList.remove('active');
+    } else {
+      segLight.classList.add('active');
+      segDark.classList.remove('active');
+    }
+  }
+  
+  const segGB = $('#segGB');
+  const segMB = $('#segMB');
+  if (segGB && segMB) {
+    if (state.unit === 'gb') {
+      segGB.classList.add('active');
+      segMB.classList.remove('active');
+    } else {
+      segMB.classList.add('active');
+      segGB.classList.remove('active');
+    }
+  }
+  
+  const segDaily = $('#segDaily');
+  const segCum = $('#segCum');
+  if (segDaily && segCum) {
+    if (state.mode === 'daily') {
+      segDaily.classList.add('active');
+      segCum.classList.remove('active');
+    } else {
+      segCum.classList.add('active');
+      segDaily.classList.remove('active');
+    }
+  }
+  
+  // Initial load
+  try {
+    await loadSystemStatus();
+    await updateDateSelect();
+    // Ensure dashboard tab is active and management pane is shown
+    const dashboardTab = document.querySelector('.tab[data-tab="dashboard"]');
+    if (dashboardTab) {
+      $$('.tab').forEach(t => t.classList.remove('active'));
+      dashboardTab.classList.add('active');
+    }
+    // Show management pane, hide others
+    $$('.pane').forEach(p => {
+      if (p && p.dataset) {
+        if (p.dataset.pane === 'management') {
+          p.classList.add('active');
+          p.style.display = 'block';
+        } else {
+          p.classList.remove('active');
+          p.style.display = 'none';
+        }
+      }
+    });
+    
+    // Deactivate nav pills
+    $$('.nav-pill').forEach(p => p.classList.remove('active'));
+    // Load management content
+    await loadManagement();
+    const liveStatusEl = $('#liveStatus');
+    const badgeDot = $('#badgeLive .dot');
+    if (liveStatusEl) liveStatusEl.textContent = 'Готово';
+    if (badgeDot) badgeDot.classList.add('ok');
+  } catch (e) {
+    console.error('Init error:', e);
+    const liveStatusEl = $('#liveStatus');
+    const badgeDot = $('#badgeLive .dot');
+    if (liveStatusEl) liveStatusEl.textContent = 'Ошибка';
+    if (badgeDot) badgeDot.classList.add('bad');
+  }
+  
+  // Initialize Online segmented controls
+  if (state.liveScope === 'global') {
+    $('#segScopeGlobal').classList.add('active');
+    $('#segScopeUsers').classList.remove('active');
+  } else {
+    $('#segScopeUsers').classList.add('active');
+    $('#segScopeGlobal').classList.remove('active');
+  }
+  
+  if (state.liveMetric === 'traffic') {
+    $('#segMetricTraffic').classList.add('active');
+  } else if (state.liveMetric === 'conns') {
+    $('#segMetricConns').classList.add('active');
+  } else {
+    $('#segMetricOnline').classList.add('active');
+  }
+  
+  if (state.livePeriod === 3600) {
+    $('#segPeriod60m').classList.add('active');
+  } else if (state.livePeriod === 21600) {
+    $('#segPeriod6h').classList.add('active');
+  } else {
+    $('#segPeriod24h').classList.add('active');
+  }
+  
+  if (state.liveGran === 60) {
+    $('#segGran1m').classList.add('active');
+  } else if (state.liveGran === 300) {
+    $('#segGran5m').classList.add('active');
+  } else {
+    $('#segGran10m').classList.add('active');
+  }
+  
+  // Initialize Users segmented controls
+  if (state.mainMetric === 'traffic') {
+    $('#segCmpTraffic').classList.add('active');
+    $('#segCmpConns').classList.remove('active');
+  } else {
+    $('#segCmpConns').classList.add('active');
+    $('#segCmpTraffic').classList.remove('active');
+  }
+  
+  if (state.miniMetric === 'traffic') {
+    $('#segMiniTraffic').classList.add('active');
+    $('#segMiniConns').classList.remove('active');
+  } else {
+    $('#segMiniConns').classList.add('active');
+    $('#segMiniTraffic').classList.remove('active');
+  }
+  
+  // Initialize Pause button state
+  const btnPauseInit = $('#btnPause');
+  if (btnPauseInit) {
+    btnPauseInit.textContent = state.livePaused ? 'Resume' : 'Pause';
+  }
+  // Polling запустится автоматически при переходе на вкладку online через startOnlinePolling()
+  
+  // Periodic refresh
+  setInterval(loadSystemStatus, 10000);
+  setInterval(() => {
+    if (document.querySelector('.pane[data-pane="management"].active')) {
+      loadManagement();
+    }
+  }, 60000);
+}
+
+// Wait for DOM to be ready
+(function() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    // DOM already ready, but wait a bit to ensure all elements are rendered
+    setTimeout(init, 100);
+  }
+})();
+</script>
+</body>
+</html>
