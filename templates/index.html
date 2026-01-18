@@ -349,42 +349,51 @@ table {
 #usersTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px; /* Единый размер таблиц */
+  font-size: 13px;
 }
 #usersTable th,
 #usersTable td {
-  padding: 8px 6px;
+  padding: 6px 8px;
   text-align: left;
   border-bottom: 1px solid var(--line);
-  vertical-align: top;
-  line-height: 1.4;
+  vertical-align: middle;
+  line-height: 1.3;
 }
 #usersTable th {
   background: var(--panel2);
   font-weight: 600;
-  font-size: 12px; /* Увеличен для читаемости */
+  font-size: 11px;
   color: var(--muted);
   position: sticky;
   top: 0;
   z-index: 10;
-  padding: 8px 6px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 #usersTable td {
-  font-size: 14px; /* Единый размер ячеек */
+  font-size: 13px;
 }
 #usersTable tr {
   height: auto;
-  min-height: 48px;
 }
 #usersTable tr:hover td {
   background: var(--panel2);
 }
 #usersTable .mono {
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 11px; /* Увеличен для читаемости */
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+#usersTable .user-name {
+  font-weight: 500;
+  font-size: 13px;
+}
+#usersTable .btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  min-width: 32px;
 }
 th, td {
   padding: 8px 6px;
@@ -1777,19 +1786,13 @@ label {
   <!-- USERS -->
   <div class="pane" data-pane="users">
     <div class="card">
-      <div class="card-hd">
-        <div>
-          <h3 class="card-title">
-            <span data-i18n="usersManagement">Управление пользователями</span>
-            <span class="help" data-tip="Список пользователей из Xray config. Можно добавлять, удалять и кикать (сменить UUID чтобы отключить текущие сессии).">?</span>
-          </h3>
-          <div class="card-desc" data-i18n="usersDesc">
-            Здесь показаны все пользователи из конфига Xray. Вы можете добавить нового, удалить существующего или "кикнуть" — сменить UUID, чтобы текущие подключения оборвались.
-          </div>
-        </div>
-        <div class="btn-group" style="flex-shrink: 0; margin-left: 16px;">
-          <button class="btn primary" id="btnAddUser">➕ <span data-i18n="addUser">Добавить</span></button>
-          <button class="btn" id="btnRefreshUsers">🔄 <span data-i18n="refresh">Обновить</span></button>
+      <div class="card-hd" style="padding: 12px 16px;">
+        <h3 class="card-title" style="margin: 0; font-size: 16px;">
+          👥 <span data-i18n="usersManagement">Пользователи</span>
+        </h3>
+        <div class="btn-group" style="gap: 8px;">
+          <button class="btn primary" id="btnAddUser" style="padding: 6px 12px; font-size: 13px;">➕ Добавить</button>
+          <button class="btn" id="btnRefreshUsers" style="padding: 6px 12px; font-size: 13px;">🔄</button>
         </div>
       </div>
 
@@ -8167,57 +8170,43 @@ function renderUsers_Internal(users, statsMap, tbody) {
     const top3Domains = stats.top3Domains || [];
     const isOnline = stats.isOnline || false;
     
-    // Format top 3 domains - compact format with right-aligned traffic
+    // Format top 3 domains - simple list
     let top3Html = '—';
     if (top3Domains.length > 0) {
-      // Calculate max width for alignment
-      const maxWidth = Math.max(...top3Domains.map(d => {
-        const gb = (d.trafficBytes / 1000000000).toFixed(1);
-        return (gb + ' GB').length;
-      }));
-      
       top3Html = top3Domains.map(d => {
         const trafficGB = (d.trafficBytes / 1000000000).toFixed(1);
-        const trafficText = trafficGB + ' GB';
-        const paddedTraffic = trafficText.padStart(maxWidth, ' ');
-        return `<div style="font-size: 13px; line-height: 1.3; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: flex-start;">
-          <div style="font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(d.domain)}</div>
-          <div style="font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--muted); font-size: 12px; text-align: right; margin-left: 12px; flex-shrink: 0;">${trafficText}</div>
-        </div>`;
+        return `<div style="line-height: 1.4; margin-bottom: 2px;">${escapeHtml(d.domain)} <span style="color: var(--muted);">(${trafficGB} GB)</span></div>`;
       }).join('');
     }
     
     // Days used - hide if 0
     const daysUsedHtml = daysUsed > 0 ? daysUsed.toString() : '—';
     
-    // Status indicator - special case for never activated users
+    // Status indicator
     let statusHtml;
     if (daysUsed === 0) {
-      statusHtml = '<span style="color: var(--muted);">⚪ Не активирован</span>';
+      statusHtml = '<span style="color: var(--muted);">⚪</span>';
     } else if (isOnline) {
-      statusHtml = '<span style="color: var(--ok);">🟢 Онлайн</span>';
+      statusHtml = '<span style="color: var(--ok);">🟢</span>';
     } else {
-      statusHtml = '<span style="color: var(--muted);">⚪ Офлайн</span>';
+      statusHtml = '<span style="color: var(--muted);">⚪</span>';
     }
     
     return `
     <tr>
-      <td style="font-size: 12px;">
-        <span class="user-name" data-email="${u.email}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
-          <strong>${escapeHtml(displayName)}</strong>
-          <span style="opacity: 0.5; font-size: 10px; cursor: pointer;" onclick="event.stopPropagation(); editUserAlias('${u.email}', '${escapeHtml(alias)}')" title="Редактировать alias">✏️</span>
-        </span>
-      </td>
-      <td class="mono" style="font-size: 10px; max-width: 200px; word-break: break-all;">${u.uuid}</td>
-      <td style="font-size: 11px; max-width: 180px; min-width: 150px;">${top3Html}</td>
-      <td style="text-align: center; font-size: 12px; font-weight: 500;">${daysUsedHtml}</td>
-      <td style="font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace;">${fmtBytes(totalTraffic)}</td>
-      <td style="font-size: 11px;">${statusHtml}</td>
       <td>
-        <div class="flex gap-4" style="flex-wrap: nowrap;">
-          <button class="btn" data-email="${escapeHtml(u.email)}" onclick="copyUserLink(this.dataset.email)" title="Скопировать VLESS ссылку" style="padding: 4px 8px; font-size: 11px;">🔗</button>
-          <button class="btn" data-email="${escapeHtml(u.email)}" onclick="kickUser(this.dataset.email)" title="Отключить пользователя (сменить UUID)" style="padding: 4px 8px; font-size: 11px;">🔄</button>
-          <button class="btn danger" data-email="${escapeHtml(u.email)}" onclick="deleteUser(this.dataset.email)" title="Удалить пользователя" style="padding: 4px 8px; font-size: 11px;">🗑️</button>
+        <span class="user-name">${escapeHtml(displayName)}</span>
+      </td>
+      <td class="mono" style="max-width: 180px; word-break: break-all;">${u.uuid}</td>
+      <td style="max-width: 200px;">${top3Html}</td>
+      <td style="text-align: center;">${daysUsedHtml}</td>
+      <td class="mono">${fmtBytes(totalTraffic)}</td>
+      <td>${statusHtml}</td>
+      <td>
+        <div style="display: flex; gap: 4px;">
+          <button class="btn" data-email="${escapeHtml(u.email)}" onclick="copyUserLink(this.dataset.email)" title="Скопировать ссылку">🔗</button>
+          <button class="btn" data-email="${escapeHtml(u.email)}" onclick="kickUser(this.dataset.email)" title="Отключить">🔄</button>
+          <button class="btn danger" data-email="${escapeHtml(u.email)}" onclick="deleteUser(this.dataset.email)" title="Удалить">🗑️</button>
         </div>
       </td>
     </tr>
