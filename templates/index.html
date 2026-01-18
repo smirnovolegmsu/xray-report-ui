@@ -719,6 +719,113 @@ tr:hover td { background: var(--panel2); }
   letter-spacing: 0.3px;
   line-height: 1;
 }
+
+/* Circular Progress - Override with higher specificity */
+.users-grid .card-hd .metrics-circular {
+  display: flex;
+  gap: 24px;
+  justify-content: space-around;
+  padding: 6px 0;
+  margin-top: 4px;
+}
+
+.users-grid .card-hd .metric-circular {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.users-grid .card-hd .circular-progress {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.users-grid .card-hd .circular-progress svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+
+.users-grid .card-hd .circular-progress circle {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.users-grid .card-hd .circle-bg {
+  stroke: var(--line);
+}
+
+.users-grid .card-hd .circle-progress {
+  stroke: var(--accent);
+  transition: stroke-dashoffset 0.8s ease, stroke 0.3s ease;
+}
+
+.users-grid .card-hd .circle-progress.traffic {
+  stroke: var(--accent);
+}
+
+.users-grid .card-hd .circle-progress.conns {
+  stroke: var(--ok);
+}
+
+.users-grid .card-hd .circular-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.users-grid .card-hd .circular-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.users-grid .card-hd .circular-unit {
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.users-grid .card-hd .circular-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: lowercase;
+  letter-spacing: 0.3px;
+}
+
+/* Hover effects */
+.users-grid .card-hd .metric-circular:hover .circular-progress {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+}
+
+.users-grid .card-hd .metric-circular:hover .circular-value {
+  color: var(--accent);
+  transition: color 0.2s ease;
+}
+
+.users-grid .card-hd .metric-circular:hover .circle-progress.traffic {
+  stroke: var(--accent);
+  filter: brightness(1.2);
+}
+
+.users-grid .card-hd .metric-circular:hover .circle-progress.conns {
+  stroke: var(--ok);
+  filter: brightness(1.2);
+}
 .card-hd h2 {
   font-size: 15px;
   font-weight: 600;
@@ -5937,6 +6044,15 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
   const base = unit === 'gb' ? gbBase : mbBase;
   const unitLabel = unit === 'gb' ? 'GB' : 'MB';
   
+  // Calculate max values for progress calculation
+  const maxTraffic = Math.max(...users.map(u => (u.traffic7dBytes || 0) / base), 1);
+  const maxConns = Math.max(...users.map(u => u.conns7d || 0), 1);
+  
+  // #region agent log
+  console.log('🔍 DEBUG: renderUserCards called', {usersCount:users.length,maxTraffic:maxTraffic,maxConns:maxConns});
+  fetch('http://localhost:7242/ingest/6857cff0-61f2-4338-937e-82167ec3f710',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:5943',message:'renderUserCards called',data:{usersCount:users.length,maxTraffic:maxTraffic,maxConns:maxConns},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
+  
   const html = users.map(u => {
     const details = userDetails[u.userId] || {};
     const statusClass = u.status === 'anomaly' ? 'bad' : 'ok';
@@ -5944,7 +6060,29 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
     
     // Round to 1 decimal place
     const traffic7d = ((u.traffic7dBytes || 0) / base).toFixed(1);
-    const conns7d = (u.conns7d || 0).toLocaleString('ru-RU');
+    const conns7d = u.conns7d || 0;
+    const conns7dFormatted = conns7d.toLocaleString('ru-RU');
+    
+    // Format connections: if > 1000, show as "103k" etc.
+    let connsDisplay = conns7dFormatted;
+    if (conns7d >= 1000000) {
+      connsDisplay = (conns7d / 1000000).toFixed(1) + 'M';
+    } else if (conns7d >= 1000) {
+      connsDisplay = Math.round(conns7d / 1000) + 'k';
+    }
+    
+    // Calculate progress percentages (0-100)
+    const trafficPct = Math.min((parseFloat(traffic7d) / maxTraffic) * 100, 100);
+    const connsPct = Math.min((conns7d / maxConns) * 100, 100);
+    
+    // Calculate SVG circle progress (circumference = 2πr = 2 * π * 42 ≈ 264)
+    const circumference = 264;
+    const trafficOffset = circumference - (circumference * trafficPct / 100);
+    const connsOffset = circumference - (circumference * connsPct / 100);
+    
+    // #region agent log
+    fetch('http://localhost:7242/ingest/6857cff0-61f2-4338-937e-82167ec3f710',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:5969',message:'User card metrics calculated',data:{userId:u.userId,traffic7d:traffic7d,conns7d:conns7d,trafficPct:trafficPct,connsPct:connsPct,trafficOffset:trafficOffset,connsOffset:connsOffset},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
     
     const topTraffic = (details.topDomainsTraffic || []).slice(0, 5);
     const topConns = (details.topDomainsConns || []).slice(0, 5);
@@ -5956,14 +6094,37 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
             <h3>${u.displayName || u.userId}</h3>
             <span class="status-dot ${statusClass}" title="${statusText}"></span>
           </div>
-          <div class="metrics-row">
-            <div class="metric-item">
-              <div class="metric-value">${traffic7d} ${unitLabel}</div>
-              <div class="metric-label">traffic</div>
+          <div class="metrics-circular">
+            <div class="metric-circular">
+              <div class="circular-progress">
+                <svg viewBox="0 0 100 100">
+                  <circle class="circle-bg" cx="50" cy="50" r="42"></circle>
+                  <circle class="circle-progress traffic" cx="50" cy="50" r="42"
+                    stroke-dasharray="${circumference}"
+                    stroke-dashoffset="${trafficOffset}"></circle>
+                </svg>
+                <div class="circular-content">
+                  <div class="circular-value">${traffic7d}</div>
+                  <div class="circular-unit">${unitLabel}</div>
+                </div>
+              </div>
+              <div class="circular-label">traffic</div>
             </div>
-            <div class="metric-item">
-              <div class="metric-value">${conns7d}</div>
-              <div class="metric-label">conns</div>
+            
+            <div class="metric-circular">
+              <div class="circular-progress">
+                <svg viewBox="0 0 100 100">
+                  <circle class="circle-bg" cx="50" cy="50" r="42"></circle>
+                  <circle class="circle-progress conns" cx="50" cy="50" r="42"
+                    stroke-dasharray="${circumference}"
+                    stroke-dashoffset="${connsOffset}"></circle>
+                </svg>
+                <div class="circular-content">
+                  <div class="circular-value">${connsDisplay}</div>
+                  <div class="circular-unit">CNS</div>
+                </div>
+              </div>
+              <div class="circular-label">conns</div>
             </div>
           </div>
         </div>
@@ -6013,6 +6174,23 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
   }).join('');
   
   container.innerHTML = html;
+  
+  // #region agent log
+  fetch('http://localhost:7242/ingest/6857cff0-61f2-4338-937e-82167ec3f710',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:6080',message:'HTML inserted into DOM',data:{htmlLength:html.length,circularProgressCount:container.querySelectorAll('.circular-progress').length,circleBgCount:container.querySelectorAll('.circle-bg').length,circleProgressElCount:container.querySelectorAll('.circle-progress').length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
+  
+  // Check if CSS is applied to circular progress elements
+  // #region agent log
+  setTimeout(() => {
+    const firstCircular = container.querySelector('.circular-progress');
+    if (firstCircular) {
+      const computedStyle = window.getComputedStyle(firstCircular);
+      const firstCircle = container.querySelector('.circle-progress');
+      const circleStyle = firstCircle ? window.getComputedStyle(firstCircle) : null;
+      fetch('http://localhost:7242/ingest/6857cff0-61f2-4338-937e-82167ec3f710',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.html:6081',message:'CSS computed styles check',data:{circularWidth:computedStyle.width,circularHeight:computedStyle.height,circularPosition:computedStyle.position,circleStroke:circleStyle?.stroke,circleStrokeWidth:circleStyle?.strokeWidth,circleFill:circleStyle?.fill},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+    }
+  }, 100);
+  // #endregion
   
   // Apply overview metric filter - show/hide tables in user cards
   const overviewMetric = state.overviewMetric || 'traffic';

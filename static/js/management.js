@@ -3511,6 +3511,12 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
   const base = unit === 'gb' ? gbBase : mbBase;
   const unitLabel = unit === 'gb' ? 'GB' : 'MB';
   
+  // Calculate max values for progress calculation
+  const maxTraffic = Math.max(...users.map(u => (u.traffic7dBytes || 0) / base), 1);
+  const maxConns = Math.max(...users.map(u => u.conns7d || 0), 1);
+  
+  console.log('🎨 renderUserCards (management.js):', {usersCount: users.length, maxTraffic, maxConns});
+  
   const html = users.map(u => {
     const details = userDetails[u.userId] || {};
     const statusClass = u.status === 'anomaly' ? 'bad' : 'ok';
@@ -3518,7 +3524,25 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
     
     // Round to 1 decimal place
     const traffic7d = ((u.traffic7dBytes || 0) / base).toFixed(1);
-    const conns7d = (u.conns7d || 0).toLocaleString('ru-RU');
+    const conns7d = u.conns7d || 0;
+    const conns7dFormatted = conns7d.toLocaleString('ru-RU');
+    
+    // Format connections: if > 1000, show as "103k" etc.
+    let connsDisplay = conns7dFormatted;
+    if (conns7d >= 1000000) {
+      connsDisplay = (conns7d / 1000000).toFixed(1) + 'M';
+    } else if (conns7d >= 1000) {
+      connsDisplay = Math.round(conns7d / 1000) + 'k';
+    }
+    
+    // Calculate progress percentages (0-100)
+    const trafficPct = Math.min((parseFloat(traffic7d) / maxTraffic) * 100, 100);
+    const connsPct = Math.min((conns7d / maxConns) * 100, 100);
+    
+    // Calculate SVG circle progress (circumference = 2πr = 2 * π * 42 ≈ 264)
+    const circumference = 264;
+    const trafficOffset = circumference - (circumference * trafficPct / 100);
+    const connsOffset = circumference - (circumference * connsPct / 100);
     
     const topTraffic = (details.topDomainsTraffic || []).slice(0, 5);
     const topConns = (details.topDomainsConns || []).slice(0, 5);
@@ -3530,15 +3554,37 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
             <h3>${u.displayName || u.userId}</h3>
             <span class="status-dot ${statusClass}" title="${statusText}"></span>
           </div>
-          <div class="metrics-row">
-            <div class="metric-item">
-              <div class="metric-value">${traffic7d} ${unitLabel}</div>
-              <div class="metric-label">traffic</div>
+          <div class="metrics-circular">
+            <div class="metric-circular">
+              <div class="circular-progress">
+                <svg viewBox="0 0 100 100">
+                  <circle class="circle-bg" cx="50" cy="50" r="42"></circle>
+                  <circle class="circle-progress traffic" cx="50" cy="50" r="42"
+                    stroke-dasharray="${circumference}"
+                    stroke-dashoffset="${trafficOffset}"></circle>
+                </svg>
+                <div class="circular-content">
+                  <div class="circular-value">${traffic7d}</div>
+                  <div class="circular-unit">${unitLabel}</div>
+                </div>
+              </div>
+              <div class="circular-label">traffic</div>
             </div>
-            <div class="metric-separator"></div>
-            <div class="metric-item">
-              <div class="metric-value">${conns7d}</div>
-              <div class="metric-label">conns</div>
+            
+            <div class="metric-circular">
+              <div class="circular-progress">
+                <svg viewBox="0 0 100 100">
+                  <circle class="circle-bg" cx="50" cy="50" r="42"></circle>
+                  <circle class="circle-progress conns" cx="50" cy="50" r="42"
+                    stroke-dasharray="${circumference}"
+                    stroke-dashoffset="${connsOffset}"></circle>
+                </svg>
+                <div class="circular-content">
+                  <div class="circular-value">${connsDisplay}</div>
+                  <div class="circular-unit">CNS</div>
+                </div>
+              </div>
+              <div class="circular-label">conns</div>
             </div>
           </div>
         </div>

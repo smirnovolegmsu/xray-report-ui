@@ -986,7 +986,153 @@ tr:hover td {
   flex: 1;
 }
 
-/* User metrics */
+/* User metrics - Circular Progress (Variant 1) */
+.metrics-circular {
+  display: flex;
+  gap: var(--space-12);
+  justify-content: space-around;
+  padding: var(--space-6) 0;
+  margin-top: var(--space-4);
+}
+
+.metric-circular {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  flex: 1;
+}
+
+.circular-progress {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.circular-progress svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+
+.circular-progress circle {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.circle-bg {
+  stroke: var(--line);
+}
+
+.circle-progress {
+  stroke: var(--accent);
+  transition: stroke-dashoffset 0.8s ease, stroke 0.3s ease;
+}
+
+.circle-progress.traffic {
+  stroke: var(--accent);
+}
+
+.circle-progress.conns {
+  stroke: var(--ok);
+}
+
+.circular-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.circular-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.circular-unit {
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.circular-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: lowercase;
+  letter-spacing: 0.3px;
+}
+
+/* Hover effects for circular progress */
+.metric-circular:hover .circular-progress {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+}
+
+.metric-circular:hover .circular-value {
+  color: var(--accent);
+  transition: color 0.2s ease;
+}
+
+.metric-circular:hover .circle-progress.traffic {
+  stroke: var(--accent);
+  filter: brightness(1.2);
+}
+
+.metric-circular:hover .circle-progress.conns {
+  stroke: var(--ok);
+  filter: brightness(1.2);
+}
+
+/* Responsive adjustments for circular progress */
+@media (max-width: 768px) {
+  .circular-progress {
+    width: 70px;
+    height: 70px;
+  }
+  
+  .circular-value {
+    font-size: 14px;
+  }
+  
+  .circular-unit {
+    font-size: 8px;
+  }
+  
+  .metrics-circular {
+    gap: var(--space-8);
+  }
+}
+
+@media (max-width: 480px) {
+  .circular-progress {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .circular-value {
+    font-size: 13px;
+  }
+  
+  .circular-unit {
+    font-size: 7px;
+  }
+  
+  .metrics-circular {
+    gap: var(--space-6);
+  }
+}
+
+/* Legacy styles - keep for backwards compatibility if needed */
 .metrics-row {
   display: flex;
   width: 100%;
