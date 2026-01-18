@@ -279,16 +279,32 @@ def derive_pbk_from_private(priv_b64: str, settings: Dict[str, Any] = None) -> O
             capture_output=True, text=True, timeout=5.0
         )
         output = (cp.stdout or "") + "\n" + (cp.stderr or "")
+        
+        # Parse output - look for "Password:" line which contains the public key
+        # Output format:
+        # PrivateKey: ...
+        # Password: <PUBLIC_KEY>  <- This is what we need!
+        # Hash32: ...
         for line in output.split("\n"):
             line = line.strip()
-            if not line:
+            if line.startswith("Password:"):
+                # Extract public key after "Password: "
+                pbk = line.split(":", 1)[1].strip()
+                if len(pbk) >= 43:
+                    return pbk
+        
+        # Fallback: try to find any base64-like string (old behavior)
+        for line in output.split("\n"):
+            line = line.strip()
+            if not line or line.startswith("PrivateKey:"):
                 continue
             m = re.search(r'([A-Za-z0-9_-]{43,44})', line)
             if m:
                 candidate = m.group(1)
-                if len(candidate) >= 43:
+                if len(candidate) >= 43 and candidate != priv_b64:
                     return candidate
-    except Exception:
+    except Exception as e:
+        print(f"Error deriving public key: {e}")
         pass
     
     # Fallback: cryptography library (optional dependency)
@@ -854,6 +870,14 @@ def serve_static(filename):
     if os.path.exists(file_path) and os.path.isfile(file_path):
         return send_file(file_path)
     return Response("File not found", status=404, mimetype="text/plain")
+
+@app.get("/users_test")
+def users_test_page():
+    """Test page for users debugging"""
+    test_page = "/opt/xray-report-ui/templates/users_test.html"
+    if os.path.exists(test_page):
+        return send_file(test_page)
+    return Response("Test page not found", status=404, mimetype="text/plain")
 
 @app.get("/api/ping")
 def api_ping():
