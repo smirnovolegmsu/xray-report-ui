@@ -1,24 +1,35 @@
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
+*.pyc
+*.pyo
+*.pyd
 venv/
 env/
-ENV/
+.Python
 
-# IDEs
+# Данные приложения (НЕ добавлять в Git)
+data/
+*.backup
+
+# IDE
 .cursor/
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# Logs and databases
+# Временные файлы
+*.tmp
 *.log
-data/events.log
-data/usage_live.json
-data/backups/
-
-# OS
 .DS_Store
 Thumbs.db
+
+# История разработки и бэкапы (НЕ нужны в Git)
+*_back_up*/
+history/
+state/
+
+# Системные файлы Linux
+*.pid
+*.lock

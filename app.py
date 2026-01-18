@@ -43,7 +43,7 @@ EVENTS_PATH = os.path.join(DATA_DIR, "events.log")
 
 TEMPLATE_INDEX_PATHS = [
     "/opt/xray-report-ui/templates/index.html",
-    "/opt/xray-report-ui/index.html",
+    "/opt/xray-report-ui/index.html",  # legacy fallback
 ]
 
 USAGE_DIR = "/var/log/xray/usage"
@@ -845,6 +845,15 @@ def index():
         if os.path.exists(p):
             return send_file(p)
     return Response("index.html not found", status=500, mimetype="text/plain")
+
+@app.get("/static/<path:filename>")
+def serve_static(filename):
+    """Serve static files (CSS, JS)"""
+    static_dir = "/opt/xray-report-ui/static"
+    file_path = os.path.join(static_dir, filename)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_file(file_path)
+    return Response("File not found", status=404, mimetype="text/plain")
 
 @app.get("/api/ping")
 def api_ping():

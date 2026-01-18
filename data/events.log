@@ -212,3 +212,22 @@
 {"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": "user_11", "error": "Set server_host in settings (IP/domain of your server)", "ts": "2026-01-03T18:59:28Z"}
 {"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": "user_11", "error": "Set server_host in settings (IP/domain of your server)", "ts": "2026-01-07T15:39:40Z"}
 {"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": "user_01", "error": "Set server_host in settings (IP/domain of your server)", "ts": "2026-01-07T15:58:33Z"}
+{"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": "user_11", "error": "Set server_host in settings (IP/domain of your server)", "ts": "2026-01-07T16:21:10Z"}
+{"type": "USER", "severity": "WARN", "action": "kick", "email": "user_11", "ts": "2026-01-07T16:23:18Z"}
+{"type": "USER", "severity": "WARN", "action": "kick", "email": "user_11", "ts": "2026-01-07T16:23:22Z"}
+{"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": "user_11", "error": "Set server_host in settings (IP/domain of your server)", "ts": "2026-01-07T16:23:25Z"}
+{"type": "USER", "severity": "INFO", "action": "add", "email": "user_12", "ts": "2026-01-07T16:23:41Z"}
+{"type": "USER", "severity": "WARN", "action": "delete", "email": "user_12", "ts": "2026-01-07T16:23:46Z"}
+{"type": "SYSTEM", "severity": "WARN", "action": "restart_xray", "service": "xray", "ts": "2026-01-07T16:40:46Z"}
+{"type": "SYSTEM", "severity": "WARN", "action": "restart_xray", "service": "xray", "ts": "2026-01-07T16:41:50Z"}
+{"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": "user_02", "error": "Set server_host in settings (IP/domain of your server)", "ts": "2026-01-07T16:57:33Z"}
+{"type": "USER", "severity": "INFO", "action": "update_alias", "email": "user_01", "alias": "Олег Смирнов", "ts": "2026-01-07T16:58:02Z"}
+{"type": "USER", "severity": "INFO", "action": "update_alias", "email": "user_02", "alias": "Фнжелика Смирнова", "ts": "2026-01-07T16:58:11Z"}
+{"type": "SYSTEM", "severity": "WARN", "action": "restart_xray", "service": "xray", "ts": "2026-01-07T16:59:33Z"}
+{"type": "USER", "severity": "INFO", "action": "update_alias", "email": "user_02", "alias": "Анжелика Смирнова", "ts": "2026-01-07T17:00:19Z"}
+{"type": "SYSTEM", "severity": "WARN", "action": "restart_xray", "service": "xray", "ts": "2026-01-07T17:04:02Z"}
+{"type": "USER", "severity": "INFO", "action": "update_alias", "email": "user_04", "alias": "Мама", "ts": "2026-01-07T17:08:24Z"}
+{"type": "USER", "severity": "INFO", "action": "update_alias", "email": "user_06", "alias": "Ирина Балюк", "ts": "2026-01-07T17:08:43Z"}
+{"type": "USER", "severity": "INFO", "action": "update_alias", "email": "user_05", "alias": "Папа", "ts": "2026-01-07T17:08:57Z"}
+{"type": "USER", "severity": "INFO", "action": "update_alias", "email": "user_07", "alias": "Алексей Шокот", "ts": "2026-01-07T17:09:06Z"}
+{"type": "USER", "severity": "INFO", "action": "update_alias", "email": "user_08", "alias": "Арсений", "ts": "2026-01-07T17:09:13Z"}
