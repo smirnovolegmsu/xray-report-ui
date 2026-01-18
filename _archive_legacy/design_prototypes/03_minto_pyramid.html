@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вариант 3: Minto Pyramid</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --surface-elevated: #242424;
+  --text: #f5f5f5;
+  --text-secondary: #a0a0a0;
+  --accent: #00e5ff;
+  --border: #2a2a2a;
+  --success: #00ff9f;
+  --warning: #ffb800;
+  --danger: #ff3860;
+}
+
+body {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* Minimalist Header */
+.header {
+  border-bottom: 1px solid var(--border);
+  padding: 20px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  background: rgba(15, 15, 15, 0.95);
+  backdrop-filter: blur(10px);
+  z-index: 100;
+}
+
+.logo {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 16px;
+}
+
+.header-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.header-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Container */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 48px 32px;
+}
+
+.info-banner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  padding: 24px;
+  border-radius: 8px;
+  margin-bottom: 48px;
+}
+
+.info-banner h3 {
+  margin-bottom: 12px;
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.info-banner p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 8px;
+}
+
+/* Level 1: Main Insight */
+.level-1 {
+  text-align: center;
+  padding: 64px 32px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 48px;
+  position: relative;
+}
+
+.level-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.main-insight {
+  font-size: 56px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  line-height: 1.1;
+  letter-spacing: -1px;
+}
+
+.insight-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  background: rgba(0, 255, 159, 0.1);
+  border: 1px solid var(--success);
+  border-radius: 100px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--success);
+  margin-top: 24px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Level 2: Key Themes */
+.level-2 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 48px;
+}
+
+.theme-pill {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px 24px;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-align: center;
+}
+
+.theme-pill:hover {
+  border-color: var(--accent);
+  transform: translateY(-4px);
+  background: var(--surface-elevated);
+}
+
+.theme-pill.active {
+  border-color: var(--accent);
+  background: var(--surface-elevated);
+}
+
+.theme-icon {
+  font-size: 40px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.theme-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.theme-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.theme-change {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* Level 3: Details (Collapsible) */
+.level-3 {
+  display: none;
+  margin-bottom: 48px;
+}
+
+.level-3.active {
+  display: block;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.detail-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.detail-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+}
+
+.detail-table {
+  width: 100%;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.detail-value {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Expand Button */
+.expand-btn {
+  display: block;
+  margin: 32px auto;
+  padding: 14px 32px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.expand-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0, 229, 255, 0.05);
+}
+
+/* Visual Hierarchy Indicators */
+.pyramid-indicator {
+  text-align: center;
+  margin: 32px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.pyramid-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.pyramid-level {
+  background: var(--border);
+  height: 3px;
+  border-radius: 2px;
+}
+
+.pyramid-level:nth-child(1) { width: 60px; background: var(--accent); }
+.pyramid-level:nth-child(2) { width: 120px; background: var(--accent); opacity: 0.6; }
+.pyramid-level:nth-child(3) { width: 180px; background: var(--border); }
+
+@media (max-width: 900px) {
+  .level-2 {
+    grid-template-columns: 1fr;
+  }
+  
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .main-insight {
+    font-size: 36px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">XRAY · CONTROL</div>
+  <div class="header-actions">
+    <button class="header-btn">Тема</button>
+    <button class="header-btn">EN</button>
+    <button class="header-btn">Настройки</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="info-banner">
+    <h3>🎨 Вариант 3: Minto Pyramid Structure</h3>
+    <p><strong>Концепция:</strong> Логическая иерархия информации по принципу пирамиды Минто</p>
+    <p><strong>Особенности:</strong> Главный инсайт → Ключевые темы → Детали (раскрываются). Минимализм + фокус</p>
+    <p><strong>Взаимодействие:</strong> Кликните на карточку ниже чтобы раскрыть детали</p>
+  </div>
+
+  <div class="pyramid-indicator">
+    <div class="pyramid-visual">
+      <div class="pyramid-level"></div>
+      <div class="pyramid-level"></div>
+      <div class="pyramid-level"></div>
+    </div>
+    Структура: Главное → Поддержка → Детали
+  </div>
+
+  <!-- LEVEL 1: Main Insight -->
+  <div class="level-1">
+    <div class="level-label">Уровень 1: Главный вывод</div>
+    <div class="main-insight">
+      Система работает нормально
+    </div>
+    <div class="insight-status">
+      <span class="status-dot"></span>
+      15 пользователей · 2.1 TB · 99.9% uptime
+    </div>
+  </div>
+
+  <!-- LEVEL 2: Key Themes -->
+  <div class="level-label" style="text-align: center; margin-bottom: 24px;">Уровень 2: Ключевые метрики (кликните для деталей)</div>
+  <div class="level-2">
+    <div class="theme-pill" onclick="toggleDetails('users')">
+      <span class="theme-icon">👥</span>
+      <div class="theme-title">Пользователи</div>
+      <div class="theme-value">15</div>
+      <div class="theme-change">+2 за сутки</div>
+    </div>
+
+    <div class="theme-pill" onclick="toggleDetails('traffic')">
+      <span class="theme-icon">📊</span>
+      <div class="theme-title">Трафик</div>
+      <div class="theme-value">2.1 TB</div>
+      <div class="theme-change">+8% vs вчера</div>
+    </div>
+
+    <div class="theme-pill" onclick="toggleDetails('system')">
+      <span class="theme-icon">⚙️</span>
+      <div class="theme-title">Система</div>
+      <div class="theme-value">OK</div>
+      <div class="theme-change">Без проблем</div>
+    </div>
+  </div>
+
+  <!-- LEVEL 3: Details (Users) -->
+  <div class="level-3" id="details-users">
+    <div class="level-label" style="margin-bottom: 24px;">Уровень 3: Детальная информация по пользователям</div>
+    <div class="details-grid">
+      <div class="detail-block">
+        <div class="detail-title">Активность</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">Онлайн сейчас</span>
+            <span class="detail-value">15</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Пик за сутки</span>
+            <span class="detail-value">23</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Средняя сессия</span>
+            <span class="detail-value">18 мин</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <div class="detail-title">Пользователи</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">Всего зарегистрировано</span>
+            <span class="detail-value">87</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Активных за неделю</span>
+            <span class="detail-value">42</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Новых за неделю</span>
+            <span class="detail-value">+5</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <div class="detail-title">Топ пользователи</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">user_147</span>
+            <span class="detail-value">142 GB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">user_023</span>
+            <span class="detail-value">128 GB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">user_089</span>
+            <span class="detail-value">94 GB</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <div class="detail-title">Устройства</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">iOS</span>
+            <span class="detail-value">8</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Android</span>
+            <span class="detail-value">5</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Desktop</span>
+            <span class="detail-value">2</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <button class="expand-btn" onclick="toggleDetails('users')">Свернуть детали ↑</button>
+  </div>
+
+  <!-- LEVEL 3: Details (Traffic) -->
+  <div class="level-3" id="details-traffic">
+    <div class="level-label" style="margin-bottom: 24px;">Уровень 3: Детальная информация по трафику</div>
+    <div class="details-grid">
+      <div class="detail-block">
+        <div class="detail-title">По периодам</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">Сегодня</span>
+            <span class="detail-value">2.1 TB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Вчера</span>
+            <span class="detail-value">1.9 TB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">За неделю</span>
+            <span class="detail-value">12.8 TB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">За месяц</span>
+            <span class="detail-value">54.2 TB</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <div class="detail-title">Топ домены</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">youtube.com</span>
+            <span class="detail-value">1.2 GB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">google.com</span>
+            <span class="detail-value">856 MB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">facebook.com</span>
+            <span class="detail-value">623 MB</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <div class="detail-title">Топ страны</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">🇺🇸 США</span>
+            <span class="detail-value">842 MB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">🇩🇪 Германия</span>
+            <span class="detail-value">623 MB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">🇬🇧 Великобритания</span>
+            <span class="detail-value">512 MB</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <div class="detail-title">Тип контента</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">Видео</span>
+            <span class="detail-value">1.4 GB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Веб</span>
+            <span class="detail-value">487 MB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Другое</span>
+            <span class="detail-value">213 MB</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <button class="expand-btn" onclick="toggleDetails('traffic')">Свернуть детали ↑</button>
+  </div>
+
+  <!-- LEVEL 3: Details (System) -->
+  <div class="level-3" id="details-system">
+    <div class="level-label" style="margin-bottom: 24px;">Уровень 3: Детальная информация о системе</div>
+    <div class="details-grid">
+      <div class="detail-block">
+        <div class="detail-title">Сервисы</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">Xray Service</span>
+            <span class="detail-value" style="color: var(--success)">Active</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Collector</span>
+            <span class="detail-value" style="color: var(--success)">Running</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Uptime</span>
+            <span class="detail-value">12d 8h 23m</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <div class="detail-title">Ресурсы</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">CPU Usage</span>
+            <span class="detail-value">24%</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Memory</span>
+            <span class="detail-value">1.2 GB / 4 GB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Disk</span>
+            <span class="detail-value">42 GB / 100 GB</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <div class="detail-title">Сеть</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">Активных соединений</span>
+            <span class="detail-value">15</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Входящий трафик</span>
+            <span class="detail-value">8.4 Mbps</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Исходящий трафик</span>
+            <span class="detail-value">12.7 Mbps</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <div class="detail-title">Версии</div>
+        <div class="detail-table">
+          <div class="detail-row">
+            <span class="detail-label">Xray Core</span>
+            <span class="detail-value">1.8.4</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Report UI</span>
+            <span class="detail-value">2.0.1</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Kernel</span>
+            <span class="detail-value">5.4.0-121</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <button class="expand-btn" onclick="toggleDetails('system')">Свернуть детали ↑</button>
+  </div>
+</div>
+
+<script>
+let activeSection = null;
+
+function toggleDetails(section) {
+  const detailsEl = document.getElementById('details-' + section);
+  const pills = document.querySelectorAll('.theme-pill');
+  
+  // Remove active class from all pills
+  pills.forEach(pill => pill.classList.remove('active'));
+  
+  // Hide all details
+  document.querySelectorAll('.level-3').forEach(el => {
+    el.classList.remove('active');
+  });
+  
+  // If clicking the same section, close it
+  if (activeSection === section) {
+    activeSection = null;
+    return;
+  }
+  
+  // Show selected section
+  activeSection = section;
+  detailsEl.classList.add('active');
+  
+  // Add active class to clicked pill
+  event.target.closest('.theme-pill').classList.add('active');
+  
+  // Smooth scroll to details
+  setTimeout(() => {
+    detailsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 100);
+}
+</script>
+
+</body>
+</html>

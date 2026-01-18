@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вариант 1: Liquid Glass</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-primary: #0a0e14;
+  --bg-secondary: #151a23;
+  --glass-bg: rgba(22, 27, 34, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --accent: #00d4ff;
+  --accent-glow: rgba(0, 212, 255, 0.4);
+  --text-primary: #e6edf3;
+  --text-muted: #8b949e;
+  --success: #3fb950;
+  --warning: #d29922;
+  --danger: #f85149;
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-pill: 50px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  color: var(--text-primary);
+  min-height: 100vh;
+  padding: 20px;
+  line-height: 1.6;
+}
+
+/* Glassmorphism effect */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 28px;
+  margin-bottom: 32px;
+  border-radius: var(--radius-md);
+}
+
+.logo {
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), #00ff95);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
+}
+
+.header-controls {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-glass {
+  padding: 10px 20px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btn-glass:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px var(--accent-glow);
+  border-color: var(--accent);
+}
+
+/* Hero Section */
+.hero {
+  padding: 48px;
+  margin-bottom: 32px;
+  border-radius: var(--radius-lg);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  animation: pulse 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-title {
+  font-size: 48px;
+  font-weight: 800;
+  margin-bottom: 16px;
+  letter-spacing: -1px;
+}
+
+.hero-stats {
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.hero-stat {
+  text-align: center;
+}
+
+.hero-stat-value {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--accent);
+  display: block;
+}
+
+.hero-stat-label {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+/* Action Pills */
+.pills {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pill {
+  padding: 20px 40px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  font-size: 18px;
+  font-weight: 600;
+  border: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.pill::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--accent) 0%, #00ff95 100%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.pill:hover::before {
+  opacity: 1;
+}
+
+.pill-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pill:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 48px var(--accent-glow);
+  border-color: var(--accent);
+}
+
+/* Details Section */
+.details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 24px;
+  margin-top: 32px;
+}
+
+.detail-card {
+  padding: 32px;
+  border-radius: var(--radius-lg);
+  transition: all 0.3s;
+}
+
+.detail-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.detail-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--accent);
+}
+
+.detail-content {
+  color: var(--text-muted);
+  line-height: 1.8;
+}
+
+.metric {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.metric:last-child {
+  border-bottom: none;
+}
+
+.metric-label {
+  color: var(--text-muted);
+}
+
+.metric-value {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Status indicators */
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.status-ok { background: var(--success); }
+.status-warn { background: var(--warning); }
+.status-danger { background: var(--danger); }
+
+/* Floating Action Button */
+.fab {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #00ff95);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 32px var(--accent-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: white;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.fab:hover {
+  transform: scale(1.1) rotate(90deg);
+  box-shadow: 0 12px 48px var(--accent-glow);
+}
+
+.info-banner {
+  background: rgba(0, 212, 255, 0.1);
+  border-left: 4px solid var(--accent);
+  padding: 20px;
+  border-radius: var(--radius-md);
+  margin-bottom: 32px;
+  backdrop-filter: blur(10px);
+}
+
+.info-banner h3 {
+  margin-bottom: 8px;
+  color: var(--accent);
+}
+</style>
+</head>
+<body>
+
+<div class="info-banner glass">
+  <h3>🎨 Вариант 1: Liquid Glass</h3>
+  <p><strong>Концепция:</strong> Apple-inspired glassmorphism с эффектом стекла и плавными переходами</p>
+  <p><strong>Особенности:</strong> Полупрозрачность, размытие фона, голубые неоновые акценты, анимации</p>
+</div>
+
+<header class="header glass">
+  <div class="logo">⚡ XRAY CONTROL</div>
+  <div class="header-controls">
+    <button class="btn-glass">🌙 Тема</button>
+    <button class="btn-glass">🌐 EN</button>
+    <button class="btn-glass">⚙️</button>
+  </div>
+</header>
+
+<section class="hero glass">
+  <div class="hero-content">
+    <h1 class="hero-title">
+      <span class="status-dot status-ok"></span>
+      Все системы работают
+    </h1>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="hero-stat-value">15</span>
+        <span class="hero-stat-label">Пользователей</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-value">2.1 TB</span>
+        <span class="hero-stat-label">Трафик сегодня</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-value">99.9%</span>
+        <span class="hero-stat-label">Uptime</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="pills">
+  <div class="pill glass">
+    <div class="pill-content">
+      <span>👥</span>
+      <span>Пользователи</span>
+    </div>
+  </div>
+  <div class="pill glass">
+    <div class="pill-content">
+      <span>📊</span>
+      <span>Аналитика</span>
+    </div>
+  </div>
+  <div class="pill glass">
+    <div class="pill-content">
+      <span>⚙️</span>
+      <span>Система</span>
+    </div>
+  </div>
+  <div class="pill glass">
+    <div class="pill-content">
+      <span>📝</span>
+      <span>Логи</span>
+    </div>
+  </div>
+</div>
+
+<div class="details">
+  <div class="detail-card glass">
+    <h3 class="detail-title">📈 Статистика трафика</h3>
+    <div class="detail-content">
+      <div class="metric">
+        <span class="metric-label">Сегодня</span>
+        <span class="metric-value">2.1 TB</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Вчера</span>
+        <span class="metric-value">1.9 TB</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">За неделю</span>
+        <span class="metric-value">12.8 TB</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">За месяц</span>
+        <span class="metric-value">54.2 TB</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-card glass">
+    <h3 class="detail-title">👥 Активные пользователи</h3>
+    <div class="detail-content">
+      <div class="metric">
+        <span class="metric-label">Онлайн сейчас</span>
+        <span class="metric-value">15</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Пик за сутки</span>
+        <span class="metric-value">23</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Всего пользователей</span>
+        <span class="metric-value">87</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Новых за неделю</span>
+        <span class="metric-value">+5</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-card glass">
+    <h3 class="detail-title">⚙️ Статус системы</h3>
+    <div class="detail-content">
+      <div class="metric">
+        <span class="metric-label"><span class="status-dot status-ok"></span>Xray Service</span>
+        <span class="metric-value">Active</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label"><span class="status-dot status-ok"></span>Collector</span>
+        <span class="metric-value">Running</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">CPU</span>
+        <span class="metric-value">24%</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Memory</span>
+        <span class="metric-value">1.2 GB</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="fab" title="Добавить пользователя">+</button>
+
+</body>
+</html>

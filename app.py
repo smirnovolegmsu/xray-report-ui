@@ -43,7 +43,6 @@ EVENTS_PATH = os.path.join(DATA_DIR, "events.log")
 
 TEMPLATE_INDEX_PATHS = [
     "/opt/xray-report-ui/templates/index.html",
-    "/opt/xray-report-ui/index.html",  # legacy fallback
 ]
 
 USAGE_DIR = "/var/log/xray/usage"

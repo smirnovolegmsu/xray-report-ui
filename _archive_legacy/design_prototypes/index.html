@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Прототипы дизайна - Xray Report UI</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: linear-gradient(135deg, #0a0e14 0%, #1a1f2e 100%);
+  color: #e6edf3;
+  min-height: 100vh;
+  padding: 40px 20px;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 60px;
+}
+
+.header h1 {
+  font-size: 48px;
+  font-weight: 800;
+  margin-bottom: 16px;
+  letter-spacing: -1px;
+}
+
+.header p {
+  font-size: 18px;
+  color: #8b949e;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.prototypes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 32px;
+  margin-bottom: 60px;
+}
+
+.prototype-card {
+  background: rgba(22, 27, 34, 0.7);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 32px;
+  transition: all 0.3s;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.prototype-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 16px 48px rgba(0, 212, 255, 0.3);
+  border-color: #00d4ff;
+}
+
+.prototype-number {
+  display: inline-block;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #00d4ff, #00ff95);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #000;
+}
+
+.prototype-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.prototype-concept {
+  font-size: 14px;
+  color: #8b949e;
+  margin-bottom: 16px;
+}
+
+.prototype-features {
+  list-style: none;
+  margin-bottom: 24px;
+}
+
+.prototype-features li {
+  font-size: 13px;
+  color: #a0a0a0;
+  padding: 6px 0;
+  padding-left: 20px;
+  position: relative;
+}
+
+.prototype-features li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: #00ff95;
+  font-weight: 700;
+}
+
+.prototype-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 12px;
+}
+
+.badge-modern { background: rgba(0, 212, 255, 0.2); color: #00d4ff; }
+.badge-familiar { background: rgba(103, 80, 164, 0.2); color: #a78bfa; }
+.badge-minimal { background: rgba(255, 255, 255, 0.1); color: #ffffff; }
+.badge-bold { background: rgba(255, 0, 255, 0.2); color: #ff00ff; }
+
+.cta {
+  text-align: center;
+  padding: 40px;
+  background: rgba(22, 27, 34, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+.cta h2 {
+  font-size: 28px;
+  margin-bottom: 16px;
+}
+
+.cta p {
+  color: #8b949e;
+  margin-bottom: 24px;
+}
+
+.btn {
+  display: inline-block;
+  padding: 16px 32px;
+  background: linear-gradient(135deg, #00d4ff, #00ff95);
+  color: #000;
+  border-radius: 50px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.3s;
+  font-size: 16px;
+}
+
+.btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 40px rgba(0, 212, 255, 0.4);
+}
+
+.comparison-table {
+  width: 100%;
+  margin-top: 40px;
+  border-collapse: collapse;
+  background: rgba(22, 27, 34, 0.5);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.comparison-table th,
+.comparison-table td {
+  padding: 16px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.comparison-table th {
+  background: rgba(0, 212, 255, 0.1);
+  font-weight: 700;
+  color: #00d4ff;
+}
+
+.comparison-table td {
+  color: #a0a0a0;
+}
+
+.stars {
+  color: #ffb800;
+}
+
+@media (max-width: 768px) {
+  .header h1 {
+    font-size: 32px;
+  }
+  
+  .prototypes-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>🎨 Выбери дизайн для Xray Report UI</h1>
+    <p>Четыре концепции, вдохновленные современными трендами. Кликни на карточку, чтобы открыть прототип.</p>
+  </div>
+
+  <div class="prototypes-grid">
+    <a href="01_liquid_glass.html" class="prototype-card">
+      <div class="prototype-number">1</div>
+      <div class="prototype-title">Liquid Glass</div>
+      <div class="prototype-concept">Apple-inspired Glassmorphism</div>
+      <ul class="prototype-features">
+        <li>Эффект матового стекла</li>
+        <li>Голубые неоновые акценты</li>
+        <li>Плавные анимации</li>
+        <li>Hero-секция с градиентом</li>
+        <li>Floating Action Button</li>
+      </ul>
+      <span class="prototype-badge badge-modern">Премиум Look</span>
+    </a>
+
+    <a href="02_material3.html" class="prototype-card">
+      <div class="prototype-number">2</div>
+      <div class="prototype-title">Material Design 3</div>
+      <div class="prototype-concept">Google Material You</div>
+      <ul class="prototype-features">
+        <li>Фиолетовая палитра</li>
+        <li>Elevation shadows</li>
+        <li>Rounded corners (24px)</li>
+        <li>Segmented buttons</li>
+        <li>Ripple эффекты</li>
+      </ul>
+      <span class="prototype-badge badge-familiar">Знакомый UI</span>
+    </a>
+
+    <a href="03_minto_pyramid.html" class="prototype-card">
+      <div class="prototype-number">3</div>
+      <div class="prototype-title">Minto Pyramid</div>
+      <div class="prototype-concept">Логическая иерархия</div>
+      <ul class="prototype-features">
+        <li>3 уровня информации</li>
+        <li>Collapsible секции</li>
+        <li>Минималистичный стиль</li>
+        <li>Фокус на данных</li>
+        <li>Прогрессивное раскрытие</li>
+      </ul>
+      <span class="prototype-badge badge-minimal">Data-Driven</span>
+    </a>
+
+    <a href="04_neobrutalism.html" class="prototype-card">
+      <div class="prototype-number">4</div>
+      <div class="prototype-title">Neobrutalism</div>
+      <div class="prototype-concept">Брутализм в вебе</div>
+      <ul class="prototype-features">
+        <li>Жирные черные границы</li>
+        <li>Flat дизайн</li>
+        <li>Box-shadow offset</li>
+        <li>Яркие кислотные цвета</li>
+        <li>Высокий контраст</li>
+      </ul>
+      <span class="prototype-badge badge-bold">Смелый Стиль</span>
+    </a>
+  </div>
+
+  <div class="cta">
+    <h2>Быстрое сравнение</h2>
+    <p>Выбери стиль, который подходит для твоих целей</p>
+    
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Критерий</th>
+          <th>Liquid Glass</th>
+          <th>Material 3</th>
+          <th>Minto Pyramid</th>
+          <th>Neobrutalism</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Современность</strong></td>
+          <td><span class="stars">★★★★★</span></td>
+          <td><span class="stars">★★★★☆</span></td>
+          <td><span class="stars">★★★★☆</span></td>
+          <td><span class="stars">★★★★★</span></td>
+        </tr>
+        <tr>
+          <td><strong>Читаемость</strong></td>
+          <td><span class="stars">★★★☆☆</span></td>
+          <td><span class="stars">★★★★☆</span></td>
+          <td><span class="stars">★★★★★</span></td>
+          <td><span class="stars">★★★☆☆</span></td>
+        </tr>
+        <tr>
+          <td><strong>Анимации</strong></td>
+          <td>Много</td>
+          <td>Средне</td>
+          <td>Мало</td>
+          <td>Мало</td>
+        </tr>
+        <tr>
+          <td><strong>Лучше для</strong></td>
+          <td>Премиум вид</td>
+          <td>Универсальное</td>
+          <td>Много данных</td>
+          <td>Выделиться</td>
+        </tr>
+        <tr>
+          <td><strong>Сложность</strong></td>
+          <td>Высокая</td>
+          <td>Средняя</td>
+          <td>Низкая</td>
+          <td>Низкая</td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <p style="margin-top: 32px; font-size: 14px; color: #8b949e;">
+      💡 Совет: Открой все 4 варианта в разных вкладках и сравни<br>
+      Можем также комбинировать элементы из разных концепций
+    </p>
+  </div>
+</div>
+
+</body>
+</html>

@@ -3513,67 +3513,73 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
   
   const html = users.map(u => {
     const details = userDetails[u.userId] || {};
-    const status = u.status === 'anomaly' ? 'аномалии' : 'ok';
     const statusClass = u.status === 'anomaly' ? 'bad' : 'ok';
+    const statusText = u.status === 'anomaly' ? 'Аномалия' : 'OK';
     
-    const traffic7d = ((u.traffic7dBytes || 0) / base).toFixed(2);
+    // Round to 1 decimal place
+    const traffic7d = ((u.traffic7dBytes || 0) / base).toFixed(1);
     const conns7d = (u.conns7d || 0).toLocaleString('ru-RU');
     
-    const topTraffic = (details.topDomainsTraffic || []).slice(0, 10);
-    const topConns = (details.topDomainsConns || []).slice(0, 10);
+    const topTraffic = (details.topDomainsTraffic || []).slice(0, 5);
+    const topConns = (details.topDomainsConns || []).slice(0, 5);
     
     return `
       <div class="card">
         <div class="card-hd">
-          <div>
+          <div class="user-title-row">
             <h3>${u.displayName || u.userId}</h3>
-            <div class="meta">${u.userId}</div>
+            <span class="status-dot ${statusClass}" title="${statusText}"></span>
           </div>
-          <span class="badge ${statusClass}">${status}</span>
+          <div class="metrics-row">
+            <div class="metric-item">
+              <div class="metric-value">${traffic7d} ${unitLabel}</div>
+              <div class="metric-label">traffic</div>
+            </div>
+            <div class="metric-separator"></div>
+            <div class="metric-item">
+              <div class="metric-value">${conns7d}</div>
+              <div class="metric-label">conns</div>
+            </div>
+          </div>
         </div>
         <div class="card-bd">
-          <div class="row" style="margin-bottom:8px;">
-            <span class="badge">traffic7d: ${traffic7d} ${unitLabel}</span>
-            <span class="badge">conns7d: ${conns7d}</span>
-          </div>
-          <div style="height:70px;margin-bottom:6px;">
+          <div style="height:60px;margin-bottom:10px;">
             <div id="userChart_${u.userId}" style="width:100%;height:100%;"></div>
           </div>
-          <div class="domains-grid">
-            <div class="user-table-traffic" data-user-id="${u.userId}">
-              <div class="kpi-title" style="font-size:11px;margin-bottom:6px;">Top-10 Traffic</div>
-              <table class="table">
-                <thead><tr><th>Domain</th><th>${unitLabel}</th><th>%</th></tr></thead>
-                <tbody>
-                  ${topTraffic.map(d => `
-                    <tr>
-                      <td>${d.domain}</td>
-                      <td>${((d.trafficBytes || 0) / base).toFixed(2)}</td>
-                      <td>${(d.sharePct || 0).toFixed(2)}%</td>
-                    </tr>
-                  `).join('') || '<tr><td colspan="3">Нет данных</td></tr>'}
-                </tbody>
-              </table>
+          <div class="user-table-traffic" data-user-id="${u.userId}">
+            <div class="domains-section">
+              <div class="domains-section-title">TOP DOMAINS</div>
+              ${topTraffic.length > 0 ? topTraffic.map(d => {
+                const domainGb = ((d.trafficBytes || 0) / base).toFixed(1);
+                return `
+                <div class="domain-item">
+                  <span class="domain-pct">${(d.sharePct || 0).toFixed(0)}%</span>
+                  <span class="domain-bullet">•</span>
+                  <span class="domain-gb">${domainGb} ${unitLabel}</span>
+                  <span class="domain-bullet">•</span>
+                  <span class="domain-name">${d.domain}</span>
+                </div>
+              `;
+              }).join('') : '<div style="color: var(--muted); font-size: 11px; text-align: center;">Нет данных</div>'}
             </div>
-            <div class="user-table-conns" data-user-id="${u.userId}">
-              <div class="kpi-title" style="font-size:11px;margin-bottom:6px;">Top-10 Conns</div>
-              <table class="table">
-                <thead><tr><th>Domain</th><th>#</th><th>%</th></tr></thead>
-                <tbody>
-                  ${(topConns && topConns.length > 0) ? topConns.map(d => {
-                    const domain = d.domain || '—';
-                    const conns = typeof d === 'object' ? (d.conns || 0) : 0;
-                    const pct = typeof d === 'object' ? (d.sharePct || 0) : 0;
-                    return `
-                    <tr>
-                      <td>${domain}</td>
-                      <td>${conns.toLocaleString('ru-RU')}</td>
-                      <td>${pct.toFixed(2)}%</td>
-                    </tr>
-                  `;
-                  }).join('') : '<tr><td colspan="3">Нет данных</td></tr>'}
-                </tbody>
-              </table>
+          </div>
+          <div class="user-table-conns" data-user-id="${u.userId}" style="display:none;">
+            <div class="domains-section">
+              <div class="domains-section-title">TOP DOMAINS</div>
+              ${(topConns && topConns.length > 0) ? topConns.map(d => {
+                const domain = d.domain || '—';
+                const pct = typeof d === 'object' ? (d.sharePct || 0) : 0;
+                const connsCount = typeof d === 'object' ? (d.conns || 0) : 0;
+                return `
+                <div class="domain-item">
+                  <span class="domain-pct">${pct.toFixed(0)}%</span>
+                  <span class="domain-bullet">•</span>
+                  <span class="domain-gb">${connsCount.toLocaleString('ru-RU')}</span>
+                  <span class="domain-bullet">•</span>
+                  <span class="domain-name">${domain}</span>
+                </div>
+              `;
+              }).join('') : '<div style="color: var(--muted); font-size: 11px; text-align: center;">Нет данных</div>'}
             </div>
           </div>
         </div>

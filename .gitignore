@@ -31,6 +31,9 @@ history/
 state/
 archive/
 
+# Legacy archive - можно добавить в Git для истории
+# _archive_legacy/
+
 # Системные файлы Linux
 *.pid
 *.lock

@@ -2,1151 +2,6 @@
   "buffer": {
     "online_users": [
       {
-        "ts": 1768672980,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673040,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673100,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673160,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673220,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673280,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673340,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673400,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673460,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673520,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673580,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673640,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673700,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673760,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673820,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673880,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768673940,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674000,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674060,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674120,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674180,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674240,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674300,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674360,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674420,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674480,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674540,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674600,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674660,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674720,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674780,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674840,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674900,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768674960,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675020,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675080,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675200,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675260,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675320,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675380,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675440,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675500,
-        "value": 2,
-        "users": [
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675560,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675620,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675680,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675740,
-        "value": 3,
-        "users": [
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675800,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675860,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675920,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768675980,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676040,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676100,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676160,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676220,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676280,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676340,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676400,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676460,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676520,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676580,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676640,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676700,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676760,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676820,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676880,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768676940,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677000,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677060,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677120,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677180,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677240,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677300,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677360,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677420,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677480,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677540,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677600,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677660,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677720,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677780,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677900,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768677960,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678020,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678080,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678140,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678200,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678260,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678320,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678380,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678440,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678500,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678560,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678620,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678680,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678740,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678800,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678860,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678920,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768678980,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679040,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679100,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679160,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679220,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679280,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679340,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679400,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679460,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679520,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679580,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679640,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679700,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679760,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679820,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679880,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768679940,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768680000,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768680060,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768680120,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768680180,
-        "value": 3,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768680240,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768680300,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768680360,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768680420,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
-        "ts": 1768680480,
-        "value": 4,
-        "users": [
-          "user_02",
-          "user_01",
-          "user_04",
-          "user_08"
-        ]
-      },
-      {
         "ts": 1768680540,
         "value": 4,
         "users": [
@@ -13276,505 +12131,1319 @@
           "user_01",
           "user_04"
         ]
+      },
+      {
+        "ts": 1768761240,
+        "value": 5,
+        "users": [
+          "user_02",
+          "user_05",
+          "user_08",
+          "user_01",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768761300,
+        "value": 5,
+        "users": [
+          "user_02",
+          "user_05",
+          "user_08",
+          "user_01",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768761360,
+        "value": 5,
+        "users": [
+          "user_02",
+          "user_05",
+          "user_08",
+          "user_01",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768761420,
+        "value": 4,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01",
+          "user_02"
+        ]
+      },
+      {
+        "ts": 1768761480,
+        "value": 4,
+        "users": [
+          "user_05",
+          "user_01",
+          "user_04",
+          "user_02"
+        ]
+      },
+      {
+        "ts": 1768761540,
+        "value": 4,
+        "users": [
+          "user_05",
+          "user_01",
+          "user_04",
+          "user_02"
+        ]
+      },
+      {
+        "ts": 1768761600,
+        "value": 4,
+        "users": [
+          "user_05",
+          "user_01",
+          "user_04",
+          "user_02"
+        ]
+      },
+      {
+        "ts": 1768761660,
+        "value": 3,
+        "users": [
+          "user_05",
+          "user_01",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768761720,
+        "value": 3,
+        "users": [
+          "user_05",
+          "user_01",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768761780,
+        "value": 3,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01"
+        ]
+      },
+      {
+        "ts": 1768761840,
+        "value": 3,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01"
+        ]
+      },
+      {
+        "ts": 1768761900,
+        "value": 3,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01"
+        ]
+      },
+      {
+        "ts": 1768761960,
+        "value": 3,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01"
+        ]
+      },
+      {
+        "ts": 1768762020,
+        "value": 3,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01"
+        ]
+      },
+      {
+        "ts": 1768762080,
+        "value": 4,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768762140,
+        "value": 4,
+        "users": [
+          "user_08",
+          "user_01",
+          "user_05",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768762200,
+        "value": 4,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768762260,
+        "value": 4,
+        "users": [
+          "user_08",
+          "user_01",
+          "user_05",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768762320,
+        "value": 4,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768762380,
+        "value": 3,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01"
+        ]
+      },
+      {
+        "ts": 1768762440,
+        "value": 3,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01"
+        ]
+      },
+      {
+        "ts": 1768762500,
+        "value": 4,
+        "users": [
+          "user_05",
+          "user_08",
+          "user_01",
+          "user_02"
+        ]
+      },
+      {
+        "ts": 1768762560,
+        "value": 5,
+        "users": [
+          "user_08",
+          "user_04",
+          "user_05",
+          "user_01",
+          "user_02"
+        ]
+      },
+      {
+        "ts": 1768762620,
+        "value": 5,
+        "users": [
+          "user_08",
+          "user_04",
+          "user_05",
+          "user_01",
+          "user_02"
+        ]
+      },
+      {
+        "ts": 1768762680,
+        "value": 5,
+        "users": [
+          "user_08",
+          "user_04",
+          "user_01",
+          "user_05",
+          "user_02"
+        ]
+      },
+      {
+        "ts": 1768762680,
+        "value": 5,
+        "users": [
+          "user_02",
+          "user_08",
+          "user_05",
+          "user_01",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768762740,
+        "value": 5,
+        "users": [
+          "user_02",
+          "user_08",
+          "user_05",
+          "user_01",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768762800,
+        "value": 5,
+        "users": [
+          "user_02",
+          "user_08",
+          "user_05",
+          "user_01",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768762860,
+        "value": 4,
+        "users": [
+          "user_08",
+          "user_01",
+          "user_04",
+          "user_05"
+        ]
+      },
+      {
+        "ts": 1768762920,
+        "value": 4,
+        "users": [
+          "user_08",
+          "user_01",
+          "user_05",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768762980,
+        "value": 3,
+        "users": [
+          "user_05",
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768763040,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_05"
+        ]
+      },
+      {
+        "ts": 1768763100,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_05"
+        ]
+      },
+      {
+        "ts": 1768763160,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_05"
+        ]
+      },
+      {
+        "ts": 1768763220,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_05"
+        ]
+      },
+      {
+        "ts": 1768763220,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_05"
+        ]
+      },
+      {
+        "ts": 1768763280,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_05"
+        ]
+      },
+      {
+        "ts": 1768763340,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_04",
+          "user_08",
+          "user_05"
+        ]
+      },
+      {
+        "ts": 1768763400,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_04",
+          "user_05"
+        ]
+      },
+      {
+        "ts": 1768763460,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768763520,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768763580,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768763640,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_05",
+          "user_08",
+          "user_02"
+        ]
+      },
+      {
+        "ts": 1768763700,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_02",
+          "user_05"
+        ]
+      },
+      {
+        "ts": 1768763760,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_05",
+          "user_08",
+          "user_02"
+        ]
+      },
+      {
+        "ts": 1768763820,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_02",
+          "user_05"
+        ]
+      },
+      {
+        "ts": 1768763880,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768763940,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764000,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764060,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764120,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764180,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764240,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764300,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764360,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764420,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764540,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764600,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764660,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764720,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764780,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764840,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764900,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768764960,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765020,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765080,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765140,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765200,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765260,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765320,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765380,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765440,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765500,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765560,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765620,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765680,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765740,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765800,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765860,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765920,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768765980,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766040,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766100,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766160,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766220,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766280,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766340,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766400,
+        "value": 6,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766460,
+        "value": 5,
+        "users": [
+          "user_05",
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766520,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_04",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766580,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768766640,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768766700,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_04",
+          "user_08",
+          "user_06"
+        ]
+      },
+      {
+        "ts": 1768766760,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766880,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768766940,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768767000,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768767060,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_04",
+          "user_08",
+          "user_02"
+        ]
+      },
+      {
+        "ts": 1768767120,
+        "value": 2,
+        "users": [
+          "user_01",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768767180,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768767240,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_04",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768767300,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768767360,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768767420,
+        "value": 3,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768767480,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_04",
+          "user_08",
+          "user_06"
+        ]
+      },
+      {
+        "ts": 1768767540,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_06",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768767600,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_06",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768767660,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_06",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768767720,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_06",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768767780,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_06",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768767840,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_06",
+          "user_08",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768767900,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_06",
+          "user_08",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768767960,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_06",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768768020,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_06",
+          "user_08",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768768080,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_04",
+          "user_08",
+          "user_06"
+        ]
+      },
+      {
+        "ts": 1768768140,
+        "value": 4,
+        "users": [
+          "user_01",
+          "user_08",
+          "user_06",
+          "user_04"
+        ]
+      },
+      {
+        "ts": 1768768200,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768768260,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768768320,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768768380,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768768440,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768768500,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768768560,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
+      },
+      {
+        "ts": 1768768620,
+        "value": 5,
+        "users": [
+          "user_04",
+          "user_02",
+          "user_01",
+          "user_06",
+          "user_08"
+        ]
       }
     ],
     "conns": [
-      {
-        "ts": 1768672980,
-        "value": 516
-      },
-      {
-        "ts": 1768673040,
-        "value": 435
-      },
-      {
-        "ts": 1768673100,
-        "value": 487
-      },
-      {
-        "ts": 1768673160,
-        "value": 439
-      },
-      {
-        "ts": 1768673220,
-        "value": 319
-      },
-      {
-        "ts": 1768673280,
-        "value": 416
-      },
-      {
-        "ts": 1768673340,
-        "value": 542
-      },
-      {
-        "ts": 1768673400,
-        "value": 628
-      },
-      {
-        "ts": 1768673460,
-        "value": 718
-      },
-      {
-        "ts": 1768673520,
-        "value": 649
-      },
-      {
-        "ts": 1768673580,
-        "value": 543
-      },
-      {
-        "ts": 1768673640,
-        "value": 423
-      },
-      {
-        "ts": 1768673700,
-        "value": 257
-      },
-      {
-        "ts": 1768673760,
-        "value": 211
-      },
-      {
-        "ts": 1768673820,
-        "value": 395
-      },
-      {
-        "ts": 1768673880,
-        "value": 401
-      },
-      {
-        "ts": 1768673940,
-        "value": 466
-      },
-      {
-        "ts": 1768674000,
-        "value": 560
-      },
-      {
-        "ts": 1768674060,
-        "value": 671
-      },
-      {
-        "ts": 1768674120,
-        "value": 699
-      },
-      {
-        "ts": 1768674180,
-        "value": 931
-      },
-      {
-        "ts": 1768674240,
-        "value": 926
-      },
-      {
-        "ts": 1768674300,
-        "value": 841
-      },
-      {
-        "ts": 1768674360,
-        "value": 702
-      },
-      {
-        "ts": 1768674420,
-        "value": 416
-      },
-      {
-        "ts": 1768674480,
-        "value": 172
-      },
-      {
-        "ts": 1768674540,
-        "value": 86
-      },
-      {
-        "ts": 1768674600,
-        "value": 110
-      },
-      {
-        "ts": 1768674660,
-        "value": 114
-      },
-      {
-        "ts": 1768674720,
-        "value": 130
-      },
-      {
-        "ts": 1768674780,
-        "value": 139
-      },
-      {
-        "ts": 1768674840,
-        "value": 135
-      },
-      {
-        "ts": 1768674900,
-        "value": 252
-      },
-      {
-        "ts": 1768674960,
-        "value": 844
-      },
-      {
-        "ts": 1768675020,
-        "value": 971
-      },
-      {
-        "ts": 1768675080,
-        "value": 1000
-      },
-      {
-        "ts": 1768675200,
-        "value": 1000
-      },
-      {
-        "ts": 1768675260,
-        "value": 946
-      },
-      {
-        "ts": 1768675320,
-        "value": 473
-      },
-      {
-        "ts": 1768675380,
-        "value": 338
-      },
-      {
-        "ts": 1768675440,
-        "value": 267
-      },
-      {
-        "ts": 1768675500,
-        "value": 169
-      },
-      {
-        "ts": 1768675560,
-        "value": 139
-      },
-      {
-        "ts": 1768675620,
-        "value": 91
-      },
-      {
-        "ts": 1768675680,
-        "value": 156
-      },
-      {
-        "ts": 1768675740,
-        "value": 164
-      },
-      {
-        "ts": 1768675800,
-        "value": 261
-      },
-      {
-        "ts": 1768675860,
-        "value": 368
-      },
-      {
-        "ts": 1768675920,
-        "value": 445
-      },
-      {
-        "ts": 1768675980,
-        "value": 444
-      },
-      {
-        "ts": 1768676040,
-        "value": 627
-      },
-      {
-        "ts": 1768676100,
-        "value": 616
-      },
-      {
-        "ts": 1768676160,
-        "value": 625
-      },
-      {
-        "ts": 1768676220,
-        "value": 795
-      },
-      {
-        "ts": 1768676280,
-        "value": 864
-      },
-      {
-        "ts": 1768676340,
-        "value": 793
-      },
-      {
-        "ts": 1768676400,
-        "value": 817
-      },
-      {
-        "ts": 1768676460,
-        "value": 711
-      },
-      {
-        "ts": 1768676520,
-        "value": 536
-      },
-      {
-        "ts": 1768676580,
-        "value": 478
-      },
-      {
-        "ts": 1768676640,
-        "value": 434
-      },
-      {
-        "ts": 1768676700,
-        "value": 448
-      },
-      {
-        "ts": 1768676760,
-        "value": 472
-      },
-      {
-        "ts": 1768676820,
-        "value": 489
-      },
-      {
-        "ts": 1768676880,
-        "value": 609
-      },
-      {
-        "ts": 1768676940,
-        "value": 556
-      },
-      {
-        "ts": 1768677000,
-        "value": 455
-      },
-      {
-        "ts": 1768677060,
-        "value": 393
-      },
-      {
-        "ts": 1768677120,
-        "value": 304
-      },
-      {
-        "ts": 1768677180,
-        "value": 209
-      },
-      {
-        "ts": 1768677240,
-        "value": 368
-      },
-      {
-        "ts": 1768677300,
-        "value": 456
-      },
-      {
-        "ts": 1768677360,
-        "value": 465
-      },
-      {
-        "ts": 1768677420,
-        "value": 464
-      },
-      {
-        "ts": 1768677480,
-        "value": 300
-      },
-      {
-        "ts": 1768677540,
-        "value": 189
-      },
-      {
-        "ts": 1768677600,
-        "value": 172
-      },
-      {
-        "ts": 1768677660,
-        "value": 192
-      },
-      {
-        "ts": 1768677720,
-        "value": 295
-      },
-      {
-        "ts": 1768677780,
-        "value": 291
-      },
-      {
-        "ts": 1768677900,
-        "value": 370
-      },
-      {
-        "ts": 1768677960,
-        "value": 378
-      },
-      {
-        "ts": 1768678020,
-        "value": 357
-      },
-      {
-        "ts": 1768678080,
-        "value": 298
-      },
-      {
-        "ts": 1768678140,
-        "value": 312
-      },
-      {
-        "ts": 1768678200,
-        "value": 195
-      },
-      {
-        "ts": 1768678260,
-        "value": 133
-      },
-      {
-        "ts": 1768678320,
-        "value": 127
-      },
-      {
-        "ts": 1768678380,
-        "value": 141
-      },
-      {
-        "ts": 1768678440,
-        "value": 170
-      },
-      {
-        "ts": 1768678500,
-        "value": 238
-      },
-      {
-        "ts": 1768678560,
-        "value": 277
-      },
-      {
-        "ts": 1768678620,
-        "value": 490
-      },
-      {
-        "ts": 1768678680,
-        "value": 547
-      },
-      {
-        "ts": 1768678740,
-        "value": 506
-      },
-      {
-        "ts": 1768678800,
-        "value": 429
-      },
-      {
-        "ts": 1768678860,
-        "value": 376
-      },
-      {
-        "ts": 1768678920,
-        "value": 134
-      },
-      {
-        "ts": 1768678980,
-        "value": 83
-      },
-      {
-        "ts": 1768679040,
-        "value": 91
-      },
-      {
-        "ts": 1768679100,
-        "value": 155
-      },
-      {
-        "ts": 1768679160,
-        "value": 163
-      },
-      {
-        "ts": 1768679220,
-        "value": 161
-      },
-      {
-        "ts": 1768679280,
-        "value": 159
-      },
-      {
-        "ts": 1768679340,
-        "value": 162
-      },
-      {
-        "ts": 1768679400,
-        "value": 159
-      },
-      {
-        "ts": 1768679460,
-        "value": 337
-      },
-      {
-        "ts": 1768679520,
-        "value": 411
-      },
-      {
-        "ts": 1768679580,
-        "value": 488
-      },
-      {
-        "ts": 1768679640,
-        "value": 522
-      },
-      {
-        "ts": 1768679700,
-        "value": 526
-      },
-      {
-        "ts": 1768679760,
-        "value": 426
-      },
-      {
-        "ts": 1768679820,
-        "value": 402
-      },
-      {
-        "ts": 1768679880,
-        "value": 327
-      },
-      {
-        "ts": 1768679940,
-        "value": 310
-      },
-      {
-        "ts": 1768680000,
-        "value": 279
-      },
-      {
-        "ts": 1768680060,
-        "value": 241
-      },
-      {
-        "ts": 1768680120,
-        "value": 202
-      },
-      {
-        "ts": 1768680180,
-        "value": 198
-      },
-      {
-        "ts": 1768680240,
-        "value": 203
-      },
-      {
-        "ts": 1768680300,
-        "value": 145
-      },
-      {
-        "ts": 1768680360,
-        "value": 155
-      },
-      {
-        "ts": 1768680420,
-        "value": 211
-      },
-      {
-        "ts": 1768680480,
-        "value": 515
-      },
       {
         "ts": 1768680540,
         "value": 638
@@ -19038,10 +18707,506 @@
       {
         "ts": 1768761180,
         "value": 285
+      },
+      {
+        "ts": 1768761240,
+        "value": 316
+      },
+      {
+        "ts": 1768761300,
+        "value": 329
+      },
+      {
+        "ts": 1768761360,
+        "value": 285
+      },
+      {
+        "ts": 1768761420,
+        "value": 244
+      },
+      {
+        "ts": 1768761480,
+        "value": 188
+      },
+      {
+        "ts": 1768761540,
+        "value": 190
+      },
+      {
+        "ts": 1768761600,
+        "value": 223
+      },
+      {
+        "ts": 1768761660,
+        "value": 276
+      },
+      {
+        "ts": 1768761720,
+        "value": 289
+      },
+      {
+        "ts": 1768761780,
+        "value": 381
+      },
+      {
+        "ts": 1768761840,
+        "value": 407
+      },
+      {
+        "ts": 1768761900,
+        "value": 414
+      },
+      {
+        "ts": 1768761960,
+        "value": 374
+      },
+      {
+        "ts": 1768762020,
+        "value": 459
+      },
+      {
+        "ts": 1768762080,
+        "value": 422
+      },
+      {
+        "ts": 1768762140,
+        "value": 358
+      },
+      {
+        "ts": 1768762200,
+        "value": 361
+      },
+      {
+        "ts": 1768762260,
+        "value": 355
+      },
+      {
+        "ts": 1768762320,
+        "value": 316
+      },
+      {
+        "ts": 1768762380,
+        "value": 300
+      },
+      {
+        "ts": 1768762440,
+        "value": 393
+      },
+      {
+        "ts": 1768762500,
+        "value": 590
+      },
+      {
+        "ts": 1768762560,
+        "value": 622
+      },
+      {
+        "ts": 1768762620,
+        "value": 675
+      },
+      {
+        "ts": 1768762680,
+        "value": 649
+      },
+      {
+        "ts": 1768762680,
+        "value": 633
+      },
+      {
+        "ts": 1768762740,
+        "value": 499
+      },
+      {
+        "ts": 1768762800,
+        "value": 343
+      },
+      {
+        "ts": 1768762860,
+        "value": 324
+      },
+      {
+        "ts": 1768762920,
+        "value": 231
+      },
+      {
+        "ts": 1768762980,
+        "value": 229
+      },
+      {
+        "ts": 1768763040,
+        "value": 228
+      },
+      {
+        "ts": 1768763100,
+        "value": 179
+      },
+      {
+        "ts": 1768763160,
+        "value": 193
+      },
+      {
+        "ts": 1768763220,
+        "value": 202
+      },
+      {
+        "ts": 1768763220,
+        "value": 202
+      },
+      {
+        "ts": 1768763280,
+        "value": 170
+      },
+      {
+        "ts": 1768763340,
+        "value": 205
+      },
+      {
+        "ts": 1768763400,
+        "value": 189
+      },
+      {
+        "ts": 1768763460,
+        "value": 277
+      },
+      {
+        "ts": 1768763520,
+        "value": 476
+      },
+      {
+        "ts": 1768763580,
+        "value": 513
+      },
+      {
+        "ts": 1768763640,
+        "value": 553
+      },
+      {
+        "ts": 1768763700,
+        "value": 518
+      },
+      {
+        "ts": 1768763760,
+        "value": 473
+      },
+      {
+        "ts": 1768763820,
+        "value": 347
+      },
+      {
+        "ts": 1768763880,
+        "value": 367
+      },
+      {
+        "ts": 1768763940,
+        "value": 343
+      },
+      {
+        "ts": 1768764000,
+        "value": 357
+      },
+      {
+        "ts": 1768764060,
+        "value": 337
+      },
+      {
+        "ts": 1768764120,
+        "value": 272
+      },
+      {
+        "ts": 1768764180,
+        "value": 291
+      },
+      {
+        "ts": 1768764240,
+        "value": 360
+      },
+      {
+        "ts": 1768764300,
+        "value": 368
+      },
+      {
+        "ts": 1768764360,
+        "value": 438
+      },
+      {
+        "ts": 1768764420,
+        "value": 533
+      },
+      {
+        "ts": 1768764540,
+        "value": 733
+      },
+      {
+        "ts": 1768764600,
+        "value": 681
+      },
+      {
+        "ts": 1768764660,
+        "value": 728
+      },
+      {
+        "ts": 1768764720,
+        "value": 699
+      },
+      {
+        "ts": 1768764780,
+        "value": 669
+      },
+      {
+        "ts": 1768764840,
+        "value": 512
+      },
+      {
+        "ts": 1768764900,
+        "value": 583
+      },
+      {
+        "ts": 1768764960,
+        "value": 844
+      },
+      {
+        "ts": 1768765020,
+        "value": 844
+      },
+      {
+        "ts": 1768765080,
+        "value": 826
+      },
+      {
+        "ts": 1768765140,
+        "value": 790
+      },
+      {
+        "ts": 1768765200,
+        "value": 711
+      },
+      {
+        "ts": 1768765260,
+        "value": 364
+      },
+      {
+        "ts": 1768765320,
+        "value": 349
+      },
+      {
+        "ts": 1768765380,
+        "value": 247
+      },
+      {
+        "ts": 1768765440,
+        "value": 400
+      },
+      {
+        "ts": 1768765500,
+        "value": 406
+      },
+      {
+        "ts": 1768765560,
+        "value": 484
+      },
+      {
+        "ts": 1768765620,
+        "value": 469
+      },
+      {
+        "ts": 1768765680,
+        "value": 428
+      },
+      {
+        "ts": 1768765740,
+        "value": 281
+      },
+      {
+        "ts": 1768765800,
+        "value": 294
+      },
+      {
+        "ts": 1768765860,
+        "value": 277
+      },
+      {
+        "ts": 1768765920,
+        "value": 247
+      },
+      {
+        "ts": 1768765980,
+        "value": 234
+      },
+      {
+        "ts": 1768766040,
+        "value": 226
+      },
+      {
+        "ts": 1768766100,
+        "value": 161
+      },
+      {
+        "ts": 1768766160,
+        "value": 286
+      },
+      {
+        "ts": 1768766220,
+        "value": 387
+      },
+      {
+        "ts": 1768766280,
+        "value": 381
+      },
+      {
+        "ts": 1768766340,
+        "value": 473
+      },
+      {
+        "ts": 1768766400,
+        "value": 557
+      },
+      {
+        "ts": 1768766460,
+        "value": 433
+      },
+      {
+        "ts": 1768766520,
+        "value": 557
+      },
+      {
+        "ts": 1768766580,
+        "value": 592
+      },
+      {
+        "ts": 1768766640,
+        "value": 532
+      },
+      {
+        "ts": 1768766700,
+        "value": 494
+      },
+      {
+        "ts": 1768766760,
+        "value": 470
+      },
+      {
+        "ts": 1768766880,
+        "value": 349
+      },
+      {
+        "ts": 1768766940,
+        "value": 479
+      },
+      {
+        "ts": 1768767000,
+        "value": 461
+      },
+      {
+        "ts": 1768767060,
+        "value": 446
+      },
+      {
+        "ts": 1768767120,
+        "value": 325
+      },
+      {
+        "ts": 1768767180,
+        "value": 345
+      },
+      {
+        "ts": 1768767240,
+        "value": 202
+      },
+      {
+        "ts": 1768767300,
+        "value": 135
+      },
+      {
+        "ts": 1768767360,
+        "value": 302
+      },
+      {
+        "ts": 1768767420,
+        "value": 316
+      },
+      {
+        "ts": 1768767480,
+        "value": 325
+      },
+      {
+        "ts": 1768767540,
+        "value": 342
+      },
+      {
+        "ts": 1768767600,
+        "value": 410
+      },
+      {
+        "ts": 1768767660,
+        "value": 326
+      },
+      {
+        "ts": 1768767720,
+        "value": 307
+      },
+      {
+        "ts": 1768767780,
+        "value": 318
+      },
+      {
+        "ts": 1768767840,
+        "value": 279
+      },
+      {
+        "ts": 1768767900,
+        "value": 222
+      },
+      {
+        "ts": 1768767960,
+        "value": 165
+      },
+      {
+        "ts": 1768768020,
+        "value": 256
+      },
+      {
+        "ts": 1768768080,
+        "value": 262
+      },
+      {
+        "ts": 1768768140,
+        "value": 332
+      },
+      {
+        "ts": 1768768200,
+        "value": 503
+      },
+      {
+        "ts": 1768768260,
+        "value": 610
+      },
+      {
+        "ts": 1768768320,
+        "value": 640
+      },
+      {
+        "ts": 1768768380,
+        "value": 724
+      },
+      {
+        "ts": 1768768440,
+        "value": 884
+      },
+      {
+        "ts": 1768768500,
+        "value": 817
+      },
+      {
+        "ts": 1768768560,
+        "value": 715
+      },
+      {
+        "ts": 1768768620,
+        "value": 635
       }
     ]
   },
   "source": "fallback_access_log",
   "trafficAvailable": false,
-  "updatedAt": "2026-01-18T18:33:03Z"
+  "updatedAt": "2026-01-18T20:37:48Z"
 }
