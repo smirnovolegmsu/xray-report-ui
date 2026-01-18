@@ -395,6 +395,21 @@ table {
   font-size: 12px;
   min-width: 32px;
 }
+#usersTable th:nth-child(4),
+#usersTable th:nth-child(5),
+#usersTable th:nth-child(6),
+#usersTable th:nth-child(7) {
+  text-align: center;
+}
+#usersTable td:nth-child(4),
+#usersTable td:nth-child(5),
+#usersTable td:nth-child(6) {
+  text-align: center;
+  font-size: 13px;
+}
+#usersTable td:nth-child(5) {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
 th, td {
   padding: 8px 6px;
   text-align: left;
@@ -1786,25 +1801,22 @@ label {
   <!-- USERS -->
   <div class="pane" data-pane="users">
     <div class="card">
-      <div class="card-hd" style="padding: 12px 16px;">
-        <div>
-          <h3 class="card-title" style="margin: 0 0 4px 0; font-size: 16px;">
-            👥 <span data-i18n="usersManagement">Пользователи</span>
-            <span class="help" data-tip="Добавляйте, удаляйте пользователей или отключайте их (смена UUID). Скопируйте VLESS ссылку для подключения." style="font-size: 14px; margin-left: 4px;">?</span>
-          </h3>
+      <div class="card-hd" style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="flex: 1;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <h3 class="card-title" style="margin: 0; font-size: 16px;">👥 Пользователи</h3>
+            <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; padding: 2px 8px; border-radius: 4px; background: var(--panel2);">
+              <input type="checkbox" id="chkHideInactive" checked style="cursor: pointer;">
+              <span>Только активные</span>
+            </label>
+          </div>
           <div class="card-desc" style="font-size: 12px; color: var(--muted); line-height: 1.4;">
-            Управление доступом к Xray. Скопируйте ссылку для подключения или отключите пользователя.
+            Управление доступом: добавляйте, удаляйте или отключайте (смена UUID)
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none;">
-            <input type="checkbox" id="chkHideInactive" checked style="cursor: pointer;">
-            <span>Скрыть неактивных (&lt;1 МБ)</span>
-          </label>
-          <div class="btn-group" style="gap: 8px;">
-            <button class="btn primary" id="btnAddUser" style="padding: 6px 12px; font-size: 13px;">➕ Добавить</button>
-            <button class="btn" id="btnRefreshUsers" style="padding: 6px 12px; font-size: 13px;">🔄</button>
-          </div>
+        <div class="btn-group" style="gap: 8px;">
+          <button class="btn primary" id="btnAddUser" style="padding: 6px 12px; font-size: 13px;">➕ Добавить</button>
+          <button class="btn" id="btnRefreshUsers" style="padding: 6px 12px; font-size: 13px;">🔄</button>
         </div>
       </div>
 
@@ -1812,13 +1824,13 @@ label {
         <table id="usersTable">
           <thead>
             <tr>
-              <th data-i18n="name">Имя/Alias</th>
+              <th data-i18n="name">Имя</th>
               <th>UUID</th>
-              <th>ТОП-3 домена</th>
-              <th>Дней подключения</th>
-              <th>Суммарный трафик</th>
-              <th>Статус</th>
-              <th data-i18n="actions">Действия</th>
+              <th>Топ-3 домена</th>
+              <th style="text-align: center;">Дней</th>
+              <th style="text-align: center;">Трафик</th>
+              <th style="text-align: center;">Статус</th>
+              <th style="text-align: center;" data-i18n="actions">Действия</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -8227,11 +8239,11 @@ function renderUsers_Internal(users, statsMap, tbody) {
       </td>
       <td class="mono" style="max-width: 180px; word-break: break-all;">${u.uuid}</td>
       <td style="max-width: 200px;">${top3Html}</td>
-      <td style="text-align: center;">${daysUsedHtml}</td>
-      <td class="mono">${fmtBytes(totalTraffic)}</td>
-      <td>${statusHtml}</td>
-      <td>
-        <div style="display: flex; gap: 4px;">
+      <td style="text-align: center; font-size: 13px;">${daysUsedHtml}</td>
+      <td style="text-align: center; font-size: 13px; font-family: ui-monospace, Menlo, Consolas, monospace;">${fmtBytes(totalTraffic)}</td>
+      <td style="text-align: center; font-size: 13px;">${statusHtml}</td>
+      <td style="text-align: center;">
+        <div style="display: flex; gap: 4px; justify-content: center;">
           <button class="btn" data-email="${escapeHtml(u.email)}" onclick="copyUserLink(this.dataset.email)" title="Скопировать ссылку">🔗</button>
           <button class="btn" data-email="${escapeHtml(u.email)}" onclick="kickUser(this.dataset.email)" title="Отключить">🔄</button>
           <button class="btn danger" data-email="${escapeHtml(u.email)}" onclick="deleteUser(this.dataset.email)" title="Удалить">🗑️</button>
