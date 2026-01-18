@@ -8215,9 +8215,9 @@ function renderUsers_Internal(users, statsMap, tbody) {
       <td style="font-size: 11px;">${statusHtml}</td>
       <td>
         <div class="flex gap-4" style="flex-wrap: nowrap;">
-          <button class="btn" onclick="copyUserLink('${u.email}')" title="Скопировать VLESS ссылку" style="padding: 4px 8px; font-size: 11px;">🔗</button>
-          <button class="btn" onclick="kickUser('${u.email}')" title="Отключить пользователя" style="padding: 4px 8px; font-size: 11px;">🔄</button>
-          <button class="btn danger" onclick="deleteUser('${u.email}')" title="Удалить пользователя" style="padding: 4px 8px; font-size: 11px;">🗑️</button>
+          <button class="btn" data-email="${escapeHtml(u.email)}" onclick="copyUserLink(this.dataset.email)" title="Скопировать VLESS ссылку" style="padding: 4px 8px; font-size: 11px;">🔗</button>
+          <button class="btn" data-email="${escapeHtml(u.email)}" onclick="kickUser(this.dataset.email)" title="Отключить пользователя (сменить UUID)" style="padding: 4px 8px; font-size: 11px;">🔄</button>
+          <button class="btn danger" data-email="${escapeHtml(u.email)}" onclick="deleteUser(this.dataset.email)" title="Удалить пользователя" style="padding: 4px 8px; font-size: 11px;">🗑️</button>
         </div>
       </td>
     </tr>
@@ -8269,21 +8269,31 @@ async function copyUserLink(email) {
       await navigator.clipboard.writeText(res.link);
       showToast('✅', 'Ссылка скопирована в буфер обмена');
     } else {
-      showToast('❌', res.error || 'Ошибка получения ссылки');
+      // Show detailed error
+      const errorMsg = res.error || 'Ошибка получения ссылки';
+      console.error('Link generation error:', errorMsg);
+      
+      // If server_host not configured, show helpful message
+      if (errorMsg.includes('server_host')) {
+        showToast('❌', 'Настройте IP сервера в разделе "Система → Настройки"');
+      } else {
+        showToast('❌', errorMsg);
+      }
     }
   } catch (e) {
     console.error('Copy link error:', e);
-    showToast('❌', 'Ошибка копирования ссылки');
+    showToast('❌', 'Ошибка копирования ссылки: ' + (e.message || 'неизвестная ошибка'));
   }
 }
 
 async function deleteUser(email) {
   const confirmed = await modal(
     '⚠️ ВНИМАНИЕ: Необратимое действие',
-    `Вы уверены, что хотите удалить пользователя "${email}"?<br><br><strong style="color: var(--bad);">Это действие нельзя отменить.</strong><br>UUID будет удалён из конфигурации безвозвратно.`,
+    `Вы уверены, что хотите удалить пользователя "${escapeHtml(email)}"?<br><br><strong style="color: var(--bad);">Это действие нельзя отменить.</strong><br>UUID будет удалён из конфигурации безвозвратно.`,
     '',
     'Отмена',
-    'Удалить навсегда'
+    'Удалить навсегда',
+    true  // confirmDanger = true
   );
   if (!confirmed) return;
   
@@ -8293,25 +8303,30 @@ async function deleteUser(email) {
       body: JSON.stringify({ email })
     });
     if (res.ok) {
-      showToast('✅', 'Пользователь удалён');
+      showToast('✅', `Пользователь ${email} удалён`);
       loadUsers();
-      loadDashboard();
+      // Reload dashboard to update stats
+      if (typeof loadDashboard === 'function') {
+        loadDashboard();
+      }
     } else {
+      console.error('Delete user API error:', res.error);
       showToast('❌', res.error || 'Ошибка удаления');
     }
   } catch (e) {
     console.error('Delete user error:', e);
-    showToast('❌', 'Ошибка удаления пользователя');
+    showToast('❌', 'Ошибка удаления пользователя: ' + (e.message || 'неизвестная ошибка'));
   }
 }
 
 async function kickUser(email) {
   const confirmed = await modal(
-    'Отключить пользователя',
-    `Вы уверены, что хотите отключить пользователя "${email}"?<br><br>Текущие подключения будут разорваны, но пользователь сможет подключиться снова по той же ссылке (UUID будет изменён, но ссылка останется валидной).`,
+    '🔄 Отключить пользователя',
+    `Вы уверены, что хотите отключить пользователя "${escapeHtml(email)}"?<br><br>UUID будет изменён, текущие подключения разорвутся. Пользователю нужно будет получить новую ссылку.`,
     '',
     'Отмена',
-    'Кикнуть'
+    'Отключить',
+    false
   );
   if (!confirmed) return;
   
@@ -8321,14 +8336,16 @@ async function kickUser(email) {
       body: JSON.stringify({ email })
     });
     if (res.ok) {
-      showToast('✅', 'Пользователь отключён');
+      const newUuid = res.new_uuid ? ` (новый UUID: ${res.new_uuid.substring(0, 8)}...)` : '';
+      showToast('✅', `Пользователь ${email} отключён${newUuid}`);
       loadUsers();
     } else {
+      console.error('Kick user API error:', res.error);
       showToast('❌', res.error || 'Ошибка отключения');
     }
   } catch (e) {
     console.error('Kick user error:', e);
-    showToast('❌', 'Ошибка отключения пользователя');
+    showToast('❌', 'Ошибка отключения пользователя: ' + (e.message || 'неизвестная ошибка'));
   }
 }
 
