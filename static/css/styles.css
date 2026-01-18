@@ -992,6 +992,9 @@ tr:hover td {
   width: 100%;
   align-items: stretch;
   margin-top: auto;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
 }
 
 .metric-item {
@@ -1002,7 +1005,7 @@ tr:hover td {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: var(--space-5) 0;
+  padding: var(--space-5) var(--space-8);
 }
 
 .metric-item + .metric-item {
@@ -1015,6 +1018,8 @@ tr:hover td {
   line-height: 1.2;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+  text-align: center;
+  width: 100%;
 }
 
 .metric-label {
@@ -1025,6 +1030,8 @@ tr:hover td {
   letter-spacing: 0.3px;
   line-height: 1;
   margin-top: var(--space-1);
+  text-align: center;
+  width: 100%;
 }
 
 /* User card body - add .user-card-body to HTML element */
