@@ -106,6 +106,17 @@
   --opacity-light: 0.1;
   --opacity-medium: 0.15;
   --opacity-strong: 0.6;
+  
+  /* Overlay & tints */
+  --overlay-bg: rgba(0,0,0,0.6);
+  --tint-light: 10%;
+  --tint-medium: 15%;
+  
+  /* Container & component max-widths */
+  --container-max: 1920px;
+  --modal-max: 500px;
+  --toast-max: 400px;
+  --tooltip-max: 300px;
 }
 
 [data-theme="light"] {
@@ -170,7 +181,7 @@ body {
    Layout
    ======================================== */
 .container {
-  max-width: 1920px;
+  max-width: var(--container-max);
   margin: 0 auto;
   padding: var(--space-7) var(--space-8);
   height: calc(100vh - var(--header-height));
@@ -440,7 +451,7 @@ body {
 .nav-pill-warn { border-color: var(--bad); }
 .nav-pill-warn:hover {
   border-color: var(--bad);
-  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  background: color-mix(in srgb, var(--bad) var(--tint-light), transparent);
   color: var(--bad);
 }
 .nav-pill-warn.active {
@@ -504,6 +515,14 @@ body {
 /* ========================================
    Cards
    ======================================== */
+/* Define card padding scale */
+:root {
+  --card-padding-sm: var(--space-6) var(--space-7);
+  --card-padding-base: var(--space-7) var(--space-8);
+  --card-padding-md: var(--space-8) var(--space-10);
+  --card-padding-lg: var(--space-10) var(--space-12);
+}
+
 .card {
   background: var(--panel);
   border: var(--border-width) solid var(--line);
@@ -536,7 +555,7 @@ body {
 
 /* Base card header */
 .card-hd {
-  padding: var(--space-8) var(--space-10);
+  padding: var(--card-padding-md);
   border-bottom: var(--border-width) solid var(--line);
   display: flex;
   align-items: flex-start;
@@ -547,11 +566,11 @@ body {
 
 /* Card header variants */
 .card-hd-compact {
-  padding: var(--space-6) var(--space-8);
+  padding: var(--card-padding-base);
 }
 
 .card-hd-dense {
-  padding: var(--space-7);
+  padding: var(--card-padding-sm);
 }
 
 .card-hd h2 {
@@ -570,7 +589,22 @@ body {
 }
 
 .card-bd {
-  padding: var(--space-8) var(--space-10);
+  padding: var(--card-padding-md);
+}
+
+/* Card modifiers for common patterns */
+.card-hover {
+  transition: var(--transition);
+}
+
+.card-hover:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.card-fixed-width {
+  min-width: 220px;
+  max-width: 250px;
 }
 
 /* ========================================
@@ -615,7 +649,8 @@ body {
   box-shadow: var(--shadow);
 }
 
-.kpi-card .kpi-value {
+/* Reduced specificity - use direct classes */
+.kpi-value {
   font-size: var(--font-3xl);
   font-weight: var(--weight-bold);
   margin-bottom: var(--space-1);
@@ -623,26 +658,26 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.kpi-card .kpi-subline {
+.kpi-subline {
   font-size: var(--font-xs);
   color: var(--muted);
   margin-top: var(--space-1);
   line-height: 1.2;
 }
 
-.kpi-card .kpi-list {
+.kpi-list {
   margin-top: var(--space-1);
   font-size: var(--font-sm);
   line-height: 1.3;
 }
 
-.kpi-card .kpi-list-item {
+.kpi-list-item {
   padding: var(--space-1) 0;
   display: flex;
   justify-content: space-between;
 }
 
-.kpi-card .kpi-bubble {
+.kpi-bubble {
   position: absolute;
   top: var(--space-3);
   right: var(--space-3);
@@ -656,16 +691,16 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.kpi-card .kpi-bubble.up {
+.kpi-bubble.up {
   color: var(--ok);
   border-color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 15%, transparent);
+  background: color-mix(in srgb, var(--ok) var(--tint-medium), transparent);
 }
 
-.kpi-card .kpi-bubble.down {
+.kpi-bubble.down {
   color: var(--bad);
   border-color: var(--bad);
-  background: color-mix(in srgb, var(--bad) 15%, transparent);
+  background: color-mix(in srgb, var(--bad) var(--tint-medium), transparent);
 }
 
 /* ========================================
@@ -760,6 +795,13 @@ tr:hover td {
 .chartbox-lg { height: var(--chart-lg); }
 .chartbox-xl { height: var(--chart-xl); }
 .chartbox-2xl { height: var(--chart-2xl); }
+.chartbox-auto { height: auto; }
+.chartbox-full { height: 100%; }
+
+/* Padding modifiers for chartbox */
+.chartbox-compact { padding: var(--space-4); }
+.chartbox-dense { padding: var(--space-3); }
+.chartbox-relaxed { padding: var(--space-8); }
 
 .chartbox > div {
   width: 100%;
@@ -779,7 +821,8 @@ tr:hover td {
   color: var(--text);
 }
 
-.chartbox-flex > div[id^="ch"] {
+.chartbox-flex > div[id^="ch"],
+.chartbox-flex > .chart-content {
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -811,18 +854,18 @@ tr:hover td {
   width: 100%; 
 }
 
-/* Compact headers for panels */
-.panel-card .card-hd-compact {
+/* Compact headers for panels - add .panel-header to HTML */
+.panel-header {
   flex-shrink: 0;
 }
 
-.panel-card .card-hd-compact h2 {
+.panel-header h2 {
   font-size: var(--font-lg);
   margin: 0 0 var(--space-2) 0;
   line-height: 1.3;
 }
 
-.panel-card .card-hd-compact .meta {
+.panel-header .meta {
   font-size: var(--font-sm);
   line-height: 1.3;
 }
@@ -834,7 +877,7 @@ tr:hover td {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
-  padding: var(--space-7);
+  padding: var(--card-padding-base);
 }
 
 .left-panel-content {
@@ -894,19 +937,10 @@ tr:hover td {
   justify-content: start;
 }
 
-.users-grid .card {
-  min-width: 220px;
-  max-width: 250px;
-  transition: var(--transition);
-}
+/* Note: Apply .card-fixed-width and .card-hover to user cards in HTML */
 
-.users-grid .card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
-
-/* User card header */
-.users-grid .card-hd-dense {
+/* User card header - add .user-card-header to HTML element */
+.user-card-header {
   min-height: var(--space-20);
   display: flex;
   flex-direction: column;
@@ -920,7 +954,8 @@ tr:hover td {
   gap: var(--space-4);
 }
 
-.users-grid h3 {
+/* User card title - reduced specificity */
+.user-card-title {
   font-size: var(--font-xl);
   font-weight: var(--weight-semibold);
   margin: 0;
@@ -973,9 +1008,10 @@ tr:hover td {
   margin-top: var(--space-1);
 }
 
-/* User card body */
-.users-grid .card-bd {
-  padding: var(--space-6) var(--space-7) var(--space-8);
+/* User card body - add .user-card-body to HTML element */
+.user-card-body {
+  padding: var(--card-padding-sm);
+  padding-bottom: var(--space-8);
 }
 
 /* Domains list (vertical stack for user cards) */
@@ -1141,7 +1177,7 @@ label {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.6);
+  background: var(--overlay-bg);
   display: none;
   align-items: center;
   justify-content: center;
@@ -1155,7 +1191,7 @@ label {
   border: var(--border-width) solid var(--line);
   border-radius: var(--radius-lg);
   padding: var(--space-12);
-  max-width: 500px;
+  max-width: var(--modal-max);
   width: 90%;
   box-shadow: var(--shadow-lg);
 }
@@ -1185,7 +1221,7 @@ label {
   box-shadow: var(--shadow-lg);
   display: none;
   z-index: var(--z-toast);
-  max-width: 400px;
+  max-width: var(--toast-max);
 }
 
 .toast.show { display: block; }
@@ -1262,7 +1298,7 @@ label {
   border-radius: var(--radius);
   font-size: var(--font-base);
   white-space: normal;
-  max-width: 300px;
+  max-width: var(--tooltip-max);
   width: max-content;
   min-width: 150px;
   z-index: var(--z-tooltip);
@@ -1295,14 +1331,68 @@ label {
 .text-bad { color: var(--bad); }
 .text-warn { color: var(--warn); }
 .mb-0 { margin-bottom: 0; }
-.mt-8 { margin-top: var(--space-4); }
-.mt-16 { margin-top: var(--space-8); }
+.mt-8 { margin-top: var(--space-8); }
+.mt-16 { margin-top: var(--space-16); }
 .mt-32 { margin-top: var(--space-16); }
 .flex { display: flex; }
 .gap-4 { gap: var(--space-4); }
 .gap-8 { gap: var(--space-8); }
 .gap-16 { gap: var(--space-16); }
 .items-center { align-items: center; }
+
+/* Grid utilities */
+.grid { display: grid; }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-6 { grid-template-columns: repeat(6, 1fr); }
+.grid-auto { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+/* Spacing utilities - expanded */
+.p-0 { padding: 0; }
+.m-0 { margin: 0; }
+.mb-8 { margin-bottom: var(--space-8); }
+.mb-10 { margin-bottom: var(--space-10); }
+.mt-4 { margin-top: var(--space-4); }
+.mt-6 { margin-top: var(--space-6); }
+.mt-10 { margin-top: var(--space-10); }
+.mt-12 { margin-top: var(--space-12); }
+
+/* Flex utilities - expanded */
+.flex-col { flex-direction: column; }
+.flex-wrap { flex-wrap: wrap; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.justify-end { justify-content: flex-end; }
+.items-start { align-items: flex-start; }
+.items-end { align-items: flex-end; }
+.flex-1 { flex: 1; }
+.flex-shrink-0 { flex-shrink: 0; }
+
+/* Text utilities */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-xs { font-size: var(--font-xs); }
+.text-sm { font-size: var(--font-sm); }
+.text-base { font-size: var(--font-base); }
+.text-lg { font-size: var(--font-lg); }
+.text-xl { font-size: var(--font-xl); }
+.font-bold { font-weight: var(--weight-bold); }
+.font-semibold { font-weight: var(--weight-semibold); }
+.uppercase { text-transform: uppercase; }
+.lowercase { text-transform: lowercase; }
+
+/* Display utilities */
+.block { display: block; }
+.inline-block { display: inline-block; }
+.hidden { display: none; }
+
+/* Position utilities */
+.relative { position: relative; }
+.absolute { position: absolute; }
+
+/* Overflow utilities */
+.overflow-hidden { overflow: hidden; }
+.overflow-auto { overflow: auto; }
 
 /* ========================================
    Media Queries
