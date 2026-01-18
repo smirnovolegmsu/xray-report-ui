@@ -24,6 +24,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Flask, Response, jsonify, request, send_file
 
+# Optional import for date parsing
+try:
+    from dateutil import parser as date_parser  # type: ignore[import] # pyright: ignore # noqa: F401
+    HAS_DATEUTIL = True
+except ImportError:
+    HAS_DATEUTIL = False
+
 APP_HOST = "127.0.0.1"
 APP_PORT = int(os.environ.get("XRAY_REPORT_UI_PORT", "8787"))
 
@@ -284,10 +291,11 @@ def derive_pbk_from_private(priv_b64: str, settings: Dict[str, Any] = None) -> O
     except Exception:
         pass
     
-    # Fallback: cryptography library
+    # Fallback: cryptography library (optional dependency)
     try:
-        from cryptography.hazmat.primitives.asymmetric import x25519
-        from cryptography.hazmat.primitives import serialization
+        # Optional import - may not be available in all environments
+        from cryptography.hazmat.primitives.asymmetric import x25519  # type: ignore[import]  # pyright: ignore  # noqa: F401
+        from cryptography.hazmat.primitives import serialization  # type: ignore[import]  # pyright: ignore  # noqa: F401
         pad = "=" * ((4 - len(priv_b64) % 4) % 4)
         raw = base64.urlsafe_b64decode(priv_b64 + pad)
         pub = x25519.X25519PrivateKey.from_private_bytes(raw).public_key().public_bytes(
@@ -1721,6 +1729,251 @@ def api_events():
 
 # --- Collector ---
 
+def _get_script_description(script_name: str) -> str:
+    """Get description for collector script"""
+    descriptions = {
+        "xray_daily_usage.sh": "Собирает суточный трафик по пользователям из access.log. Создаёт usage_*.csv",
+        "xray_daily_conns.sh": "Собирает количество подключений по доменам/IP. Создаёт conns_*.csv",
+        "xray_daily_report.sh": "Генерирует отчёт user/day/domain/traffic_bytes. Создаёт report_*.csv и domains_*.csv",
+    }
+    for key, desc in descriptions.items():
+        if key in script_name:
+            return desc
+    return "Скрипт сборщика статистики"
+
+def _check_cron_job_status(cron_file: str, schedule: str, command: str) -> Dict[str, Any]:
+    """Check if a cron job is actually active and scheduled"""
+    status = {
+        "active": False,
+        "reason": None,
+        "last_check": None
+    }
+    
+    try:
+        # Check if cron service is running
+        try:
+            cp = subprocess.run(["systemctl", "is-active", "cron"], capture_output=True, text=True, timeout=5)
+            cron_service_active = (cp.stdout or "").strip() == "active"
+        except:
+            try:
+                cp = subprocess.run(["systemctl", "is-active", "crond"], capture_output=True, text=True, timeout=5)
+                cron_service_active = (cp.stdout or "").strip() == "active"
+            except:
+                cron_service_active = True  # Assume active if we can't check
+        
+        if not cron_service_active:
+            status["active"] = False
+            status["reason"] = "Сервис cron не запущен"
+            return status
+        
+        # Check if cron file exists and contains the job
+        if cron_file and os.path.exists(cron_file):
+            with open(cron_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # Check if the command is in the file (not commented out)
+                if command in content:
+                    # Check if it's commented out
+                    lines = content.split('\n')
+                    for line in lines:
+                        if command in line and not line.strip().startswith('#'):
+                            status["active"] = True
+                            status["reason"] = "Задача найдена в cron"
+                            break
+                    else:
+                        status["active"] = False
+                        status["reason"] = "Задача закомментирована в cron"
+                else:
+                    status["active"] = False
+                    status["reason"] = "Задача не найдена в cron файле"
+        else:
+            status["active"] = False
+            status["reason"] = "Cron файл не найден"
+        
+        status["last_check"] = dt.datetime.utcnow().isoformat()
+    except Exception as e:
+        status["active"] = False
+        status["reason"] = f"Ошибка проверки: {str(e)[:50]}"
+    
+    return status
+
+def _parse_cron_log(script_name: str, usage_dir: str) -> Dict[str, Any]:
+    """Parse cron.log to get statistics for a script"""
+    log_path = os.path.join(usage_dir, "cron.log")
+    stats = {
+        "runs_count": 0,
+        "last_run": None,
+        "last_success": None,
+        "last_error": None,
+        "errors_count": 0,
+        "created_files": [],
+        "files_count": 0
+    }
+    
+    if not os.path.exists(log_path):
+        return stats
+    
+    try:
+        with open(log_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Parse last 2000 lines (to avoid loading huge files)
+        for line in reversed(lines[-2000:]):
+            if script_name in line:
+                stats["runs_count"] += 1
+                if stats["last_run"] is None:
+                    # Try to extract timestamp
+                    import re
+                    ts_match = re.search(r'(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})', line)
+                    if ts_match:
+                        stats["last_run"] = ts_match.group(1)
+                
+                # Check for errors
+                if any(err in line.lower() for err in ['error', 'failed', 'exception', 'traceback']):
+                    stats["errors_count"] += 1
+                    if stats["last_error"] is None:
+                        stats["last_error"] = line.strip()[:200]
+                elif any(succ in line.lower() for succ in ['success', 'done', 'complete', 'wrote']):
+                    if stats["last_success"] is None:
+                        stats["last_success"] = line.strip()[:200]
+    except Exception as e:
+        pass
+    
+    # Find files created by this script
+    if "usage" in script_name:
+        pattern = "usage_*.csv"
+    elif "conns" in script_name:
+        pattern = "conns_*.csv"
+    elif "report" in script_name:
+        pattern = "report_*.csv"
+    else:
+        pattern = None
+    
+    if pattern:
+        files = sorted(glob.glob(os.path.join(usage_dir, pattern)), reverse=True)
+        stats["created_files"] = [os.path.basename(f) for f in files[:10]]  # Last 10 files
+        stats["files_count"] = len(files)
+    
+    return stats
+
+def _find_collector_cron() -> Dict[str, Any]:
+    """Find collector cron job"""
+    cron_info = {
+        "found": False,
+        "schedule": None,
+        "command": None,
+        "file": None,
+        "type": None
+    }
+    
+    s = load_settings()
+    usage_dir = s.get("collector", {}).get("usage_dir", USAGE_DIR)
+    
+    # Check common cron locations
+    cron_locations = [
+        ("/etc/cron.daily/xray-usage", "daily"),
+        ("/etc/cron.hourly/xray-usage", "hourly"),
+        ("/etc/cron.d/xray-usage", "systemd"),
+    ]
+    
+    for cron_path, cron_type in cron_locations:
+        if os.path.exists(cron_path):
+            try:
+                with open(cron_path, 'r', encoding='utf-8') as f:
+                    content = f.read().strip()
+                    if content:
+                        cron_info["found"] = True
+                        cron_info["file"] = cron_path
+                        cron_info["type"] = cron_type
+                        
+                        # Parse cron file
+                        lines = [l.strip() for l in content.split('\n') if l.strip() and not l.strip().startswith('#')]
+                        
+                        # For cron.d files, parse schedule (first 5 fields) and command
+                        if cron_type == "systemd" and lines:
+                            # Find all cron job lines (with schedule)
+                            cron_jobs = []
+                            
+                            for line in lines:
+                                parts = line.split()
+                                if len(parts) >= 6:
+                                    # First 5 fields are schedule, rest is command
+                                    schedule_parts = parts[:5]
+                                    command_parts = parts[5:]
+                                    command = " ".join(command_parts)
+                                    
+                                    # Extract script name
+                                    script_name = None
+                                    for part in command_parts:
+                                        if '.sh' in part:
+                                            script_name = os.path.basename(part)
+                                            break
+                                    
+                                    # Get description
+                                    description = _get_script_description(script_name or command)
+                                    
+                                    # Get statistics from log
+                                    stats = _parse_cron_log(script_name or command, usage_dir) if script_name else {}
+                                    
+                                    # Check cron job status
+                                    status = _check_cron_job_status(cron_path, " ".join(schedule_parts), command)
+                                    
+                                    cron_jobs.append({
+                                        "schedule": " ".join(schedule_parts),
+                                        "command": command,
+                                        "script": script_name,
+                                        "description": description,
+                                        "stats": stats,
+                                        "status": status
+                                    })
+                            
+                            if cron_jobs:
+                                # Use first job for main display, but show count if multiple
+                                first_job = cron_jobs[0]
+                                cron_info["schedule"] = first_job["schedule"]
+                                cron_info["command"] = first_job["command"]
+                                if len(cron_jobs) > 1:
+                                    cron_info["jobs_count"] = len(cron_jobs)
+                                    cron_info["all_jobs"] = cron_jobs
+                        else:
+                            # For daily/hourly, just show the command
+                            if lines:
+                                cron_info["command"] = lines[0] if lines else None
+                        
+                        # Set schedule description
+                        if not cron_info["schedule"]:
+                            if cron_type == "daily":
+                                cron_info["schedule"] = "Ежедневно (cron.daily)"
+                            elif cron_type == "hourly":
+                                cron_info["schedule"] = "Каждый час (cron.hourly)"
+                            else:
+                                cron_info["schedule"] = f"По расписанию ({cron_type})"
+                        break
+            except Exception as e:
+                pass
+    
+    # Also check user crontab
+    if not cron_info["found"]:
+        try:
+            cp = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=5)
+            if cp.returncode == 0 and cp.stdout:
+                for line in cp.stdout.split('\n'):
+                    line = line.strip()
+                    if line and not line.startswith('#') and ('xray' in line.lower() or 'usage' in line.lower() or 'collector' in line.lower()):
+                        cron_info["found"] = True
+                        cron_info["file"] = "crontab -l (user)"
+                        cron_info["type"] = "user"
+                        cron_info["command"] = line
+                        # Try to parse schedule (first 5 fields)
+                        parts = line.split()
+                        if len(parts) >= 6:
+                            schedule_parts = parts[:5]
+                            cron_info["schedule"] = " ".join(schedule_parts)
+                        break
+        except Exception:
+            pass
+    
+    return cron_info
+
 @app.get("/api/collector/status")
 def api_collector_status():
     s = load_settings()
@@ -1737,12 +1990,42 @@ def api_collector_status():
     if newest:
         lag_days = (dt.datetime.utcnow().date() - newest).days
     
+    # Find cron job
+    cron_info = _find_collector_cron()
+    
+    # Determine actual collector status based on cron jobs
+    # Collector is "enabled" if at least one cron job is active
+    enabled = False
+    disabled_reason = None
+    
+    if cron_info.get("found") and cron_info.get("all_jobs"):
+        active_jobs = [j for j in cron_info["all_jobs"] if j.get("status", {}).get("active", False)]
+        if active_jobs:
+            enabled = True
+        else:
+            # Check why jobs are inactive
+            inactive_jobs = [j for j in cron_info["all_jobs"] if not j.get("status", {}).get("active", False)]
+            if inactive_jobs:
+                reasons = set()
+                for job in inactive_jobs:
+                    reason = job.get("status", {}).get("reason", "Неизвестная причина")
+                    reasons.add(reason)
+                disabled_reason = "; ".join(reasons)
+            else:
+                disabled_reason = "Cron задачи не найдены"
+    else:
+        disabled_reason = "Cron файл не найден. Проверьте /etc/cron.d/xray-usage"
+    
     return ok({
-        "enabled": bool(s["collector"].get("enabled", True)),
+        "enabled": enabled,
         "usage_dir": usage_dir,
         "files_count": len(files),
         "lag_days": lag_days,
         "newest_file": newest.isoformat() if newest else None,
+        "cron": cron_info,
+        "disabled_reason": disabled_reason,
+        "active_jobs_count": len([j for j in cron_info.get("all_jobs", []) if j.get("status", {}).get("active", False)]),
+        "total_jobs_count": len(cron_info.get("all_jobs", [])),
     })
 
 @app.post("/api/collector/toggle")
@@ -1759,6 +2042,92 @@ def api_collector_toggle():
     
     append_event({"type": "COLLECTOR", "severity": "INFO", "action": "toggle", "enabled": enabled})
     return ok({"enabled": enabled})
+
+@app.post("/api/collector/update-schedule")
+def api_collector_update_schedule():
+    """Update cron schedule for a specific job"""
+    if not request.is_json:
+        return fail("json_required")
+    j = request.get_json(silent=True) or {}
+    script_name = (j.get("script") or "").strip()
+    new_schedule = (j.get("schedule") or "").strip()
+    
+    if not script_name or not new_schedule:
+        return fail("script_and_schedule_required")
+    
+    # Validate schedule format (5 fields: minute hour day month weekday)
+    schedule_parts = new_schedule.split()
+    if len(schedule_parts) != 5:
+        return fail("invalid_schedule_format")
+    
+    # Validate each part
+    try:
+        for i, part in enumerate(schedule_parts):
+            if part == '*':
+                continue
+            if i == 0:  # minute
+                if not (0 <= int(part) <= 59):
+                    return fail("invalid_minute")
+            elif i == 1:  # hour
+                if not (0 <= int(part) <= 23):
+                    return fail("invalid_hour")
+            elif i == 2:  # day
+                if not (1 <= int(part) <= 31):
+                    return fail("invalid_day")
+            elif i == 3:  # month
+                if not (1 <= int(part) <= 12):
+                    return fail("invalid_month")
+            elif i == 4:  # weekday
+                if not (0 <= int(part) <= 7):
+                    return fail("invalid_weekday")
+    except ValueError:
+        return fail("invalid_schedule_format")
+    
+    # Find cron file
+    cron_file = "/etc/cron.d/xray-usage"
+    if not os.path.exists(cron_file):
+        return fail("cron_file_not_found")
+    
+    try:
+        # Read current cron file
+        with open(cron_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Update the line with matching script
+        updated = False
+        new_lines = []
+        for line in lines:
+            if script_name in line and not line.strip().startswith('#'):
+                # Replace schedule (first 5 fields)
+                parts = line.split()
+                if len(parts) >= 6:
+                    # Keep everything except first 5 fields
+                    new_line = new_schedule + " " + " ".join(parts[5:]) + "\n"
+                    new_lines.append(new_line)
+                    updated = True
+                else:
+                    new_lines.append(line)
+            else:
+                new_lines.append(line)
+        
+        if not updated:
+            return fail("script_not_found_in_cron")
+        
+        # Write back
+        with open(cron_file, 'w', encoding='utf-8') as f:
+            f.writelines(new_lines)
+        
+        append_event({
+            "type": "COLLECTOR",
+            "severity": "INFO",
+            "action": "update_schedule",
+            "script": script_name,
+            "schedule": new_schedule
+        })
+        
+        return ok({"script": script_name, "schedule": new_schedule})
+    except Exception as e:
+        return fail(f"Error updating cron: {str(e)}")
 
 # --- Xray ---
 
@@ -1782,15 +2151,150 @@ def api_xray_restart():
 
 # --- System ---
 
+def systemctl_get_uptime(service: str) -> Tuple[Optional[str], Optional[int]]:
+    """Get service uptime and restart count"""
+    try:
+        # Get uptime
+        cp = subprocess.run(
+            ["systemctl", "show", service, "--property=ActiveEnterTimestamp", "--value"],
+            capture_output=True, text=True, timeout=5
+        )
+        uptime_str = None
+        uptime_seconds = None
+        if cp.returncode == 0 and cp.stdout.strip():
+            try:
+                # Parse timestamp and calculate uptime
+                timestamp_str = cp.stdout.strip()
+                if timestamp_str:
+                    # Parse systemd timestamp (e.g., "Mon 2026-01-07 17:09:13 UTC" or "Wed 2026-01-07 18:24:50 UTC")
+                    try:
+                        if HAS_DATEUTIL:
+                            start_time = date_parser.parse(timestamp_str)
+                        else:
+                            # Fallback: try to parse manually
+                            # Format: "Wed 2026-01-07 18:24:50 UTC"
+                            import re
+                            match = re.match(r'(\w+)\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\s+(\w+)', timestamp_str)
+                            if match:
+                                date_part = match.group(2)
+                                time_part = match.group(3)
+                                start_time = dt.datetime.strptime(f"{date_part} {time_part}", "%Y-%m-%d %H:%M:%S")
+                                start_time = start_time.replace(tzinfo=dt.timezone.utc)
+                            else:
+                                raise ValueError("Cannot parse timestamp")
+                        
+                        uptime_seconds = int((dt.datetime.now(dt.timezone.utc) - start_time.replace(tzinfo=dt.timezone.utc)).total_seconds())
+                        # Format uptime
+                        days = uptime_seconds // 86400
+                        hours = (uptime_seconds % 86400) // 3600
+                        minutes = (uptime_seconds % 3600) // 60
+                        if days > 0:
+                            uptime_str = f"{days}д {hours}ч"
+                        elif hours > 0:
+                            uptime_str = f"{hours}ч {minutes}м"
+                        else:
+                            uptime_str = f"{minutes}м"
+                    except Exception as parse_err:
+                        # If parsing fails, try simpler approach
+                        pass
+            except Exception:
+                pass
+        
+        # Get restart count (from systemctl show)
+        cp2 = subprocess.run(
+            ["systemctl", "show", service, "--property=NRestarts", "--value"],
+            capture_output=True, text=True, timeout=5
+        )
+        restart_count = None
+        if cp2.returncode == 0 and cp2.stdout.strip():
+            try:
+                restart_count = int(cp2.stdout.strip())
+            except Exception:
+                pass
+        
+        return uptime_str, restart_count
+    except Exception as e:
+        return None, None
+
 @app.get("/api/system/status")
 def api_system_status():
     s = load_settings()
     srv = s["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
     ui_active, ui_state = systemctl_is_active(SERVICE_UI)
     xray_active, xray_state = systemctl_is_active(srv)
+    
+    # Get uptime and restart counts
+    ui_uptime, ui_restarts = systemctl_get_uptime(SERVICE_UI)
+    xray_uptime, xray_restarts = systemctl_get_uptime(srv)
+    
+    # Get restart history from events
+    restart_events = []
+    try:
+        events = []
+        if os.path.exists(EVENTS_PATH):
+            with open(EVENTS_PATH, "r", encoding="utf-8") as f:
+                for ln in f:
+                    ln = ln.strip()
+                    if ln:
+                        try:
+                            events.append(json.loads(ln))
+                        except:
+                            pass
+        # Reverse for newest first
+        events = list(reversed(events))
+        
+        # Filter restart events and count for last 14 days
+        now = dt.datetime.now(dt.timezone.utc)
+        days14_ago = now - dt.timedelta(days=14)
+        
+        restart_events = []
+        restart_counts_14d = {"ui": 0, "xray": 0}
+        
+        for e in events:
+            if e.get("type") in ("SYSTEM", "XRAY") and "restart" in e.get("action", "").lower():
+                restart_events.append(e)
+                
+                # Count restarts in last 14 days
+                try:
+                    ts_str = e.get("ts", "")
+                    if ts_str:
+                        if HAS_DATEUTIL:
+                            event_time = date_parser.parse(ts_str)
+                        else:
+                            event_time = dt.datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+                        
+                        if event_time >= days14_ago:
+                            action = e.get("action", "").lower()
+                            if "ui" in action or "restart_ui" in action:
+                                restart_counts_14d["ui"] += 1
+                            elif "xray" in action or "restart_xray" in action:
+                                restart_counts_14d["xray"] += 1
+                except Exception:
+                    pass
+        
+        restart_events = restart_events[:20]  # Last 20 restarts
+    except Exception:
+        restart_events = []
+        restart_counts_14d = {"ui": 0, "xray": 0}
+    
     return ok({
-        "ui": {"active": ui_active, "state": ui_state},
-        "xray": {"active": xray_active, "state": xray_state},
+        "ui": {
+            "active": ui_active,
+            "state": ui_state,
+            "name": SERVICE_UI,
+            "uptime": ui_uptime,
+            "restart_count": ui_restarts,
+            "restart_count_14d": restart_counts_14d["ui"],
+        },
+        "xray": {
+            "active": xray_active,
+            "state": xray_state,
+            "name": srv,
+            "uptime": xray_uptime,
+            "restart_count": xray_restarts,
+            "restart_count_14d": restart_counts_14d["xray"],
+        },
+        "restart_history": restart_events,
     })
 
 @app.post("/api/system/restart-ui")
@@ -1822,6 +2326,68 @@ def api_system_restart():
         return fail(msg)
     return ok({"result": msg, "target": target})
 
+def get_system_timezone() -> str:
+    """Get system timezone info"""
+    try:
+        # Try timedatectl first
+        cp = subprocess.run(
+            ["timedatectl"], capture_output=True, text=True, timeout=2
+        )
+        if cp.returncode == 0:
+            for line in cp.stdout.split('\n'):
+                if 'Time zone:' in line:
+                    tz = line.split('Time zone:')[1].strip().split()[0]
+                    # Get UTC offset
+                    try:
+                        cp2 = subprocess.run(
+                            ["date", "+%z"], capture_output=True, text=True, timeout=2
+                        )
+                        if cp2.returncode == 0:
+                            offset = cp2.stdout.strip()
+                            if offset:
+                                # Convert +0300 to +3
+                                sign = offset[0]
+                                hours = int(offset[1:3])
+                                return f"{tz} (UTC{sign}{hours})"
+                    except:
+                        pass
+                    return tz
+    except:
+        pass
+    
+    # Fallback: try date +%Z
+    try:
+        cp = subprocess.run(
+            ["date", "+%Z"], capture_output=True, text=True, timeout=2
+        )
+        if cp.returncode == 0:
+            tz = cp.stdout.strip()
+            if tz:
+                # Get UTC offset
+                try:
+                    cp2 = subprocess.run(
+                        ["date", "+%z"], capture_output=True, text=True, timeout=2
+                    )
+                    if cp2.returncode == 0:
+                        offset = cp2.stdout.strip()
+                        if offset:
+                            sign = offset[0]
+                            hours = int(offset[1:3])
+                            return f"{tz} (UTC{sign}{hours})"
+                except:
+                    pass
+                return tz
+    except:
+        pass
+    
+    # Last fallback: use Python
+    try:
+        offset = dt.datetime.now().astimezone().utcoffset()
+        hours = int(offset.total_seconds() / 3600)
+        return f"UTC{hours:+d}"
+    except:
+        return "UTC"
+
 @app.get("/api/system/journal")
 def api_system_journal():
     """Get journal logs for UI or Xray service"""
@@ -1835,6 +2401,8 @@ def api_system_journal():
         settings = load_settings()
         service = settings["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
     
+    timezone_info = get_system_timezone()
+    
     try:
         # Try journalctl
         cp = subprocess.run(
@@ -1842,12 +2410,31 @@ def api_system_journal():
             capture_output=True, text=True, timeout=5.0
         )
         if cp.returncode == 0:
-            return ok({"service": service, "lines": cp.stdout.split("\n")})
+            journal_text = cp.stdout.strip()
+            timezone_info = get_system_timezone()
+            return ok({
+                "service": service,
+                "journal": journal_text if journal_text else "Нет данных",
+                "lines": cp.stdout.split("\n"),
+                "timezone": timezone_info
+            })
         else:
             # Fallback: try to read from screen log or service log
-            return ok({"service": service, "lines": [f"Journal not available: {cp.stderr}"], "fallback": True})
+            error_msg = f"Journal not available: {cp.stderr or 'unknown error'}"
+            return ok({
+                "service": service,
+                "journal": error_msg,
+                "lines": [error_msg],
+                "fallback": True
+            })
     except Exception as e:
-        return ok({"service": service, "lines": [f"Error reading journal: {str(e)}"], "error": True})
+        error_msg = f"Error reading journal: {str(e)}"
+        return ok({
+            "service": service,
+            "journal": error_msg,
+            "lines": [error_msg],
+            "error": True
+        })
 
 # --- Backups ---
 
