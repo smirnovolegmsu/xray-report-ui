@@ -1773,7 +1773,6 @@ label {
       </div>
     </div>
   </div>
-  </div>
   
   <!-- USERS -->
   <div class="pane" data-pane="users">
@@ -1812,6 +1811,8 @@ label {
       </div>
     </div>
   </div>
+
+</div> <!-- end .container -->
 
 <!-- Modal -->
 <div class="modal-overlay" id="modalOverlay">
@@ -2051,6 +2052,10 @@ function setTheme(theme) {
 
 // ==================== TABS ====================
 function setTab(tab) {
+  console.log('╔═══════════════════════════════════════════════════════════════╗');
+  console.log('║ setTab CALLED with tab:', tab);
+  console.log('╚═══════════════════════════════════════════════════════════════╝');
+  
   if (!tab) {
     console.warn('setTab called without tab parameter');
     return;
@@ -2079,6 +2084,8 @@ function setTab(tab) {
   } else {
     targetPane = tab;
   }
+  
+  console.log('setTab: targetPane =', targetPane);
   
   $$('.pane').forEach(p => {
     if (p && p.dataset) {
@@ -2132,10 +2139,17 @@ function setTab(tab) {
       console.log('setTab: Users pane found, ensuring it is visible');
       usersPane.classList.add('active');
       usersPane.style.display = 'block';
+      // Force reflow
+      void usersPane.offsetHeight;
     } else {
       console.error('setTab: Users pane NOT found!');
     }
-    loadUsers();
+    
+    // Load users data with a small delay to ensure DOM is ready
+    setTimeout(() => {
+      console.log('setTab: Calling loadUsers() after delay');
+      loadUsers();
+    }, 100);
   } else if (tab === 'system') {
     // System tab - show first subpane (services) by default
     setSystemSubpane('services');
@@ -8051,11 +8065,20 @@ function renderChart(perDay) {
 // ==================== USERS ====================
 async function loadUsers() {
   console.log('=== loadUsers: START ===');
-  const tbody = $('#usersTable tbody');
+  
+  // Wait for DOM to be ready
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  const tbody = document.querySelector('#usersTable tbody');
+  console.log('loadUsers: tbody found:', !!tbody);
   
   // Показываем загрузку
   if (tbody) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);">⏳ Загрузка...</td></tr>';
+  } else {
+    console.error('loadUsers: tbody NOT found!');
+    showToast('❌', 'Ошибка: таблица пользователей не найдена');
+    return;
   }
   
   try {
@@ -8097,26 +8120,37 @@ async function loadUsers() {
     console.error('Users load error:', e);
     showToast('❌', 'Ошибка загрузки пользователей: ' + (e.message || 'неизвестная ошибка'));
     // Show error in table
-    if (tbody) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--bad);">❌ Ошибка: ' + (e.message || 'неизвестная ошибка') + '</td></tr>';
+    const tbodyRetry = document.querySelector('#usersTable tbody');
+    if (tbodyRetry) {
+      tbodyRetry.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--bad);">❌ Ошибка: ' + (e.message || 'неизвестная ошибка') + '</td></tr>';
     }
   }
 }
 
 function renderUsers(users, statsMap = {}) {
   console.log('renderUsers: called with', users ? users.length : 0, 'users');
-  const tbody = $('#usersTable tbody');
-  console.log('renderUsers: tbody element:', tbody);
+  const tbody = document.querySelector('#usersTable tbody');
+  console.log('renderUsers: tbody element found:', !!tbody);
+  
   if (!tbody) {
-    console.error('renderUsers: usersTable tbody not found!');
+    console.error('renderUsers: tbody NOT found!');
+    // Try alternative selectors
     const table = document.getElementById('usersTable');
-    console.log('renderUsers: usersTable element:', table);
     if (table) {
       const tbody2 = table.querySelector('tbody');
-      console.log('renderUsers: tbody from querySelector:', tbody2);
+      if (tbody2) {
+        console.log('renderUsers: Found tbody via alternative selector');
+        return renderUsers_Internal(users, statsMap, tbody2);
+      }
     }
+    console.error('renderUsers: Cannot find tbody at all!');
     return;
   }
+  
+  renderUsers_Internal(users, statsMap, tbody);
+}
+
+function renderUsers_Internal(users, statsMap, tbody) {
   if (!users || users.length === 0) {
     console.log('renderUsers: no users, showing empty message');
     tbody.innerHTML = '<tr><td colspan="7" class="muted">Нет пользователей</td></tr>';
@@ -8191,58 +8225,18 @@ function renderUsers(users, statsMap = {}) {
   }).join('');
   
   console.log('renderUsers: Generated HTML length:', rowsHtml.length, 'characters');
-  console.log('renderUsers: First 200 chars of HTML:', rowsHtml.substring(0, 200));
   
-  // Check if tbody still exists and is accessible
-  const tbodyCheck = document.getElementById('usersTable')?.querySelector('tbody');
-  if (!tbodyCheck || tbodyCheck !== tbody) {
-    console.error('renderUsers: tbody disappeared or changed! Original:', tbody, 'Current:', tbodyCheck);
-    // Try to find it again
-    const table = document.getElementById('usersTable');
-    if (table) {
-      const newTbody = table.querySelector('tbody');
-      if (newTbody) {
-        console.log('renderUsers: Found tbody again, using it');
-        newTbody.innerHTML = rowsHtml;
-      } else {
-        console.error('renderUsers: Cannot find tbody in table!');
-        return;
-      }
-    } else {
-      console.error('renderUsers: Cannot find usersTable!');
-      return;
-    }
-  } else {
-    tbody.innerHTML = rowsHtml;
-  }
+  // Insert HTML into tbody
+  tbody.innerHTML = rowsHtml;
   
   // Verify insertion
-  const finalTbody = document.getElementById('usersTable')?.querySelector('tbody');
   console.log('renderUsers: HTML inserted into tbody');
-  console.log('renderUsers: tbody.innerHTML length after insert:', finalTbody ? finalTbody.innerHTML.length : 0);
-  console.log('renderUsers: tbody.children.length after insert:', finalTbody ? finalTbody.children.length : 0);
+  console.log('renderUsers: tbody.children.length after insert:', tbody.children.length);
   
-  // Check visibility
-  const usersPane = document.querySelector('[data-pane="users"]');
-  if (usersPane) {
-    const paneStyle = window.getComputedStyle(usersPane);
-    console.log('renderUsers: Users pane - display:', paneStyle.display, 'visibility:', paneStyle.visibility, 'opacity:', paneStyle.opacity);
-    const paneRect = usersPane.getBoundingClientRect();
-    console.log('renderUsers: Users pane bounds:', paneRect.width, 'x', paneRect.height, 'visible:', paneRect.width > 0 && paneRect.height > 0);
-  }
-  
-  const table = document.getElementById('usersTable');
-  if (table) {
-    const tableStyle = window.getComputedStyle(table);
-    console.log('renderUsers: Table - display:', tableStyle.display, 'visibility:', tableStyle.visibility);
-    const tableRect = table.getBoundingClientRect();
-    console.log('renderUsers: Table bounds:', tableRect.width, 'x', tableRect.height);
-  }
-  
-  const tableWrap = table?.closest('.table-wrap');
-  if (tableWrap) {
-    const wrapStyle = window.getComputedStyle(tableWrap);
-    console.log('renderUsers: table-wrap - display:', wrapStyle.display, 'visibility:', wrapStyle.visibility);
+  if (tbody.children.length === 0) {
+    console.error('renderUsers: WARNING - tbody has no children after insert!');
+  } else {
+    console.log('renderUsers: ✅ Successfully rendered', tbody.children.length, 'rows');
   }
 }
 
@@ -9421,12 +9415,17 @@ async function init() {
   }
   
   // Initialize Users segmented controls
-  if (state.mainMetric === 'traffic') {
-    $('#segCmpTraffic').classList.add('active');
-    $('#segCmpConns').classList.remove('active');
-  } else {
-    $('#segCmpConns').classList.add('active');
-    $('#segCmpTraffic').classList.remove('active');
+  const segCmpTraffic = $('#segCmpTraffic');
+  const segCmpConns = $('#segCmpConns');
+  
+  if (segCmpTraffic && segCmpConns) {
+    if (state.mainMetric === 'traffic') {
+      segCmpTraffic.classList.add('active');
+      segCmpConns.classList.remove('active');
+    } else {
+      segCmpConns.classList.add('active');
+      segCmpTraffic.classList.remove('active');
+    }
   }
   
   // Initialize Users section filters (synced with global overview filter)
@@ -9435,20 +9434,27 @@ async function init() {
   state.mainMetric = activeMetric;
   state.miniMetric = activeMetric;
   
-  if (state.mainMetric === 'traffic') {
-    $('#segCmpTraffic').classList.add('active');
-    $('#segCmpConns').classList.remove('active');
-  } else {
-    $('#segCmpConns').classList.add('active');
-    $('#segCmpTraffic').classList.remove('active');
+  if (segCmpTraffic && segCmpConns) {
+    if (state.mainMetric === 'traffic') {
+      segCmpTraffic.classList.add('active');
+      segCmpConns.classList.remove('active');
+    } else {
+      segCmpConns.classList.add('active');
+      segCmpTraffic.classList.remove('active');
+    }
   }
   
-  if (state.miniMetric === 'traffic') {
-    $('#segMiniTraffic').classList.add('active');
-    $('#segMiniConns').classList.remove('active');
-  } else {
-    $('#segMiniConns').classList.add('active');
-    $('#segMiniTraffic').classList.remove('active');
+  const segMiniTraffic = $('#segMiniTraffic');
+  const segMiniConns = $('#segMiniConns');
+  
+  if (segMiniTraffic && segMiniConns) {
+    if (state.miniMetric === 'traffic') {
+      segMiniTraffic.classList.add('active');
+      segMiniConns.classList.remove('active');
+    } else {
+      segMiniConns.classList.add('active');
+      segMiniTraffic.classList.remove('active');
+    }
   }
   
   // Initialize Pause button state
