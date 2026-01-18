@@ -1787,12 +1787,24 @@ label {
   <div class="pane" data-pane="users">
     <div class="card">
       <div class="card-hd" style="padding: 12px 16px;">
-        <h3 class="card-title" style="margin: 0; font-size: 16px;">
-          👥 <span data-i18n="usersManagement">Пользователи</span>
-        </h3>
-        <div class="btn-group" style="gap: 8px;">
-          <button class="btn primary" id="btnAddUser" style="padding: 6px 12px; font-size: 13px;">➕ Добавить</button>
-          <button class="btn" id="btnRefreshUsers" style="padding: 6px 12px; font-size: 13px;">🔄</button>
+        <div>
+          <h3 class="card-title" style="margin: 0 0 4px 0; font-size: 16px;">
+            👥 <span data-i18n="usersManagement">Пользователи</span>
+            <span class="help" data-tip="Добавляйте, удаляйте пользователей или отключайте их (смена UUID). Скопируйте VLESS ссылку для подключения." style="font-size: 14px; margin-left: 4px;">?</span>
+          </h3>
+          <div class="card-desc" style="font-size: 12px; color: var(--muted); line-height: 1.4;">
+            Управление доступом к Xray. Скопируйте ссылку для подключения или отключите пользователя.
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="chkHideInactive" checked style="cursor: pointer;">
+            <span>Скрыть неактивных (&lt;1 МБ)</span>
+          </label>
+          <div class="btn-group" style="gap: 8px;">
+            <button class="btn primary" id="btnAddUser" style="padding: 6px 12px; font-size: 13px;">➕ Добавить</button>
+            <button class="btn" id="btnRefreshUsers" style="padding: 6px 12px; font-size: 13px;">🔄</button>
+          </div>
         </div>
       </div>
 
@@ -8159,9 +8171,25 @@ function renderUsers_Internal(users, statsMap, tbody) {
     tbody.innerHTML = '<tr><td colspan="7" class="muted">Нет пользователей</td></tr>';
     return;
   }
-  console.log('renderUsers: rendering', users.length, 'users into table');
   
-  const rowsHtml = users.map(u => {
+  // Filter inactive users if checkbox is checked
+  const hideInactive = document.getElementById('chkHideInactive')?.checked ?? true;
+  const filteredUsers = hideInactive 
+    ? users.filter(u => {
+        const stats = statsMap[u.email] || {};
+        const totalTraffic = stats.totalTrafficBytes || 0;
+        return totalTraffic >= 1000000; // >= 1 MB
+      })
+    : users;
+  
+  console.log(`renderUsers: rendering ${filteredUsers.length} of ${users.length} users (hideInactive: ${hideInactive})`);
+  
+  if (filteredUsers.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="muted">Все пользователи скрыты фильтром (трафик &lt; 1 МБ)</td></tr>';
+    return;
+  }
+  
+  const rowsHtml = filteredUsers.map(u => {
     const stats = statsMap[u.email] || {};
     const alias = stats.alias || u.alias || '';
     const displayName = alias || u.email;
@@ -8170,12 +8198,12 @@ function renderUsers_Internal(users, statsMap, tbody) {
     const top3Domains = stats.top3Domains || [];
     const isOnline = stats.isOnline || false;
     
-    // Format top 3 domains - simple list
+    // Format top 3 domains - traffic first, then domain
     let top3Html = '—';
     if (top3Domains.length > 0) {
       top3Html = top3Domains.map(d => {
         const trafficGB = (d.trafficBytes / 1000000000).toFixed(1);
-        return `<div style="line-height: 1.4; margin-bottom: 2px;">${escapeHtml(d.domain)} <span style="color: var(--muted);">(${trafficGB} GB)</span></div>`;
+        return `<div style="line-height: 1.4; margin-bottom: 2px;"><span style="font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--muted); font-size: 11px; display: inline-block; min-width: 48px;">${trafficGB} GB</span> <span style="margin-left: 4px;">${escapeHtml(d.domain)}</span></div>`;
       }).join('');
     }
     
@@ -8924,6 +8952,15 @@ async function init() {
   if (btnAddUser) btnAddUser.onclick = addUser;
   const btnRefreshUsers = $('#btnRefreshUsers');
   if (btnRefreshUsers) btnRefreshUsers.onclick = loadUsers;
+  
+  // Filter checkbox handler
+  const chkHideInactive = $('#chkHideInactive');
+  if (chkHideInactive) {
+    chkHideInactive.onchange = () => {
+      console.log('Filter changed, reloading users');
+      loadUsers();
+    };
+  }
   const btnRefreshEvents = $('#btnRefreshEvents');
   if (btnRefreshEvents) btnRefreshEvents.onclick = loadEvents;
   const eventsFilter = $('#eventsFilter');
