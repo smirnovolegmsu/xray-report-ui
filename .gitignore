@@ -29,6 +29,7 @@ Thumbs.db
 *_back_up*/
 history/
 state/
+archive/
 
 # Системные файлы Linux
 *.pid

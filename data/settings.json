@@ -2,6 +2,7 @@
   "version": 1,
   "ui": {
     "theme": "light",
+    "lang": "ru",
     "realtime_mode": "eco",
     "eco_poll_sec": 300,
     "live_push_sec": 5,
@@ -11,7 +12,7 @@
     "service_name": "xray",
     "config_path": "/usr/local/etc/xray/config.json",
     "inbound_tag": "",
-    "server_host": "",
+    "server_host": "185.235.130.184",
     "server_port": 443,
     "sni": "www.cloudflare.com",
     "fp": "chrome",

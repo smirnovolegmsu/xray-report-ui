@@ -231,3 +231,15 @@
 {"type": "USER", "severity": "INFO", "action": "update_alias", "email": "user_05", "alias": "Папа", "ts": "2026-01-07T17:08:57Z"}
 {"type": "USER", "severity": "INFO", "action": "update_alias", "email": "user_07", "alias": "Алексей Шокот", "ts": "2026-01-07T17:09:06Z"}
 {"type": "USER", "severity": "INFO", "action": "update_alias", "email": "user_08", "alias": "Арсений", "ts": "2026-01-07T17:09:13Z"}
+{"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": "user_01", "error": "Set server_host in settings (IP/domain of your server)", "ts": "2026-01-18T18:01:26Z"}
+{"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": "user_01", "error": "Set server_host in settings (IP/domain of your server)", "ts": "2026-01-18T18:17:32Z"}
+{"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": "user_01", "error": "Set server_host in settings (IP/domain of your server)", "ts": "2026-01-18T18:19:09Z"}
+{"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": "user_01", "error": "Set server_host in settings (IP/domain of your server)", "ts": "2026-01-18T18:19:44Z"}
+{"type": "USER", "severity": "WARN", "action": "kick", "email": "user_01", "ts": "2026-01-18T18:19:45Z"}
+{"type": "SETTINGS", "severity": "INFO", "action": "saved", "ts": "2026-01-18T18:20:01Z"}
+{"type": "LINK", "severity": "INFO", "action": "built", "email": "user_01", "ts": "2026-01-18T18:20:02Z"}
+{"type": "LINK", "severity": "INFO", "action": "built", "email": "user_01", "ts": "2026-01-18T18:22:11Z"}
+{"type": "LINK", "severity": "INFO", "action": "built", "email": "user_01", "ts": "2026-01-18T18:25:27Z"}
+{"type": "LINK", "severity": "INFO", "action": "built", "email": "user_01", "ts": "2026-01-18T18:26:04Z"}
+{"type": "LINK", "severity": "INFO", "action": "built", "email": "user_01", "ts": "2026-01-18T18:26:36Z"}
+{"type": "LINK", "severity": "INFO", "action": "built", "email": "user_01", "ts": "2026-01-18T18:27:06Z"}
