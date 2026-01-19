@@ -38,7 +38,7 @@ export function LiveNow() {
       const response = await apiClient.getUsers();
       setUsers(response.data.users || []);
     } catch (error) {
-      console.error('Failed to load users:', error);
+      devLog.error('Failed to load users:', error);
     }
   };
 

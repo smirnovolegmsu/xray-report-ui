@@ -10,28 +10,11 @@ import { toast } from 'sonner';
 import { devLog } from '@/lib/utils';
 import { CardLoadingSpinner } from '@/components/ui/loading-spinner';
 import { getCardColorClasses } from '@/lib/card-colors';
-
-interface PortInfo {
-  port: number;
-  name: string;
-  type: string;
-  status: string;
-  host: string;
-}
-
-interface PortsData {
-  ports: PortInfo[];
-  current: {
-    port: number;
-    host: string;
-    url: string;
-  };
-  timestamp: string;
-}
+import type { PortInfo, PortsStatusResponse } from '@/types';
 
 export function PortsSettings() {
   const [ports, setPorts] = useState<PortInfo[]>([]);
-  const [current, setCurrent] = useState<PortsData['current'] | null>(null);
+  const [current, setCurrent] = useState<PortsStatusResponse['current'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -43,9 +26,10 @@ export function PortsSettings() {
     try {
       setRefreshing(true);
       const response = await apiClient.getPortsStatus();
-      if (response.data && response.data.ok) {
-        setPorts(response.data.ports || []);
-        setCurrent(response.data.current);
+      const data = response.data as PortsStatusResponse;
+      if (data && data.ports) {
+        setPorts(data.ports || []);
+        setCurrent(data.current);
       } else {
         toast.error('Failed to load ports status');
       }
@@ -176,7 +160,6 @@ export function PortsSettings() {
           <div className="text-xs text-muted-foreground space-y-1">
             <p><strong>8787</strong> - Main Flask Backend (API)</p>
             <p><strong>3000</strong> - Next.js Development Server (Frontend)</p>
-            <p><strong>5000</strong> - Production Build Server</p>
             <p className="text-xs pt-2 border-t border-border/50 mt-2">
               Status refreshes automatically every 10 seconds
             </p>

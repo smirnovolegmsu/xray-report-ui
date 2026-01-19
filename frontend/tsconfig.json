@@ -13,6 +13,8 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+    // Оптимизация для ускорения компиляции
+    "tsBuildInfoFile": ".next/tsconfig.tsbuildinfo",
     "plugins": [
       {
         "name": "next"

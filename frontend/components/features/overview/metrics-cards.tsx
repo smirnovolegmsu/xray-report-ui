@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users, Activity, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import { apiClient } from '@/lib/api';
-import { handleApiError, formatBytes } from '@/lib/utils';
+import { handleApiError, formatBytes, devLog } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import NumberFlow from '@number-flow/react';
@@ -95,7 +95,7 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
         avg_traffic_prev: avg_traffic_prev,
       });
     } catch (error) {
-      console.error('Error loading dashboard stats:', error);
+      devLog.error('Error loading dashboard stats:', error);
       toast.error(handleApiError(error));
     } finally {
       setLoading(false);

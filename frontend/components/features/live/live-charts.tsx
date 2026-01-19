@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Pause, Play } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ResponsiveBar } from '@nivo/bar';
 import { apiClient } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
@@ -24,8 +24,14 @@ interface LiveChartsProps {
   granularity: string;
 }
 
+interface ChartDataPoint {
+  time: string;
+  value: number;
+  [key: string]: string | number;
+}
+
 export function LiveCharts({ scope, metric, period, granularity }: LiveChartsProps) {
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
@@ -132,41 +138,97 @@ export function LiveCharts({ scope, metric, period, granularity }: LiveChartsPro
           </p>
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis
-              dataKey="time"
-              className="text-xs"
-              stroke="currentColor"
-              tick={{ fontSize: 10 }}
-            />
-            <YAxis className="text-xs" stroke="currentColor" tick={{ fontSize: 10 }} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'hsl(var(--popover))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '8px',
-                fontSize: '12px',
-              }}
-              formatter={(value: number | undefined) => {
-                if (value === undefined) return ['0', ''];
-                if (metric === 'traffic') {
-                  return [`${value.toFixed(2)} MB`, 'Traffic'];
-                }
-                return [value.toFixed(0), metric === 'online' ? 'Users' : 'Connections'];
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey="value"
-              stroke={getChartColor()}
-              strokeWidth={2}
-              dot={false}
-              animationDuration={300}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <div style={{ height: '250px', width: '100%' }}>
+          <ResponsiveBar
+            data={chartData}
+            keys={['value']}
+            indexBy="time"
+            margin={{ top: 50, right: 10, bottom: 30, left: 10 }}
+            padding={0.3}
+            valueScale={{ type: 'linear' }}
+            indexScale={{ type: 'band', round: true }}
+            colors={getChartColor()}
+            axisTop={null}
+            axisRight={null}
+            axisBottom={{
+              tickSize: 5,
+              tickPadding: 5,
+              tickRotation: 0,
+              legend: '',
+              legendOffset: 36,
+              legendPosition: 'middle',
+            }}
+            axisLeft={null}
+            enableGridY={false}
+            enableGridX={false}
+            labelSkipWidth={12}
+            labelSkipHeight={12}
+            label={(d) => {
+              if (metric === 'traffic') {
+                return `${Number(d.value).toFixed(1)} MB`;
+              }
+              if (metric === 'online') {
+                return `${Number(d.value).toFixed(0)}`;
+              }
+              const yValue = Number(d.value);
+              return yValue >= 1000 ? `${(yValue / 1000).toFixed(1)}k` : yValue.toString();
+            }}
+            labelTextColor="hsl(var(--foreground))"
+            theme={{
+              labels: {
+                text: {
+                  fill: 'hsl(var(--foreground))',
+                  fontSize: 10,
+                  fontWeight: 600,
+                },
+              },
+              tooltip: {
+                container: {
+                  background: 'hsl(var(--popover))',
+                  color: 'hsl(var(--popover-foreground))',
+                  fontSize: '12px',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  border: '1px solid hsl(var(--border))',
+                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                },
+              },
+              axis: {
+                ticks: {
+                  text: {
+                    fill: 'hsl(var(--muted-foreground))',
+                    fontSize: 10,
+                  },
+                },
+              },
+            }}
+            animate={!paused}
+            motionConfig="gentle"
+            tooltip={({ id, value, indexValue }) => (
+              <div
+                style={{
+                  background: 'hsl(var(--popover))',
+                  padding: '8px 12px',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                  {indexValue}
+                </div>
+                <div>
+                  {metric === 'traffic' 
+                    ? `${Number(value).toFixed(2)} MB`
+                    : metric === 'online'
+                    ? `${Number(value).toFixed(0)} ${lang === 'ru' ? 'пользователей' : 'users'}`
+                    : Number(value).toLocaleString()}
+                </div>
+              </div>
+            )}
+          />
+        </div>
       )}
     </div>
   );

@@ -202,43 +202,55 @@ export interface EventsTimelinePoint {
 }
 
 // ==================== SYSTEM TYPES ====================
+export interface ServiceStatus {
+  active: boolean;
+  state: string;
+  name?: string;
+  uptime?: number;
+  restart_count?: number;
+  restart_count_14d?: number;
+}
+
+export interface NextjsStatus {
+  active: boolean;
+  state: string;
+  port?: number;
+  url?: string;
+  status_code?: number;
+  error?: string;
+}
+
 export interface SystemStatus {
-  xray_active?: boolean;
-  xray_state?: string;
-  backend_active?: boolean;
-  backend_state?: string;
-  nextjs_active?: boolean;
-  nextjs_state?: string;
-  nextjs_port?: number;
-  nextjs_url?: string;
-  nextjs_status_code?: number;
+  ui: ServiceStatus;
+  xray: ServiceStatus;
+  nextjs: NextjsStatus;
+  restart_history?: Event[];
 }
 
 export interface SystemResources {
-  cpu_percent?: number;
-  memory_percent?: number;
-  memory_used?: number;
-  memory_total?: number;
-  disk_percent?: number;
-  disk_used?: number;
-  disk_total?: number;
+  cpu: number;
+  ram: number;
+  ram_total_gb: number;
+  ram_used_gb: number;
 }
 
-export interface PortStatus {
+export interface PortInfo {
   port: number;
-  service: string;
-  status: 'open' | 'closed' | 'filtered';
-  process?: string;
-  description?: string;
+  name: string;
+  type: string;
+  status: string;
+  host: string;
 }
 
 export interface PortsStatusResponse {
-  ports: PortStatus[];
-  summary: {
-    total: number;
-    open: number;
-    critical: number;
+  ok: boolean;
+  ports: PortInfo[];
+  current: {
+    port: number;
+    host: string;
+    url: string;
   };
+  timestamp?: string;
 }
 
 // ==================== LIVE TYPES ====================
@@ -317,6 +329,7 @@ export interface EventsStatsResponse {
   info: number;
   byType: Record<EventType, number>;
   recentCritical: Event[];
+  timeline: EventsTimelinePoint[];
 }
 
 // ==================== COLLECTOR TYPES ====================
@@ -326,6 +339,14 @@ export interface CollectorStatus {
   next_run?: string;
   schedule?: string;
   status?: string;
+  cron?: {
+    found: boolean;
+    all_jobs?: Array<{
+      status?: {
+        active: boolean;
+      };
+    }>;
+  };
 }
 
 // ==================== XRAY CONFIG TYPES ====================

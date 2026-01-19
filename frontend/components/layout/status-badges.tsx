@@ -6,10 +6,11 @@ import { Server, Activity, Database } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { devLog } from '@/lib/utils';
+import type { SystemStatus, ServiceStatus, CollectorStatus } from '@/types';
 
 interface StatusData {
-  ui: { active: boolean; status: string };
-  xray: { active: boolean; status: string };
+  ui: ServiceStatus;
+  xray: ServiceStatus;
   collector: { active: boolean; found: boolean };
 }
 
@@ -31,12 +32,15 @@ export function StatusBadges() {
         apiClient.getCollectorStatus(),
       ]);
 
+      const systemData = systemRes.data as SystemStatus;
+      const collectorData = collectorRes.data as CollectorStatus;
+      
       setStatus({
-        ui: systemRes.data.ui || { active: false, status: 'unknown' },
-        xray: systemRes.data.xray || { active: false, status: 'unknown' },
+        ui: systemData.ui || { active: false, state: 'unknown' },
+        xray: systemData.xray || { active: false, state: 'unknown' },
         collector: {
-          active: collectorRes.data.cron?.found || false,
-          found: collectorRes.data.cron?.found || false,
+          active: collectorData.cron?.found || false,
+          found: collectorData.cron?.found || false,
         },
       });
       setLoading(false);

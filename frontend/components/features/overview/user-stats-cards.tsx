@@ -1,17 +1,18 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Users, Globe, TrendingUp, TrendingDown } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import { handleApiError, formatBytes, calculateChange, devLog } from '@/lib/utils';
 import NumberFlow from '@number-flow/react';
 import { defaultNumberFlowConfig } from '@/lib/number-flow-config';
 import { LoadingSpinner, CardLoadingSpinner } from '@/components/ui/loading-spinner';
+import { useAppStore } from '@/lib/store';
 import type { DashboardApiResponse } from '@/types';
 
 interface UserStatsCard {
@@ -36,12 +37,43 @@ export function UserStatsCards() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserStatsCard[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('all');
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const { lang } = useAppStore();
+  const usersRef = useRef<UserStatsCard[]>([]);
 
+  // Keep usersRef in sync with users
   useEffect(() => {
-    loadUserStats();
+    usersRef.current = users;
+  }, [users]);
+
+  const loadOnlineStatus = useCallback(async () => {
+    try {
+      const response = await apiClient.getLiveNow();
+      const onlineUsersList = response.data?.now?.onlineUsers || [];
+      // Create a set with both email and uuid for matching
+      const onlineSet = new Set<string>();
+      
+      // Add all online users from API response
+      onlineUsersList.forEach((user: string) => {
+        onlineSet.add(user);
+      });
+      
+      // Match with our users list to add both email and uuid for each online user
+      usersRef.current.forEach(u => {
+        if (onlineSet.has(u.email) || onlineSet.has(u.uuid)) {
+          // If user is online, add both identifiers
+          onlineSet.add(u.email);
+          onlineSet.add(u.uuid);
+        }
+      });
+      
+      setOnlineUsers(onlineSet);
+    } catch (error) {
+      devLog.warn('Failed to load online status:', error);
+    }
   }, []);
 
-  const loadUserStats = async () => {
+  const loadUserStats = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiClient.getDashboard({ days: 14 });
@@ -72,7 +104,23 @@ export function UserStatsCards() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadUserStats();
+  }, [loadUserStats]);
+
+  // Load online status when users are loaded, then update periodically
+  useEffect(() => {
+    if (users.length > 0) {
+      loadOnlineStatus();
+      // Update online status every 10 seconds
+      const interval = setInterval(() => {
+        loadOnlineStatus();
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [users.length, loadOnlineStatus]);
 
   const formatConns = useCallback((conns: number): string => {
     if (conns >= 1000) {
@@ -93,6 +141,10 @@ export function UserStatsCards() {
       ? users 
       : users.filter(u => u.uuid === selectedUser);
   }, [users, selectedUser]);
+
+  const isUserOnline = useCallback((user: UserStatsCard): boolean => {
+    return onlineUsers.has(user.email) || onlineUsers.has(user.uuid);
+  }, [onlineUsers]);
 
   if (loading) {
     return (
@@ -142,9 +194,21 @@ export function UserStatsCards() {
           return (
             <Card key={user.uuid} className="p-3 hover:shadow-md transition-shadow flex flex-col">
               {/* User Header */}
-              <div className="flex items-center gap-2 mb-2 min-w-0">
-                <div className={`w-2 h-2 rounded-full shrink-0 ${user.anomaly ? 'bg-red-500' : 'bg-green-500'}`} />
+              <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
                 <h4 className="font-semibold text-sm truncate min-w-0 flex-1">{user.alias || user.email}</h4>
+                <Badge 
+                  variant="outline"
+                  className={`h-5 px-1.5 text-[10px] font-medium shrink-0 ${
+                    isUserOnline(user)
+                      ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
+                      : 'bg-gray-500/15 text-gray-600 dark:text-gray-400 border-gray-500/30'
+                  }`}
+                >
+                  {isUserOnline(user) 
+                    ? (lang === 'ru' ? 'Онлайн' : 'Online')
+                    : (lang === 'ru' ? 'Офлайн' : 'Offline')
+                  }
+                </Badge>
               </div>
 
               {/* Stats Badges - using grid for alignment */}
@@ -210,22 +274,35 @@ export function UserStatsCards() {
               </div>
 
               {/* Mini Chart */}
-              <div className="h-12 mb-2 relative overflow-hidden">
+              <div className="h-12 mb-2 relative overflow-hidden rounded-md bg-muted/30">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={getChartData(user)} margin={{ top: 4, right: 2, left: 2, bottom: 4 }}>
+                  <AreaChart data={getChartData(user)} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
                     <defs>
                       <linearGradient id={`gradient-${user.uuid}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--popover))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '6px',
+                        fontSize: '10px',
+                        padding: '4px 8px',
+                      }}
+                      formatter={(value: number | undefined) => value !== undefined ? [`${value.toFixed(2)} GB`, ''] : ['', '']}
+                      labelStyle={{ display: 'none' }}
+                    />
                     <Area 
                       type="monotone" 
                       dataKey="v" 
                       stroke="#3b82f6" 
-                      strokeWidth={1.5}
+                      strokeWidth={2}
                       fill={`url(#gradient-${user.uuid})`}
                       isAnimationActive={false}
+                      dot={false}
+                      activeDot={{ r: 3 }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>

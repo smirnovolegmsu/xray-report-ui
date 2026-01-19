@@ -8,6 +8,7 @@ import { useTheme } from 'next-themes';
 import { StatusBadges } from './status-badges';
 import { ViewportToggle } from './viewport-toggle';
 import { PortsStatus } from './ports-status';
+import { SystemResources } from './system-resources';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -52,6 +53,11 @@ export function Header({ onMenuClick, sidebarOpen }: HeaderProps = {}) {
       </div>
 
       <div className="flex items-center gap-1">
+        {/* System Resources - CPU and RAM */}
+        <div className="hidden md:block">
+          <SystemResources />
+        </div>
+        
         {/* Ports Status - show running ports */}
         <PortsStatus />
         

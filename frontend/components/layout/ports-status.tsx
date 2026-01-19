@@ -6,24 +6,7 @@ import { Server, Wifi, WifiOff } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import { devLog } from '@/lib/utils';
-
-interface PortInfo {
-  port: number;
-  name: string;
-  type: string;
-  status: string;
-  host: string;
-}
-
-interface PortsData {
-  ports: PortInfo[];
-  current: {
-    port: number;
-    host: string;
-    url: string;
-  };
-  timestamp: string;
-}
+import type { PortInfo, PortsStatusResponse } from '@/types';
 
 export function PortsStatus() {
   const [ports, setPorts] = useState<PortInfo[]>([]);
@@ -40,8 +23,9 @@ export function PortsStatus() {
   const loadPorts = async () => {
     try {
       const response = await apiClient.getPortsStatus();
-      if (response.data && response.data.ok) {
-        setPorts(response.data.ports || []);
+      const data = response.data as PortsStatusResponse;
+      if (data && data.ports) {
+        setPorts(data.ports || []);
         setError(false);
       } else {
         setError(true);
