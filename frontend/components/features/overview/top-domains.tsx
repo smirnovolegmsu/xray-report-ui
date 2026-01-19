@@ -11,7 +11,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { apiClient, handleApiError } from '@/lib/api';
+import { apiClient } from '@/lib/api';
+import { handleApiError } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { formatBytes, devLog } from '@/lib/utils';

@@ -21,7 +21,8 @@ import {
   AlertCircle,
   Globe
 } from 'lucide-react';
-import { apiClient, handleApiError } from '@/lib/api';
+import { apiClient } from '@/lib/api';
+import { handleApiError } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import type { User, UserFilter, UserStats } from '@/types';

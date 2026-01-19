@@ -2,26 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
-import { apiClient, handleApiError } from '@/lib/api';
+import { ResponsiveBar } from '@nivo/bar';
+import { apiClient } from '@/lib/api';
+import { handleApiError } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { devLog } from '@/lib/utils';
 import type { DashboardApiResponse } from '@/types';
 
-interface ChartData {
+interface ChartDataPoint {
   date: string;
-  traffic_gb: number;
-  connections: number;
+  value: number;
+  [key: string]: string | number;
 }
 
 interface TrafficChartProps {
@@ -31,7 +23,7 @@ interface TrafficChartProps {
 }
 
 export function TrafficChart({ selectedDate, mode, metric }: TrafficChartProps) {
-  const [data, setData] = useState<ChartData[]>([]);
+  const [data, setData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
 
@@ -69,8 +61,9 @@ export function TrafficChart({ selectedDate, mode, metric }: TrafficChartProps) 
           day: '2-digit',
           month: '2-digit',
         }),
-        traffic_gb: Math.round((trafficData[index] / 1024 / 1024 / 1024) * 100) / 100,
-        connections: connsData[index] || 0,
+        value: metric === 'traffic' 
+          ? Math.round((trafficData[index] / 1024 / 1024 / 1024) * 100) / 100
+          : connsData[index] || 0,
       }));
 
       setData(chartData);
@@ -113,48 +106,92 @@ export function TrafficChart({ selectedDate, mode, metric }: TrafficChartProps) 
           ? (lang === 'ru' ? 'Трафик (7 дней)' : 'Traffic (7 Days)')
           : (lang === 'ru' ? 'Подключения (7 дней)' : 'Connections (7 Days)')}
       </h3>
-      <ResponsiveContainer width="100%" height={195}>
-        <AreaChart data={data} margin={{ top: 5, right: 10, left: 5, bottom: 0 }}>
-          <defs>
-            <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={metric === 'traffic' ? '#3b82f6' : '#8b5cf6'} stopOpacity={0.8} />
-              <stop offset="95%" stopColor={metric === 'traffic' ? '#3b82f6' : '#8b5cf6'} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis
-            dataKey="date"
-            stroke="currentColor"
-            tick={{ fontSize: 10 }}
-            tickLine={false}
-          />
-          <YAxis
-            stroke="currentColor"
-            tick={{ fontSize: 10 }}
-            tickLine={false}
-            width={40}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'hsl(var(--background))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '8px',
-              fontSize: '11px',
-            }}
-          />
-          <Legend wrapperStyle={{ fontSize: '10px' }} />
-          <Area
-            type="monotone"
-            dataKey={metric === 'traffic' ? 'traffic_gb' : 'connections'}
-            name={metric === 'traffic' 
-              ? (lang === 'ru' ? 'Трафик (GB)' : 'Traffic (GB)')
-              : (lang === 'ru' ? 'Подключения' : 'Connections')}
-            stroke={metric === 'traffic' ? '#3b82f6' : '#8b5cf6'}
-            fillOpacity={1}
-            fill="url(#colorMetric)"
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      <div style={{ height: '195px', width: '100%' }}>
+        <ResponsiveBar
+          data={data}
+          keys={['value']}
+          indexBy="date"
+          margin={{ top: 50, right: 10, bottom: 30, left: 10 }}
+          padding={0.3}
+          valueScale={{ type: 'linear' }}
+          indexScale={{ type: 'band', round: true }}
+          colors={(d) => metric === 'traffic' ? '#3b82f6' : '#8b5cf6'}
+          axisTop={null}
+          axisRight={null}
+          axisBottom={{
+            tickSize: 5,
+            tickPadding: 5,
+            tickRotation: 0,
+            legend: '',
+            legendOffset: 36,
+            legendPosition: 'middle',
+          }}
+          axisLeft={null}
+          enableGridY={false}
+          enableGridX={false}
+          labelSkipWidth={12}
+          labelSkipHeight={12}
+          label={(d) => {
+            if (metric === 'traffic') {
+              return `${Number(d.value).toFixed(1)} GB`;
+            }
+            const yValue = Number(d.value);
+            return yValue >= 1000 ? `${(yValue / 1000).toFixed(1)}k` : yValue.toString();
+          }}
+          labelTextColor="hsl(var(--foreground))"
+          theme={{
+            labels: {
+              text: {
+                fill: 'hsl(var(--foreground))',
+                fontSize: 10,
+                fontWeight: 600,
+              },
+            },
+            tooltip: {
+              container: {
+                background: 'hsl(var(--popover))',
+                color: 'hsl(var(--popover-foreground))',
+                fontSize: '11px',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                border: '1px solid hsl(var(--border))',
+                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+              },
+            },
+            axis: {
+              ticks: {
+                text: {
+                  fill: 'hsl(var(--muted-foreground))',
+                  fontSize: 10,
+                },
+              },
+            },
+          }}
+          animate={true}
+          motionConfig="gentle"
+          tooltip={({ id, value, indexValue }) => (
+            <div
+              style={{
+                background: 'hsl(var(--popover))',
+                padding: '8px 12px',
+                border: '1px solid hsl(var(--border))',
+                borderRadius: '8px',
+                fontSize: '11px',
+                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                {indexValue}
+              </div>
+              <div>
+                {metric === 'traffic' 
+                  ? `${Number(value).toFixed(2)} GB`
+                  : Number(value).toLocaleString()}
+              </div>
+            </div>
+          )}
+        />
+      </div>
     </Card>
   );
 }

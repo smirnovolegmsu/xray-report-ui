@@ -54,7 +54,8 @@ SERVICE_UI = "xray-report-ui"
 SERVICE_XRAY_DEFAULT = "xray"
 SERVICE_NEXTJS = "xray-nextjs-ui"
 NEXTJS_PORT = 3000
-NEXTJS_URL = f"http://185.235.130.184:{NEXTJS_PORT}"
+# Use environment variable or default to localhost
+NEXTJS_URL = os.environ.get("NEXTJS_URL", f"http://127.0.0.1:{NEXTJS_PORT}")
 
 LOCK = threading.Lock()
 
@@ -970,7 +971,6 @@ def api_ports_status():
     expected_ports = [
         {"port": 8787, "name": "Flask Backend", "type": "backend"},
         {"port": 3000, "name": "Next.js Dev", "type": "frontend"},
-        {"port": 5000, "name": "Production", "type": "production"},
     ]
     
     for port_config in expected_ports:
@@ -2510,6 +2510,124 @@ def systemctl_get_uptime(service: str) -> Tuple[Optional[str], Optional[int]]:
         return uptime_str, restart_count
     except Exception as e:
         return None, None
+
+# Cache for CPU calculation
+_cpu_prev = None
+
+def get_system_resources() -> Dict[str, Any]:
+    """Get CPU and RAM usage"""
+    global _cpu_prev
+    try:
+        # Try using psutil if available
+        try:
+            import psutil
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            mem = psutil.virtual_memory()
+            return {
+                "cpu": round(cpu_percent, 1),
+                "ram": round(mem.percent, 1),
+                "ram_total_gb": round(mem.total / (1024**3), 2),
+                "ram_used_gb": round(mem.used / (1024**3), 2),
+            }
+        except ImportError:
+            # Fallback to /proc/stat and /proc/meminfo
+            # CPU usage - need two readings for accurate percentage
+            cpu_percent = 0
+            try:
+                # First reading
+                with open('/proc/stat', 'r') as f:
+                    lines = f.readlines()
+                    cpu_line = lines[0].split()
+                    if len(cpu_line) >= 5:
+                        user = int(cpu_line[1])
+                        nice = int(cpu_line[2])
+                        system = int(cpu_line[3])
+                        idle = int(cpu_line[4])
+                        iowait = int(cpu_line[5]) if len(cpu_line) > 5 else 0
+                        irq = int(cpu_line[6]) if len(cpu_line) > 6 else 0
+                        softirq = int(cpu_line[7]) if len(cpu_line) > 7 else 0
+                        
+                        total = user + nice + system + idle + iowait + irq + softirq
+                        non_idle = user + nice + system + iowait + irq + softirq
+                        
+                        if _cpu_prev is not None:
+                            prev_total, prev_non_idle = _cpu_prev
+                            total_diff = total - prev_total
+                            non_idle_diff = non_idle - prev_non_idle
+                            if total_diff > 0:
+                                cpu_percent = round((non_idle_diff / total_diff) * 100, 1)
+                        else:
+                            # First call - wait a bit and get second reading
+                            time.sleep(0.1)
+                            with open('/proc/stat', 'r') as f2:
+                                lines2 = f2.readlines()
+                                cpu_line2 = lines2[0].split()
+                                if len(cpu_line2) >= 5:
+                                    user2 = int(cpu_line2[1])
+                                    nice2 = int(cpu_line2[2])
+                                    system2 = int(cpu_line2[3])
+                                    idle2 = int(cpu_line2[4])
+                                    iowait2 = int(cpu_line2[5]) if len(cpu_line2) > 5 else 0
+                                    irq2 = int(cpu_line2[6]) if len(cpu_line2) > 6 else 0
+                                    softirq2 = int(cpu_line2[7]) if len(cpu_line2) > 7 else 0
+                                    
+                                    total2 = user2 + nice2 + system2 + idle2 + iowait2 + irq2 + softirq2
+                                    non_idle2 = user2 + nice2 + system2 + iowait2 + irq2 + softirq2
+                                    
+                                    total_diff = total2 - total
+                                    non_idle_diff = non_idle2 - non_idle
+                                    if total_diff > 0:
+                                        cpu_percent = round((non_idle_diff / total_diff) * 100, 1)
+                                    
+                                    total = total2
+                                    non_idle = non_idle2
+                        
+                        _cpu_prev = (total, non_idle)
+            except Exception:
+                cpu_percent = 0
+            
+            # RAM usage
+            ram_percent = 0
+            ram_total_gb = 0
+            ram_used_gb = 0
+            try:
+                with open('/proc/meminfo', 'r') as f:
+                    meminfo = {}
+                    for line in f:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            key = parts[0].rstrip(':')
+                            value = int(parts[1])
+                            meminfo[key] = value
+                    
+                    mem_total = meminfo.get('MemTotal', 0) * 1024  # Convert KB to bytes
+                    mem_available = meminfo.get('MemAvailable', meminfo.get('MemFree', 0)) * 1024
+                    mem_used = mem_total - mem_available
+                    if mem_total > 0:
+                        ram_percent = round((mem_used / mem_total) * 100, 1)
+                    ram_total_gb = round(mem_total / (1024**3), 2)
+                    ram_used_gb = round(mem_used / (1024**3), 2)
+            except Exception:
+                pass
+            
+            return {
+                "cpu": cpu_percent,
+                "ram": ram_percent,
+                "ram_total_gb": ram_total_gb,
+                "ram_used_gb": ram_used_gb,
+            }
+    except Exception:
+        return {
+            "cpu": 0,
+            "ram": 0,
+            "ram_total_gb": 0,
+            "ram_used_gb": 0,
+        }
+
+@app.get("/api/system/resources")
+def api_system_resources():
+    """Get CPU and RAM usage"""
+    return ok(get_system_resources())
 
 @app.get("/api/system/status")
 def api_system_status():

@@ -21,7 +21,7 @@ import {
 import { apiClient } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
-import { handleApiError } from '@/lib/utils';
+import { handleApiError, formatBytes } from '@/lib/utils';
 import NumberFlow from '@number-flow/react';
 import { defaultNumberFlowConfig } from '@/lib/number-flow-config';
 import { motion } from 'framer-motion';
@@ -65,15 +65,7 @@ export function UserDetailsSheet({
     }
   };
 
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const gb = bytes / 1024 / 1024 / 1024;
-    if (gb < 1) {
-      const mb = bytes / 1024 / 1024;
-      return `${Math.round(mb)} MB`;
-    }
-    return `${gb.toFixed(1)} GB`;
-  };
+  // Use formatBytes from utils instead of local implementation
 
   const formatDate = (dateStr: string | undefined): string => {
     if (!dateStr) return '—';
@@ -223,7 +215,7 @@ export function UserDetailsSheet({
                       </span>
                     </div>
                     <p className="text-xl font-bold">
-                      {formatBytes(stats.totalTrafficBytes || 0)}
+                      {formatBytes(stats.totalTrafficBytes || 0) as string}
                     </p>
                   </div>
 
@@ -270,7 +262,7 @@ export function UserDetailsSheet({
                           </span>
                         </div>
                         <span className="text-sm font-medium text-muted-foreground shrink-0">
-                          {formatBytes(domain.trafficBytes)}
+                          {formatBytes(domain.trafficBytes) as string}
                         </span>
                       </div>
                     ))}

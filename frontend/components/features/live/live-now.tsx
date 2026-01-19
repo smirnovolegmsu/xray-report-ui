@@ -7,7 +7,7 @@ import { Users, Activity, HardDrive, TrendingUp, TrendingDown, Minus } from 'luc
 import { apiClient } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
-import { handleApiError, devLog } from '@/lib/utils';
+import { handleApiError, devLog, formatBytes } from '@/lib/utils';
 import NumberFlow from '@number-flow/react';
 import { liveNumberFlowConfig } from '@/lib/number-flow-config';
 import type { User } from '@/types';
@@ -85,19 +85,7 @@ export function LiveNow() {
     }
   };
 
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const gb = bytes / 1024 / 1024 / 1024;
-    if (gb < 1) {
-      const mb = bytes / 1024 / 1024;
-      if (mb < 1) {
-        const kb = bytes / 1024;
-        return `${kb.toFixed(1)} KB`;
-      }
-      return `${mb.toFixed(1)} MB`;
-    }
-    return `${gb.toFixed(2)} GB`;
-  };
+  // Use formatBytes from utils instead of local implementation
 
   const getUserDisplayName = (uuid: string): string => {
     const user = users.find(u => u.uuid === uuid || u.email === uuid);
@@ -176,7 +164,7 @@ export function LiveNow() {
               {tr('Трафик', 'Traffic')}
             </p>
             <p className="text-xl font-bold truncate">
-              {formatBytes(totalTraffic)}
+              {formatBytes(totalTraffic) as string}
             </p>
           </div>
         </div>

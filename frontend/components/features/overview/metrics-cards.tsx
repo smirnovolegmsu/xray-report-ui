@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users, Activity, TrendingUp, TrendingDown, Zap } from 'lucide-react';
-import { apiClient, handleApiError } from '@/lib/api';
+import { apiClient } from '@/lib/api';
+import { handleApiError, formatBytes } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import NumberFlow from '@number-flow/react';
@@ -101,18 +102,7 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
     }
   };
 
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return { value: '0', unit: 'B' };
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    const numValue = bytes / Math.pow(k, i);
-    // Округляем до одного знака после точки
-    const value = numValue.toFixed(1);
-    // Убираем лишний ноль если он есть (например, 81.5 вместо 81.50)
-    const cleanValue = parseFloat(value).toString();
-    return { value: cleanValue, unit: sizes[i] };
-  };
+  // Use formatBytes from utils with returnObject option
 
   const calculateChange = (current: number, previous: number): number | null => {
     if (previous === 0) return null;
@@ -152,8 +142,8 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
   const connsChange = calculateChange(stats.connections_total, stats.connections_prev);
   const avgTrafficChange = calculateChange(stats.avg_traffic_per_user, stats.avg_traffic_prev);
 
-  const trafficFormatted = formatBytes(stats.traffic_total_bytes);
-  const avgTrafficFormatted = formatBytes(stats.avg_traffic_per_user);
+  const trafficFormatted = formatBytes(stats.traffic_total_bytes, { returnObject: true }) as { value: string; unit: string };
+  const avgTrafficFormatted = formatBytes(stats.avg_traffic_per_user, { returnObject: true }) as { value: string; unit: string };
 
   const cards = [
     {

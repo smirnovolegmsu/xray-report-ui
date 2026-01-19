@@ -3,7 +3,6 @@ import type {
   Settings,
   User,
   UserStats,
-  Dashboard,
   DashboardApiResponse,
   LiveData,
   UserLink,
@@ -95,6 +94,8 @@ export const apiClient = {
   
   getSystemStatus: () => api.get<any>('/system/status'),
   
+  getSystemResources: () => api.get<any>('/system/resources'),
+  
   restartUI: () => api.post<ApiResponse>('/system/restart-ui'),
   
   restartSystem: () => api.post<ApiResponse>('/system/restart'),
@@ -132,13 +133,5 @@ export const apiClient = {
   request: <T = any>(url: string, options?: any) => api.get<T>(url, options),
 };
 
-// Error handler для удобства
-export const handleApiError = (error: any): string => {
-  if (error.response?.data?.error) {
-    return error.response.data.error;
-  }
-  if (error.message) {
-    return error.message;
-  }
-  return 'Unknown error occurred';
-};
+// Re-export handleApiError from utils for backward compatibility
+export { handleApiError } from '@/lib/utils';
