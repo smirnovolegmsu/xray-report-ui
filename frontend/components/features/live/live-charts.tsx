@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,15 +30,7 @@ export function LiveCharts({ scope, metric, period, granularity }: LiveChartsPro
   const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
 
-  useEffect(() => {
-    loadData();
-    if (!paused) {
-      const interval = setInterval(loadData, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [scope, metric, period, granularity, paused]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       // Convert metric to API format
       const apiMetric = metric === 'online' ? 'online_users' : metric;
@@ -84,7 +76,15 @@ export function LiveCharts({ scope, metric, period, granularity }: LiveChartsPro
       }
       setLoading(false);
     }
-  };
+  }, [scope, metric, period, granularity, paused, loading]);
+
+  useEffect(() => {
+    loadData();
+    if (!paused) {
+      const interval = setInterval(loadData, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [loadData, paused]);
 
   const getChartTitle = () => {
     const titles: Record<string, { ru: string; en: string }> = {

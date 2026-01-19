@@ -63,16 +63,10 @@ export function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
         isMobile && !isOpen && '-translate-x-full',
         isMobile && isOpen && 'translate-x-0',
         // Desktop: relative positioning, always visible
-        !isMobile && 'relative translate-x-0'
+        !isMobile && 'relative translate-x-0',
+        // Mobile: fixed positioning
+        isMobile && 'fixed top-0 left-0 bottom-0 max-w-[256px]'
       )}
-      style={isMobile ? {
-        // Ensure sidebar stays within viewport in force-mobile mode
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        bottom: 0,
-        maxWidth: '256px',
-      } : undefined}
     >
       {/* Logo & Close Button */}
       <div className="p-4 border-b">
@@ -80,7 +74,7 @@ export function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
           <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
             Xray UI
           </h2>
-          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">
             {lang === 'ru' ? 'Панель управления' : 'Admin Dashboard'}
           </p>
         </div>
@@ -118,7 +112,7 @@ export function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="p-3 border-t text-[10px] text-muted-foreground">
+      <div className="p-3 border-t text-xs text-muted-foreground">
         <div className="flex items-center justify-between">
           <span>© 2026 Xray UI</span>
           <span className="text-green-500 text-xs">●</span>

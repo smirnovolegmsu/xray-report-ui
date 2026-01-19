@@ -10,6 +10,8 @@ import { Power, Save } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
+import { CardLoadingSpinner } from '@/components/ui/loading-spinner';
+import type { Settings } from '@/types';
 import { handleApiError } from '@/lib/utils';
 import { XrayConfigViewer } from './xray-config-viewer';
 
@@ -28,10 +30,10 @@ export function XraySettings() {
     try {
       setLoading(true);
       const response = await apiClient.getSettings();
-      const data = response.data as any;
+      const data = response.data as Settings;
       
-      setServerHost(data.settings?.xray?.server_host || '');
-      setRealityPbk(data.settings?.xray?.reality_pbk || '');
+      setServerHost(data.xray?.server_host || '');
+      setRealityPbk(data.xray?.reality_pbk || '');
     } catch (error) {
       toast.error(handleApiError(error));
     } finally {
@@ -81,9 +83,7 @@ export function XraySettings() {
   if (loading) {
     return (
       <Card className="p-6">
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <CardLoadingSpinner />
       </Card>
     );
   }

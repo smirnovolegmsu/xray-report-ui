@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Users, Activity, TrendingUp, Zap } from 'lucide-react';
 import { apiClient, handleApiError } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import NumberFlow from '@number-flow/react';
 import { defaultNumberFlowConfig } from '@/lib/number-flow-config';
-import { motion } from 'framer-motion';
+import type { DashboardApiResponse } from '@/types';
 
 interface DashboardStats {
   users_total: number;
@@ -38,40 +39,49 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
   const loadStats = async () => {
     try {
       setLoading(true);
-      
-      // Use getDashboard API (same as port 8787) - always works with 14 days for comparison
       const response = await apiClient.getDashboard({ days: 14 });
-      const data = response.data as any;
+      const data = response.data as DashboardApiResponse;
       
       if (!data.ok) {
         throw new Error(data.error || 'Failed to load dashboard data');
       }
       
-      // Extract data from API response
       const globalData = data.global || {};
       const usersData = data.users || {};
       
-      // Get traffic arrays
       const dailyTraffic = globalData.daily_traffic_bytes || [];
       const prevDailyTraffic = globalData.prev_daily_traffic_bytes || [];
       const dailyConns = globalData.daily_conns || [];
       const prevDailyConns = globalData.prev_daily_conns || [];
       
-      // Calculate totals
       const traffic_total = dailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
       const traffic_prev = prevDailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
       const connections_total = dailyConns.reduce((sum: number, val: number) => sum + val, 0);
       const connections_prev = prevDailyConns.reduce((sum: number, val: number) => sum + val, 0);
       
-      // Count users
       const users_total = Object.keys(usersData).length;
       const users_active = Object.values(usersData).filter(
-        (u: any) => (u.daily_traffic_bytes || []).some((v: number) => v > 0)
+        (u) => (u?.daily_traffic_bytes || []).some((v: number) => v > 0)
       ).length;
       
-      // Calculate average per user
-      const avg_traffic = users_total > 0 ? traffic_total / users_total : 0;
-      const avg_traffic_prev = users_total > 0 ? traffic_prev / users_total : 0;
+      // Считаем активных пользователей за каждый период
+      // Активный = был трафик > 0
+      const users_active_current = Object.values(usersData).filter(
+        (u: any) => (u?.sum7_traffic_bytes || 0) > 0
+      ).length;
+      
+      const users_active_prev = Object.values(usersData).filter(
+        (u: any) => (u?.sum_prev7_traffic_bytes || 0) > 0
+      ).length;
+      
+      // Средний трафик на активного пользователя в день
+      // = Общий трафик / (активных пользователей × 7 дней)
+      const avg_traffic = users_active_current > 0 
+        ? traffic_total / (users_active_current * 7) 
+        : 0;
+      const avg_traffic_prev = users_active_prev > 0 
+        ? traffic_prev / (users_active_prev * 7) 
+        : 0;
       
       setStats({
         users_total,
@@ -92,26 +102,43 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
   };
 
   const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
+    if (bytes === 0) return { value: '0', unit: 'B' };
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+    const numValue = bytes / Math.pow(k, i);
+    // Округляем до одного знака после точки
+    const value = numValue.toFixed(1);
+    // Убираем лишний ноль если он есть (например, 81.5 вместо 81.50)
+    const cleanValue = parseFloat(value).toString();
+    return { value: cleanValue, unit: sizes[i] };
   };
 
+  const calculateChange = (current: number, previous: number): number | null => {
+    if (previous === 0) return null;
+    return ((current - previous) / previous) * 100;
+  };
+
+  const formatChange = (change: number): string => {
+    const absChange = Math.abs(change);
+    if (absChange >= 10) {
+      return Math.round(absChange).toString();
+    }
+    return absChange.toFixed(1);
+  };
+
+  // Card dimensions: 200px width, 115px height, 8px gap
+  // Two cards = 408px width, 238px height
+  
   if (loading) {
     return (
-      <div className="grid gap-2" style={{
-        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))'
-      }}>
+      <div className="grid grid-cols-2 gap-2 w-fit">
         {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="p-2.5 min-h-[100px]">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1 flex-1">
-                <div className="h-3 w-16 bg-muted animate-pulse rounded"></div>
-                <div className="h-6 w-12 bg-muted animate-pulse rounded"></div>
-              </div>
-              <div className="w-8 h-8 bg-muted animate-pulse rounded-full"></div>
+          <Card key={i} className="p-3 w-[200px] h-[115px]">
+            <div className="animate-pulse space-y-2">
+              <div className="h-6 w-6 bg-muted rounded-md"></div>
+              <div className="h-3 w-24 bg-muted rounded"></div>
+              <div className="h-6 w-14 bg-muted rounded"></div>
             </div>
           </Card>
         ))}
@@ -121,149 +148,139 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
 
   if (!stats) return null;
 
-  // Calculate percentage changes
-  const calculateChange = (current: number, previous: number): number | null => {
-    if (previous === 0) return null;
-    return ((current - previous) / previous) * 100;
-  };
-
   const trafficChange = calculateChange(stats.traffic_total_bytes, stats.traffic_prev_bytes);
   const connsChange = calculateChange(stats.connections_total, stats.connections_prev);
   const avgTrafficChange = calculateChange(stats.avg_traffic_per_user, stats.avg_traffic_prev);
 
+  const trafficFormatted = formatBytes(stats.traffic_total_bytes);
+  const avgTrafficFormatted = formatBytes(stats.avg_traffic_per_user);
+
   const cards = [
     {
       title: lang === 'ru' ? 'Всего пользователей' : 'Total Users',
-      value: stats.users_total || 0,
+      value: stats.users_total,
       subtitle: lang === 'ru' 
-        ? `${stats.users_active || 0} активных` 
-        : `${stats.users_active || 0} active`,
+        ? `${stats.users_active} активных` 
+        : `${stats.users_active} active`,
       icon: Users,
       color: 'blue',
       change: null,
+      isNumber: true,
     },
     {
       title: lang === 'ru' ? 'Трафик (7 дней)' : 'Traffic (7 days)',
-      value: formatBytes(stats.traffic_total_bytes || 0),
+      value: trafficFormatted.value,
+      unit: trafficFormatted.unit,
       subtitle: lang === 'ru' ? 'Всего передано' : 'Total transferred',
       icon: TrendingUp,
       color: 'green',
-      isNumber: false,
       change: trafficChange,
+      isNumber: false,
     },
     {
       title: lang === 'ru' ? 'Подключения' : 'Connections',
-      value: stats.connections_total || 0,
+      value: stats.connections_total,
       subtitle: lang === 'ru' ? 'За 7 дней' : 'Last 7 days',
       icon: Activity,
       color: 'purple',
       change: connsChange,
+      isNumber: true,
     },
     {
       title: lang === 'ru' ? 'Средний трафик' : 'Avg Traffic',
-      value: formatBytes(stats.avg_traffic_per_user || 0),
-      subtitle: lang === 'ru' ? 'На пользователя' : 'Per user',
+      value: avgTrafficFormatted.value,
+      unit: avgTrafficFormatted.unit,
+      subtitle: lang === 'ru' ? 'На чел./день' : 'Per user/day',
       icon: Zap,
       color: 'orange',
-      isNumber: false,
       change: avgTrafficChange,
+      isNumber: false,
     },
   ];
 
   const colorClasses = {
     blue: {
-      bg: 'bg-blue-100 dark:bg-blue-900/20',
-      text: 'text-blue-600',
+      bg: 'bg-blue-100 dark:bg-blue-900/30',
+      text: 'text-blue-600 dark:text-blue-400',
     },
     green: {
-      bg: 'bg-green-100 dark:bg-green-900/20',
-      text: 'text-green-600',
+      bg: 'bg-green-100 dark:bg-green-900/30',
+      text: 'text-green-600 dark:text-green-400',
     },
     purple: {
-      bg: 'bg-purple-100 dark:bg-purple-900/20',
-      text: 'text-purple-600',
+      bg: 'bg-purple-100 dark:bg-purple-900/30',
+      text: 'text-purple-600 dark:text-purple-400',
     },
     orange: {
-      bg: 'bg-orange-100 dark:bg-orange-900/20',
-      text: 'text-orange-600',
+      bg: 'bg-orange-100 dark:bg-orange-900/30',
+      text: 'text-orange-600 dark:text-orange-400',
     },
-  };
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
-
-  const cardVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.4, ease: 'easeOut' as const }
-    }
   };
 
   return (
-    <motion.div
-      className="grid gap-2"
-      style={{
-        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))'
-      }}
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
+    <div className="grid grid-cols-2 gap-2 w-fit">
       {cards.map((card, index) => {
         const Icon = card.icon;
         const colors = colorClasses[card.color as keyof typeof colorClasses];
 
         return (
-          <motion.div key={index} variants={cardVariants} className="container-metric">
-            <Card className="p-2.5 min-h-[100px]">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] @[180px]:text-xs text-muted-foreground truncate">
-                    {card.title}
-                  </p>
-                  <div className="flex items-baseline gap-1 mt-0.5 flex-wrap">
-                    <p className="text-xl @[180px]:text-2xl font-bold">
-                      {card.isNumber === false ? (
-                        card.value
-                      ) : (
-                        <NumberFlow 
-                          value={card.value as number}
-                          {...defaultNumberFlowConfig}
-                          willChange
-                        />
-                      )}
-                    </p>
-                    {/* Show change percentage */}
-                    {card.change !== null && card.change !== undefined && (
-                      <span className={`text-[10px] font-semibold ${
-                        card.change > 0 ? 'text-green-600 dark:text-green-400' : 
-                        card.change < 0 ? 'text-red-600 dark:text-red-400' : 
-                        'text-gray-500'
-                      }`}>
-                        {card.change > 0 ? '↑' : card.change < 0 ? '↓' : '='}{Math.abs(card.change).toFixed(1)}%
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate hidden @[180px]:block">
-                    {card.subtitle}
-                  </p>
-                </div>
-                {/* Icon - hide on very small, show on larger */}
-                <div className={`hidden @[200px]:flex w-8 h-8 @[220px]:w-10 @[220px]:h-10 ${colors.bg} rounded-full items-center justify-center shrink-0`}>
-                  <Icon className={`w-4 h-4 @[220px]:w-5 @[220px]:h-5 ${colors.text}`} />
-                </div>
+          <Card key={index} className="p-3 w-[200px] h-[115px] flex flex-col hover:shadow-md transition-all duration-200">
+            {/* Header: Title + Icon */}
+            <div className="flex items-start justify-between mb-2">
+              <p className="text-[11px] text-muted-foreground leading-tight flex-1 pr-2">
+                {card.title}
+              </p>
+              <div className={`w-7 h-7 ${colors.bg} rounded-md flex items-center justify-center shrink-0`}>
+                <Icon className={`w-3.5 h-3.5 ${colors.text}`} />
               </div>
-            </Card>
-          </motion.div>
+            </div>
+            
+            {/* Value */}
+            <div className="flex items-baseline gap-1 mb-1">
+              <span className="text-2xl font-bold leading-none">
+                {card.isNumber ? (
+                  <NumberFlow 
+                    value={card.value as number}
+                    format={{ 
+                      style: 'decimal', 
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0,
+                      useGrouping: true
+                    }}
+                    {...defaultNumberFlowConfig}
+                  />
+                ) : (
+                  card.value
+                )}
+              </span>
+              {!card.isNumber && card.unit && (
+                <span className="text-base font-medium text-muted-foreground">{card.unit}</span>
+              )}
+            </div>
+            
+            {/* Footer: subtitle + change */}
+            <div className="flex items-center justify-between mt-auto pt-1">
+              <p className="text-[10px] text-muted-foreground truncate flex-1 mr-1">
+                {card.subtitle}
+              </p>
+              {card.change !== null && (
+                <Badge 
+                  variant="outline"
+                  className={`h-4 px-1.5 text-[10px] font-semibold shrink-0 ${
+                    card.change > 0 
+                      ? 'border-green-500/50 bg-green-500/10 text-green-600 dark:text-green-400' 
+                      : card.change < 0
+                      ? 'border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400'
+                      : 'border-gray-500/50 bg-gray-500/10 text-gray-600'
+                  }`}
+                >
+                  {card.change > 0 ? '↑' : '↓'}{formatChange(card.change)}%
+                </Badge>
+              )}
+            </div>
+          </Card>
         );
       })}
-    </motion.div>
+    </div>
   );
 }

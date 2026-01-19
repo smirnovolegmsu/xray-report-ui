@@ -7,10 +7,12 @@ import { Users, Activity, HardDrive, TrendingUp, TrendingDown, Minus } from 'luc
 import { apiClient } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
-import { handleApiError } from '@/lib/utils';
+import { handleApiError, devLog } from '@/lib/utils';
 import NumberFlow from '@number-flow/react';
 import { liveNumberFlowConfig } from '@/lib/number-flow-config';
 import type { User } from '@/types';
+import { getCardColorClasses } from '@/lib/card-colors';
+import { useTr } from '@/lib/i18n';
 
 export function LiveNow() {
   const [data, setData] = useState<any>(null);
@@ -18,6 +20,7 @@ export function LiveNow() {
   const [users, setUsers] = useState<User[]>([]);
   const [hourStats, setHourStats] = useState<any>(null);
   const { lang } = useAppStore();
+  const tr = useTr();
 
   useEffect(() => {
     loadUsers();
@@ -78,7 +81,7 @@ export function LiveNow() {
         });
       }
     } catch (error) {
-      console.error('Failed to load hour stats:', error);
+      devLog.error('Failed to load hour stats:', error);
     }
   };
 
@@ -127,12 +130,12 @@ export function LiveNow() {
       <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
         {/* Online Users */}
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center shrink-0">
-            <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <div className={`w-8 h-8 ${getCardColorClasses('blue').bg} rounded-lg flex items-center justify-center shrink-0`}>
+            <Users className={`w-4 h-4 ${getCardColorClasses('blue').text}`} />
           </div>
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground truncate">
-              {lang === 'ru' ? 'Онлайн' : 'Online'}
+              {tr('Онлайн', 'Online')}
             </p>
             <p className="text-xl font-bold">
               <NumberFlow 
@@ -146,12 +149,12 @@ export function LiveNow() {
 
         {/* Active Connections */}
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center shrink-0">
-            <Activity className="w-4 h-4 text-green-600 dark:text-green-400" />
+          <div className={`w-8 h-8 ${getCardColorClasses('green').bg} rounded-lg flex items-center justify-center shrink-0`}>
+            <Activity className={`w-4 h-4 ${getCardColorClasses('green').text}`} />
           </div>
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground truncate">
-              {lang === 'ru' ? 'Подключения' : 'Connections'}
+              {tr('Подключения', 'Connections')}
             </p>
             <p className="text-xl font-bold">
               <NumberFlow 
@@ -165,12 +168,12 @@ export function LiveNow() {
 
         {/* Current Traffic */}
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center shrink-0">
-            <HardDrive className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+          <div className={`w-8 h-8 ${getCardColorClasses('purple').bg} rounded-lg flex items-center justify-center shrink-0`}>
+            <HardDrive className={`w-4 h-4 ${getCardColorClasses('purple').text}`} />
           </div>
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground truncate">
-              {lang === 'ru' ? 'Трафик' : 'Traffic'}
+              {tr('Трафик', 'Traffic')}
             </p>
             <p className="text-xl font-bold truncate">
               {formatBytes(totalTraffic)}

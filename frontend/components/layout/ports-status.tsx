@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Server, Wifi, WifiOff } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
+import { devLog } from '@/lib/utils';
 
 interface PortInfo {
   port: number;
@@ -47,7 +48,7 @@ export function PortsStatus() {
       }
     } catch (err) {
       // Silent fail - don't show toast on every refresh
-      console.error('Failed to load ports:', err);
+      devLog.error('Failed to load ports:', err);
       setError(true);
     } finally {
       setLoading(false);
@@ -57,7 +58,7 @@ export function PortsStatus() {
   if (loading) {
     return (
       <div className="flex items-center gap-1.5">
-        <Badge variant="outline" className="text-[10px] h-5 px-1.5 animate-pulse">
+        <Badge variant="outline" className="text-xs h-5 px-1.5 animate-pulse">
           <span className="font-mono">Загрузка...</span>
         </Badge>
       </div>
@@ -69,7 +70,7 @@ export function PortsStatus() {
       <div className="flex items-center gap-1.5">
         <Badge 
           variant="outline" 
-          className="text-[10px] h-5 px-1.5 border-red-500 text-red-600 dark:text-red-400"
+          className="text-xs h-5 px-1.5 border-red-500 text-red-600 dark:text-red-400"
           title="Не удалось загрузить статус портов"
         >
           <WifiOff className="w-2.5 h-2.5 mr-0.5" />
@@ -85,7 +86,7 @@ export function PortsStatus() {
         <Badge
           key={port.port}
           variant="outline"
-          className={`text-[10px] h-5 px-1.5 gap-1 ${
+          className={`text-xs h-5 px-1.5 gap-1 ${
             port.status === 'running'
               ? 'border-green-500 text-green-600 dark:text-green-400'
               : 'border-red-500 text-red-600 dark:text-red-400'

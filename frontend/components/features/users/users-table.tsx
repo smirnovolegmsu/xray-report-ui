@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -24,10 +24,12 @@ import {
 import { apiClient, handleApiError } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
-import type { User, UserFilter } from '@/types';
+import type { User, UserFilter, UserStats } from '@/types';
 import { EditAliasDialog } from './edit-alias-dialog';
 import { UserDetailsSheet } from './user-details-sheet';
 import { UserLinkDialog } from './user-link-dialog';
+import { formatBytes, devLog } from '@/lib/utils';
+import { CardLoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface UsersTableProps {
   searchQuery: string;
@@ -37,7 +39,7 @@ interface UsersTableProps {
 
 export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersTableProps) {
   const [users, setUsers] = useState<User[]>([]);
-  const [stats, setStats] = useState<Map<string, any>>(new Map());
+  const [stats, setStats] = useState<Map<string, UserStats>>(new Map());
   const [loading, setLoading] = useState(true);
   const [editAliasUser, setEditAliasUser] = useState<User | null>(null);
   const [detailsUser, setDetailsUser] = useState<User | null>(null);
@@ -45,7 +47,7 @@ export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersT
   const [userLink, setUserLink] = useState<{ email: string; link: string } | null>(null);
   const { lang } = useAppStore();
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiClient.getUsers();
@@ -54,28 +56,28 @@ export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersT
       // Load stats for all users
       try {
         const statsResponse = await apiClient.getUserStats();
-        const statsMap = new Map();
+        const statsMap = new Map<string, UserStats>();
         if (statsResponse.data.users) {
-          statsResponse.data.users.forEach((stat: any) => {
+          statsResponse.data.users.forEach((stat: UserStats) => {
             statsMap.set(stat.email, stat);
           });
         }
         setStats(statsMap);
       } catch (statsError) {
-        console.warn('Failed to load user stats:', statsError);
+        devLog.warn('Failed to load user stats:', statsError);
       }
     } catch (error) {
       toast.error(handleApiError(error));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadUsers();
-  }, []);
+  }, [loadUsers]);
 
-  const handleDelete = async (uuid: string, email: string) => {
+  const handleDelete = useCallback(async (uuid: string, email: string) => {
     if (!confirm(lang === 'ru' 
       ? `Удалить пользователя ${email}?` 
       : `Delete user ${email}?`
@@ -90,9 +92,9 @@ export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersT
     } catch (error) {
       toast.error(handleApiError(error));
     }
-  };
+  }, [lang, loadUsers]);
 
-  const handleKick = async (uuid: string, email: string) => {
+  const handleKick = useCallback(async (uuid: string, email: string) => {
     if (!confirm(lang === 'ru' 
       ? `Отключить ${email} от всех активных сессий?` 
       : `Kick ${email} from all active sessions?`
@@ -106,9 +108,9 @@ export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersT
     } catch (error) {
       toast.error(handleApiError(error));
     }
-  };
+  }, [lang]);
 
-  const handleGetLink = async (uuid: string, email: string) => {
+  const handleGetLink = useCallback(async (uuid: string, email: string) => {
     try {
       const response = await apiClient.getUserLink(uuid);
       const link = response.data.link;
@@ -119,21 +121,10 @@ export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersT
     } catch (error) {
       toast.error(handleApiError(error));
     }
-  };
-
-  // Helper functions (defined before useMemo)
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const gb = bytes / 1024 / 1024 / 1024;
-    if (gb < 1) {
-      const mb = bytes / 1024 / 1024;
-      return `${Math.round(mb)} MB`;
-    }
-    return `${gb.toFixed(1)} GB`;
-  };
+  }, []);
 
   // Calculate last activity (days since last use)
-  const getLastActivityDays = (userStats: any): number => {
+  const getLastActivityDays = (userStats: UserStats | undefined): number => {
     if (!userStats) return 999;
     
     // If we have lastSeenAt timestamp, use it
@@ -236,9 +227,7 @@ export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersT
   if (loading) {
     return (
       <Card className="p-6">
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <CardLoadingSpinner />
       </Card>
     );
   }
@@ -246,8 +235,8 @@ export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersT
   // Empty state
   if (users.length === 0) {
     return (
-      <Card className="p-12">
-        <div className="text-center">
+      <Card className="p-6">
+        <div className="text-center py-8">
           <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
             <Trash2 className="w-8 h-8 text-muted-foreground" />
           </div>
@@ -346,7 +335,7 @@ export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersT
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       {userStats ? (
                         <span className={`font-medium ${isLowTraffic ? 'text-muted-foreground' : ''}`}>
-                          {formatBytes(userStats.totalTrafficBytes || 0)}
+                          {formatBytes(userStats.totalTrafficBytes || 0, { compact: true }) as string}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -365,11 +354,11 @@ export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersT
                           {userStats.top3Domains.slice(0, 3).map((d: any, i: number) => (
                             <div key={i} className="flex items-center gap-1.5 text-muted-foreground">
                               <Globe className="w-3 h-3 shrink-0" />
-                              <span className="truncate max-w-[120px]" title={d.domain}>
+                              <span className="truncate max-w-[7.5rem]" title={d.domain}>
                                 {d.domain}
                               </span>
-                              <span className="text-[10px] opacity-70">
-                                {formatBytes(d.trafficBytes)}
+                              <span className="text-xs opacity-70">
+                                {formatBytes(d.trafficBytes, { returnObject: false }) as string}
                               </span>
                             </div>
                           ))}

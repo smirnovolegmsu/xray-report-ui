@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Server, Wifi, WifiOff, RefreshCw, ExternalLink, AlertCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
+import { devLog } from '@/lib/utils';
+import { CardLoadingSpinner } from '@/components/ui/loading-spinner';
+import { getCardColorClasses } from '@/lib/card-colors';
 
 interface PortInfo {
   port: number;
@@ -48,7 +51,7 @@ export function PortsSettings() {
       }
     } catch (error) {
       toast.error('Error loading ports status');
-      console.error('Failed to load ports:', error);
+      devLog.error('Failed to load ports:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -58,9 +61,7 @@ export function PortsSettings() {
   if (loading) {
     return (
       <Card className="p-6">
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <CardLoadingSpinner />
       </Card>
     );
   }
@@ -88,25 +89,25 @@ export function PortsSettings() {
 
       {/* Current service info */}
       {current && (
-        <Card className="p-4 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+        <Card className={`p-4 ${getCardColorClasses('blue').bg} ${getCardColorClasses('blue').border} border`}>
           <div className="flex items-start gap-3">
-            <Server className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+            <Server className={`w-5 h-5 ${getCardColorClasses('blue').text} mt-0.5`} />
             <div className="flex-1">
-              <h3 className="font-semibold text-sm text-blue-900 dark:text-blue-100">
+              <h3 className={`font-semibold text-sm ${getCardColorClasses('blue').text}`}>
                 Current Backend Service
               </h3>
-              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+              <p className={`text-xs ${getCardColorClasses('blue').text} mt-1`}>
                 Flask Backend running on <span className="font-mono">{current.host}:{current.port}</span>
               </p>
               <div className="flex items-center gap-2 mt-2">
-                <Badge variant="outline" className="text-[10px] border-blue-400 text-blue-600 dark:text-blue-400">
+                <Badge variant="outline" className={`text-xs ${getCardColorClasses('blue').border} border ${getCardColorClasses('blue').text}`}>
                   Active
                 </Badge>
                 <a
                   href={current.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                  className={`text-xs ${getCardColorClasses('blue').text} hover:underline inline-flex items-center gap-1`}
                 >
                   {current.url}
                   <ExternalLink className="w-3 h-3" />
@@ -135,12 +136,12 @@ export function PortsSettings() {
               >
                 <div className="flex items-center gap-3">
                   {port.status === 'running' ? (
-                    <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-950/30 flex items-center justify-center">
-                      <Wifi className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    <div className={`w-10 h-10 rounded-full ${getCardColorClasses('green').bg} flex items-center justify-center`}>
+                      <Wifi className={`w-5 h-5 ${getCardColorClasses('green').text}`} />
                     </div>
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-950/30 flex items-center justify-center">
-                      <WifiOff className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    <div className={`w-10 h-10 rounded-full ${getCardColorClasses('red').bg} flex items-center justify-center`}>
+                      <WifiOff className={`w-5 h-5 ${getCardColorClasses('red').text}`} />
                     </div>
                   )}
                   
@@ -176,7 +177,7 @@ export function PortsSettings() {
             <p><strong>8787</strong> - Main Flask Backend (API)</p>
             <p><strong>3000</strong> - Next.js Development Server (Frontend)</p>
             <p><strong>5000</strong> - Production Build Server</p>
-            <p className="text-[10px] pt-2 border-t border-border/50 mt-2">
+            <p className="text-xs pt-2 border-t border-border/50 mt-2">
               Status refreshes automatically every 10 seconds
             </p>
           </div>

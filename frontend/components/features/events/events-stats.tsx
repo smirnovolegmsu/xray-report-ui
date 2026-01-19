@@ -15,6 +15,8 @@ import {
   Info,
   TrendingUp,
 } from 'lucide-react';
+import { getCardColorClasses } from '@/lib/card-colors';
+import { useTr } from '@/lib/i18n';
 
 interface EventsStatsProps {
   hours?: number;
@@ -24,6 +26,7 @@ export function EventsStats({ hours = 24 }: EventsStatsProps) {
   const [stats, setStats] = useState<EventsStatsType | null>(null);
   const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
+  const tr = useTr();
 
   useEffect(() => {
     loadStats();
@@ -66,6 +69,7 @@ export function EventsStats({ hours = 24 }: EventsStatsProps) {
       icon: Activity,
       color: 'text-blue-600 dark:text-blue-400',
       bgColor: 'bg-blue-100 dark:bg-blue-950',
+      colorScheme: 'blue' as const,
     },
     {
       title: lang === 'ru' ? 'Ошибки' : 'Errors',
@@ -73,6 +77,7 @@ export function EventsStats({ hours = 24 }: EventsStatsProps) {
       icon: AlertCircle,
       color: 'text-red-600 dark:text-red-400',
       bgColor: 'bg-red-100 dark:bg-red-950',
+      colorScheme: 'red' as const,
     },
     {
       title: lang === 'ru' ? 'Предупреждения' : 'Warnings',
@@ -80,6 +85,7 @@ export function EventsStats({ hours = 24 }: EventsStatsProps) {
       icon: AlertTriangle,
       color: 'text-yellow-600 dark:text-yellow-400',
       bgColor: 'bg-yellow-100 dark:bg-yellow-950',
+      colorScheme: 'yellow' as const,
     },
     {
       title: lang === 'ru' ? 'Информация' : 'Info',
@@ -87,6 +93,7 @@ export function EventsStats({ hours = 24 }: EventsStatsProps) {
       icon: Info,
       color: 'text-green-600 dark:text-green-400',
       bgColor: 'bg-green-100 dark:bg-green-950',
+      colorScheme: 'green' as const,
     },
   ];
 
@@ -94,19 +101,22 @@ export function EventsStats({ hours = 24 }: EventsStatsProps) {
     <div className="space-y-4">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((card, idx) => (
-          <Card key={idx} className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">{card.title}</p>
-                <p className="text-3xl font-bold mt-2">{card.value}</p>
+        {statCards.map((card, idx) => {
+          const colors = getCardColorClasses(card.colorScheme);
+          return (
+            <Card key={idx} className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">{card.title}</p>
+                  <p className="text-3xl font-bold mt-2">{card.value}</p>
+                </div>
+                <div className={`p-3 rounded-lg ${colors.bg}`}>
+                  <card.icon className={`w-6 h-6 ${colors.text}`} />
+                </div>
               </div>
-              <div className={`p-3 rounded-lg ${card.bgColor}`}>
-                <card.icon className={`w-6 h-6 ${card.color}`} />
-              </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
 
       {/* Events by Type */}
@@ -114,7 +124,7 @@ export function EventsStats({ hours = 24 }: EventsStatsProps) {
         <Card className="p-6">
           <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
             <TrendingUp className="w-4 h-4" />
-            {lang === 'ru' ? 'События по типам' : 'Events by Type'}
+            {tr('События по типам', 'Events by Type')}
           </h3>
           <div className="flex flex-wrap gap-2">
             {Object.entries(stats.byType)
@@ -133,7 +143,7 @@ export function EventsStats({ hours = 24 }: EventsStatsProps) {
         <Card className="p-6">
           <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
-            {lang === 'ru' ? 'Последние критичные события' : 'Recent Critical Events'}
+            {tr('Последние критичные события', 'Recent Critical Events')}
           </h3>
           <div className="space-y-2">
             {stats.recentCritical.slice(0, 5).map((event: Event, idx: number) => (

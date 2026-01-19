@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Server, Activity, Database } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { devLog } from '@/lib/utils';
 
 interface StatusData {
   ui: { active: boolean; status: string };
@@ -40,7 +41,7 @@ export function StatusBadges() {
       });
       setLoading(false);
     } catch (error) {
-      console.error('Failed to load status:', error);
+      devLog.error('Failed to load status:', error);
       setLoading(false);
     }
   };

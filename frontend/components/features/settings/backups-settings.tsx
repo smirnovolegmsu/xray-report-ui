@@ -17,6 +17,7 @@ import { apiClient } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/utils';
+import { CardLoadingSpinner } from '@/components/ui/loading-spinner';
 
 export function BackupsSettings() {
   const [backups, setBackups] = useState<any[]>([]);
@@ -63,9 +64,7 @@ export function BackupsSettings() {
   if (loading) {
     return (
       <Card className="p-6">
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <CardLoadingSpinner />
       </Card>
     );
   }

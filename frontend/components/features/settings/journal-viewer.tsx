@@ -9,6 +9,7 @@ import { RefreshCw, Pause, Play } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/utils';
+import type { LogsApiResponse } from '@/types';
 
 export function JournalViewer() {
   const [service, setService] = useState<'xray-report-ui' | 'xray'>('xray-report-ui');
@@ -34,7 +35,7 @@ export function JournalViewer() {
   const loadLogs = async () => {
     try {
       const response = await apiClient.getJournal({ service, lines });
-      setLogs((response.data as any).logs || 'No logs available');
+      setLogs((response.data as LogsApiResponse).logs || 'No logs available');
       setLoading(false);
     } catch (error) {
       toast.error(handleApiError(error));

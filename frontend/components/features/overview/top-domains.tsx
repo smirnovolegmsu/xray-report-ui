@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import { apiClient, handleApiError } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
+import { formatBytes, devLog } from '@/lib/utils';
+import type { DashboardApiResponse } from '@/types';
 
 interface DomainStat {
   domain: string;
@@ -35,54 +37,45 @@ export function TopDomains({ selectedDate, mode }: TopDomainsProps) {
     loadDomains();
   }, [selectedDate, mode]);
 
-    const loadDomains = async () => {
-      try {
-        setLoading(true);
-        
-        // Use getDashboard API (same as port 8787)
-        const response = await apiClient.getDashboard({ days: 14 });
-        const data = response.data as any;
-        
-        if (!data.ok) {
-          throw new Error(data.error || 'Failed to load data');
-        }
-        
-        // Get top domains from global data
-        const globalData = data.global || {};
-        const topDomainsTraffic = globalData.top_domains_traffic || [];
-        const topDomainsConns = globalData.top_domains_conns || [];
-        
-        // Use traffic-based domains (usually more relevant)
-        const domainsList = topDomainsTraffic.map((item: any) => ({
-          domain: item.domain,
-          traffic_bytes: item.value || 0,
-          connections: topDomainsConns.find((d: any) => d.domain === item.domain)?.value || 0,
-        }));
-        
-        setDomains(domainsList);
+  const loadDomains = async () => {
+    try {
+      setLoading(true);
+      
+      const response = await apiClient.getDashboard({ days: 14 });
+      const data = response.data as DashboardApiResponse;
+      
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to load data');
+      }
+      
+      const globalData = data.global || {};
+      const topDomainsTraffic = globalData.top_domains_traffic || [];
+      const topDomainsConns = globalData.top_domains_conns || [];
+      
+      const domainsList = topDomainsTraffic.map((item: any) => ({
+        domain: item.domain,
+        traffic_bytes: item.value || 0,
+        connections: topDomainsConns.find((d: any) => d.domain === item.domain)?.value || 0,
+      }));
+      
+      setDomains(domainsList);
     } catch (error) {
-      console.error('Error loading domains:', error);
+      devLog.error('Error loading domains:', error);
       toast.error(handleApiError(error));
     } finally {
       setLoading(false);
     }
   };
 
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-  };
-
+  // Size matches 2 metric cards: 408px width (200+200+8), 238px height (115+115+8)
+  
   if (loading) {
     return (
-      <Card className="p-2 container-chart">
-        <div className="h-3 w-32 bg-muted animate-pulse rounded mb-2"></div>
-        <div className="space-y-1.5">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-7 bg-muted animate-pulse rounded"></div>
+      <Card className="p-3 w-[408px] h-[238px]">
+        <div className="h-4 w-32 bg-muted animate-pulse rounded mb-3"></div>
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-6 bg-muted animate-pulse rounded"></div>
           ))}
         </div>
       </Card>
@@ -91,84 +84,52 @@ export function TopDomains({ selectedDate, mode }: TopDomainsProps) {
 
   if (domains.length === 0) {
     return (
-      <Card className="p-2 container-chart">
-        <h3 className="text-[10px] @[400px]:text-xs font-semibold mb-2">
-          {lang === 'ru' ? 'Топ доменов' : 'Top Domains'}
+      <Card className="p-3 w-[408px] h-[238px]">
+        <h3 className="text-sm font-semibold mb-2">
+          {lang === 'ru' ? 'Топ доменов (7 дней)' : 'Top Domains (7 days)'}
         </h3>
-        <div className="text-center py-6 text-muted-foreground text-xs">
-          {lang === 'ru' ? 'Нет данных о доменах' : 'No domain data available'}
+        <div className="text-center py-6 text-muted-foreground text-sm">
+          {lang === 'ru' ? 'Нет данных' : 'No data'}
         </div>
       </Card>
     );
   }
 
-  // Adaptive number of domains based on container width
-  const visibleDomainCount = 5; // Will be controlled by CSS display
-
   return (
-    <Card className="p-2 container-chart">
-      <h3 className="text-[10px] @[400px]:text-xs font-semibold mb-2 truncate">
-        <span className="@[400px]:hidden">{lang === 'ru' ? 'Топ-5' : 'Top 5'}</span>
-        <span className="hidden @[400px]:inline">{lang === 'ru' ? 'Топ доменов (7 дней)' : 'Top Domains (7 days)'}</span>
+    <Card className="p-3 w-[408px] h-[238px] flex flex-col">
+      <h3 className="text-sm font-semibold mb-1">
+        {lang === 'ru' ? 'Топ доменов (7 дней)' : 'Top Domains (7 days)'}
       </h3>
-      <div className="overflow-visible">
+      <div className="flex-1 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[28px] @[400px]:w-[35px] py-1 text-[9px] @[400px]:text-[10px]">#</TableHead>
-              <TableHead className="py-1 text-[9px] @[400px]:text-[10px]">{lang === 'ru' ? 'Домен' : 'Domain'}</TableHead>
-              <TableHead className="text-right py-1 text-[9px] @[400px]:text-[10px]">
-                {lang === 'ru' ? 'Трафик' : 'Traffic'}
-              </TableHead>
-              {/* Connections column - hide on small screens */}
-              <TableHead className="text-right py-1 text-[9px] @[400px]:text-[10px] hidden @[500px]:table-cell">
-                {lang === 'ru' ? 'Подкл.' : 'Conns'}
-              </TableHead>
+              <TableHead className="w-7 py-1 text-xs">#</TableHead>
+              <TableHead className="py-1 text-xs">{lang === 'ru' ? 'Домен' : 'Domain'}</TableHead>
+              <TableHead className="text-right py-1 text-xs">{lang === 'ru' ? 'Трафик' : 'Traffic'}</TableHead>
+              <TableHead className="text-right py-1 text-xs">{lang === 'ru' ? 'Подкл.' : 'Conns'}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {/* First 3 domains - always visible */}
-            {domains.slice(0, 3).map((domain, index) => (
+            {domains.slice(0, 5).map((domain, index) => (
               <TableRow key={index}>
-                <TableCell className="py-0.5 @[400px]:py-1 text-[9px] @[400px]:text-[10px]">
+                <TableCell className="py-1 text-xs">
                   <Badge
-                    variant={
-                      index === 0
-                        ? 'default'
-                        : index === 1
-                        ? 'secondary'
-                        : 'outline'
-                    }
-                    className="text-[8px] @[400px]:text-[9px] h-3.5 @[400px]:h-4 px-0.5 @[400px]:px-1"
+                    variant={index === 0 ? 'default' : index === 1 ? 'secondary' : 'outline'}
+                    className="text-[10px] h-4 w-4 justify-center px-0"
                   >
                     {index + 1}
                   </Badge>
                 </TableCell>
-                <TableCell className="font-mono text-[9px] @[400px]:text-[10px] py-0.5 @[400px]:py-1 truncate max-w-[100px] @[400px]:max-w-[150px]">
-                  {domain.domain}
+                <TableCell className="font-mono text-[11px] py-1">
+                  <span className="block truncate max-w-[180px]" title={domain.domain}>
+                    {domain.domain}
+                  </span>
                 </TableCell>
-                <TableCell className="text-right font-medium text-[9px] @[400px]:text-[10px] py-0.5 @[400px]:py-1 whitespace-nowrap">
-                  {formatBytes(domain.traffic_bytes)}
+                <TableCell className="text-right font-medium text-xs py-1 whitespace-nowrap">
+                  {formatBytes(domain.traffic_bytes, { decimals: 2 }) as string}
                 </TableCell>
-                {/* Connections - hide on small */}
-                <TableCell className="text-right text-muted-foreground text-[9px] @[400px]:text-[10px] py-0.5 @[400px]:py-1 hidden @[500px]:table-cell">
-                  {domain.connections.toLocaleString()}
-                </TableCell>
-              </TableRow>
-            ))}
-            {/* 4th-5th domains - hide on very small screens */}
-            {domains.slice(3, 5).map((domain, index) => (
-              <TableRow key={index + 3} className="hidden @[400px]:table-row">
-                <TableCell className="py-0.5 @[400px]:py-1 text-[9px] @[400px]:text-[10px]">
-                  <span className="text-muted-foreground">{index + 4}</span>
-                </TableCell>
-                <TableCell className="font-mono text-[9px] @[400px]:text-[10px] py-0.5 @[400px]:py-1 truncate max-w-[100px] @[400px]:max-w-[150px]">
-                  {domain.domain}
-                </TableCell>
-                <TableCell className="text-right font-medium text-[9px] @[400px]:text-[10px] py-0.5 @[400px]:py-1 whitespace-nowrap">
-                  {formatBytes(domain.traffic_bytes)}
-                </TableCell>
-                <TableCell className="text-right text-muted-foreground text-[9px] @[400px]:text-[10px] py-0.5 @[400px]:py-1 hidden @[500px]:table-cell">
+                <TableCell className="text-right text-muted-foreground text-xs py-1 whitespace-nowrap">
                   {domain.connections.toLocaleString()}
                 </TableCell>
               </TableRow>

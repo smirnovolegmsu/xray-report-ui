@@ -12,6 +12,7 @@ import { Calendar } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/utils';
+import type { DatesApiResponse } from '@/types';
 
 interface DateSelectorProps {
   selectedDate: string | null;
@@ -30,12 +31,11 @@ export function DateSelector({ selectedDate, onDateChange }: DateSelectorProps) 
     try {
       setLoading(true);
       const response = await apiClient.getUsageDates();
-      const datesList = (response.data as any).dates || [];
+      const datesList = (response.data as DatesApiResponse).dates || [];
       setDates(datesList);
       
-      // Set default to latest date if not selected
       if (!selectedDate && datesList.length > 0) {
-        onDateChange(null); // null = current period (last 7 days)
+        onDateChange(null);
       }
     } catch (error) {
       toast.error(handleApiError(error));
@@ -63,7 +63,7 @@ export function DateSelector({ selectedDate, onDateChange }: DateSelectorProps) 
         onValueChange={(value) => onDateChange(value === 'current' ? null : value)}
         disabled={loading}
       >
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className="w-[180px] h-8 text-xs">
           <SelectValue placeholder="Select date..." />
         </SelectTrigger>
         <SelectContent>

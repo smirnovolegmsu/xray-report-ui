@@ -46,7 +46,7 @@ export function Header({ onMenuClick, sidebarOpen }: HeaderProps = {}) {
         <h1 className="text-sm font-semibold sm:hidden">Xray</h1>
         
         {/* Version badge - hide on very small screens */}
-        <Badge variant="outline" className="text-[10px] h-4 px-1.5 hidden min-[375px]:inline-flex">
+        <Badge variant="outline" className="text-xs h-4 px-1.5 hidden min-[375px]:inline-flex">
           v2.1
         </Badge>
       </div>

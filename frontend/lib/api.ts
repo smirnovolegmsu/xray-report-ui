@@ -2,7 +2,9 @@ import axios from 'axios';
 import type {
   Settings,
   User,
+  UserStats,
   Dashboard,
+  DashboardApiResponse,
   LiveData,
   UserLink,
   Event,
@@ -45,14 +47,14 @@ export const apiClient = {
     api.get<UserLink>('/users/link', { params: { uuid } }),
   
   getUserStats: (uuid?: string) => 
-    api.get<{ users: any[] }>('/users/stats', { params: { uuid } }),
+    api.get<{ users: UserStats[] }>('/users/stats', { params: { uuid } }),
   
   updateUserAlias: (uuid: string, alias: string) =>
     api.post<ApiResponse>('/users/update-alias', { uuid, alias }),
 
   // Dashboard
   getDashboard: (params?: { days?: number; user_filter?: string }) => 
-    api.get<Dashboard>('/dashboard', { params }),
+    api.get<DashboardApiResponse>('/dashboard', { params }),
 
   // Usage dates
   getUsageDates: () => api.get<{ dates: string[] }>('/usage/dates'),

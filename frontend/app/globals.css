@@ -131,60 +131,6 @@
 
 @layer utilities {
   /* ========================================
-     CONTAINER QUERIES SUPPORT
-     ======================================== */
-  
-  /* Container types for adaptive components */
-  .container-card {
-    container-type: inline-size;
-    container-name: card;
-  }
-  
-  .container-metric {
-    container-type: inline-size;
-    container-name: metric;
-  }
-  
-  .container-user {
-    container-type: inline-size;
-    container-name: user;
-  }
-  
-  .container-chart {
-    container-type: inline-size;
-    container-name: chart;
-  }
-  
-  /* ========================================
-     RESPONSIVE TYPOGRAPHY WITH CLAMP
-     ======================================== */
-  
-  /* Fluid font sizes that scale with viewport */
-  .text-fluid-xs {
-    font-size: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem); /* 10-12px */
-  }
-  
-  .text-fluid-sm {
-    font-size: clamp(0.75rem, 0.625rem + 0.5vw, 0.875rem); /* 12-14px */
-  }
-  
-  .text-fluid-base {
-    font-size: clamp(0.875rem, 0.75rem + 0.5vw, 1rem); /* 14-16px */
-  }
-  
-  .text-fluid-lg {
-    font-size: clamp(1rem, 0.875rem + 0.5vw, 1.125rem); /* 16-18px */
-  }
-  
-  .text-fluid-xl {
-    font-size: clamp(1.125rem, 1rem + 0.75vw, 1.5rem); /* 18-24px */
-  }
-  
-  .text-fluid-2xl {
-    font-size: clamp(1.25rem, 1rem + 1vw, 1.875rem); /* 20-30px */
-  }
-  
-  /* ========================================
      EXISTING UTILITIES
      ======================================== */
   
@@ -211,12 +157,6 @@
      MOBILE OPTIMIZATIONS
      ======================================== */
   
-  /* Touch-friendly targets - Apple HIG: minimum 44x44px */
-  .touch-target {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  
   /* Enhanced scrolling for mobile */
   .smooth-scroll {
     -webkit-overflow-scrolling: touch;
@@ -224,58 +164,41 @@
     overscroll-behavior: contain;
   }
   
-  /* Mobile breakpoints */
-  @media (max-width: 428px) {
-    /* iPhone 14 Pro Max: 430x932px */
+  /* Mobile breakpoints - используем стандартные Tailwind breakpoints */
+  @media (max-width: 640px) {
+    /* sm breakpoint и меньше */
     .mobile-hidden {
-      display: none !important;
+      display: none;
     }
     
     .mobile-stack {
-      flex-direction: column !important;
-      gap: 0.75rem !important;
+      flex-direction: column;
+      gap: 0.75rem;
     }
     
     .mobile-full-width {
-      width: 100% !important;
+      width: 100%;
     }
     
-    /* Touch-friendly interactive elements */
-    button:not(.no-touch-target), 
-    a:not(.no-touch-target) {
-      min-height: 44px;
-      min-width: 44px;
-    }
-    
-    /* Larger text for readability */
     .mobile-text-lg {
-      font-size: 1.125rem !important;
+      font-size: 1.125rem;
     }
     
-    /* Scrollable tables */
     .mobile-scroll {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
   }
   
-  /* Very small phones (iPhone SE, etc) */
+  /* Very small phones */
   @media (max-width: 375px) {
     .xs-hidden {
-      display: none !important;
+      display: none;
     }
     
-    /* Even more compact spacing */
     .xs-compact {
-      padding: 0.5rem !important;
-      gap: 0.5rem !important;
-    }
-  }
-  
-  /* Tablet optimizations */
-  @media (min-width: 429px) and (max-width: 768px) {
-    .tablet-grid-1 {
-      grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+      padding: 0.5rem;
+      gap: 0.5rem;
     }
   }
   
@@ -313,33 +236,32 @@
     --is-mobile: true;
   }
   
-  /* Show hamburger button in force-mobile mode */
+  /* Force Mobile View - упрощенные стили без избыточных !important */
   .force-mobile button[title*="menu"] {
-    display: inline-flex !important;
+    display: inline-flex;
   }
   
   .force-mobile .lg\:grid-cols-2 {
-    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
   }
   
   .force-mobile .sm\:flex-row {
-    flex-direction: column !important;
+    flex-direction: column;
   }
   
   .force-mobile .mobile-stack {
-    flex-direction: column !important;
+    flex-direction: column;
   }
   
   .force-mobile .mobile-scroll {
-    overflow-x: auto !important;
+    overflow-x: auto;
   }
   
-  /* Ensure overlay works in force-mobile */
   .force-mobile .sidebar-overlay {
-    position: fixed !important;
-    left: 0 !important;
-    right: 0 !important;
-    max-width: none !important;
+    position: fixed;
+    left: 0;
+    right: 0;
+    max-width: none;
   }
   
   /* Force Desktop View */
@@ -348,45 +270,42 @@
   }
   
   .force-desktop .mobile-hidden {
-    display: block !important;
+    display: block;
   }
   
   .force-desktop .mobile-stack {
-    flex-direction: row !important;
+    flex-direction: row;
   }
   
-  /* Better mobile table scrolling */
+  /* Responsive table scrolling - объединено */
   @media (max-width: 768px) {
-    .force-mobile table,
     table {
       display: block;
       overflow-x: auto;
       white-space: nowrap;
       -webkit-overflow-scrolling: touch;
     }
-  }
-  
-  /* Sidebar responsive behavior */
-  @media (max-width: 768px) {
-    /* On mobile, sidebar is hidden by default and slides in */
+    
+    /* Sidebar behavior on mobile */
     aside {
       box-shadow: 2px 0 16px rgba(0, 0, 0, 0.2);
     }
   }
   
   @media (min-width: 768px) {
-    /* On desktop, sidebar is always visible */
+    /* Desktop sidebar - всегда видим */
     aside:not(.force-mobile aside) {
-      position: relative !important;
-      transform: none !important;
+      position: relative;
+      transform: none;
     }
   }
   
-  /* Force-mobile mode overrides */
+  /* Force-mobile sidebar overrides */
   .force-mobile aside {
-    position: fixed !important;
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3) !important;
-    max-width: 256px !important;
+    position: fixed;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+    max-width: 256px;
+    z-index: 50;
   }
   
   /* Smooth transitions */
@@ -400,13 +319,8 @@
     -webkit-backdrop-filter: blur(8px);
   }
   
-  /* Ensure proper stacking in force-mobile */
   .force-mobile .sidebar-overlay {
-    z-index: 45 !important;
-  }
-  
-  .force-mobile aside {
-    z-index: 50 !important;
+    z-index: 45;
   }
 }
 

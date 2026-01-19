@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { handleApiError } from '@/lib/utils';
 import type { Event, EventType, EventSeverity } from '@/types';
 import { EventIcon } from './event-icon';
+import { CardLoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface EventsTableProps {
   filter?: string;
@@ -265,9 +266,7 @@ export function EventsTable({
   if (loading) {
     return (
       <Card className="p-6">
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <CardLoadingSpinner />
       </Card>
     );
   }
@@ -277,10 +276,10 @@ export function EventsTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[140px]">
+            <TableHead className="w-[8.75rem]">
               {lang === 'ru' ? 'Время' : 'Time'}
             </TableHead>
-            <TableHead className="w-[80px]">
+            <TableHead className="w-20">
               {lang === 'ru' ? 'Тип' : 'Type'}
             </TableHead>
             <TableHead className="w-[100px]">

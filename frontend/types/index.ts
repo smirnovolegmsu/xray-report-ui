@@ -93,10 +93,50 @@ export interface LiveData {
 }
 
 // ==================== API RESPONSE TYPES ====================
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   ok: boolean;
   error?: string;
   data?: T;
+}
+
+// Dashboard API Response Types
+export interface DashboardApiResponse {
+  ok: boolean;
+  error?: string;
+  global?: {
+    daily_traffic_bytes?: number[];
+    prev_daily_traffic_bytes?: number[];
+    daily_conns?: number[];
+    prev_daily_conns?: number[];
+    cumulative_traffic_bytes?: number[];
+    cumulative_conns?: number[];
+    top_domains_traffic?: Array<{ domain: string; value: number }>;
+    top_domains_conns?: Array<{ domain: string; value: number }>;
+  };
+  users?: Record<string, {
+    uuid?: string;
+    email?: string;
+    alias?: string;
+    anomaly?: boolean;
+    sum7_traffic_bytes?: number;
+    sum7_conns?: number;
+    sum_prev7_traffic_bytes?: number;
+    sum_prev7_conns?: number;
+    daily_traffic_bytes?: number[];
+    daily_conns?: number[];
+    top_domains_traffic?: Array<{ domain: string; value: number; pct: number }>;
+  }>;
+  meta?: {
+    days?: string[];
+  };
+}
+
+export interface DatesApiResponse {
+  dates: string[];
+}
+
+export interface LogsApiResponse {
+  logs: string;
 }
 
 export interface UserLink {

@@ -85,8 +85,8 @@ export function EventsTimeline({ hours = 24 }: EventsTimelineProps) {
                       : hasWarnings
                       ? 'bg-yellow-500 dark:bg-yellow-600'
                       : 'bg-blue-500 dark:bg-blue-600'
-                  } ${point.count > 0 ? 'opacity-100' : 'opacity-20 bg-muted'}`}
-                  style={{ height: `${heightPercent}%`, minHeight: point.count > 0 ? '4px' : '2px' }}
+                  } ${point.count > 0 ? 'opacity-100 min-h-[4px]' : 'opacity-20 bg-muted min-h-[2px]'}`}
+                  style={{ height: `${heightPercent}%` }}
                 ></div>
 
                 {/* Tooltip */}

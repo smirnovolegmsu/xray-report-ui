@@ -3,10 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Header } from './header';
 import { Sidebar } from './sidebar';
+import { useAppStore } from '@/lib/store';
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const { lang } = useAppStore();
 
   useEffect(() => {
     // Check if mobile (real device or force-mobile viewport)
@@ -74,20 +76,10 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       {/* Overlay for mobile when sidebar is open */}
       {isMobile && sidebarOpen && (
         <div
-          className="sidebar-overlay fixed inset-0 bg-black/60 z-[45] md:hidden backdrop-blur-sm"
+          className="sidebar-overlay fixed inset-0 w-screen h-screen bg-black/60 z-[45] md:hidden backdrop-blur-sm"
           onClick={closeSidebar}
           role="button"
           aria-label="Close sidebar"
-          style={{
-            // Ensure overlay covers everything in force-mobile mode
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: '100vw',
-            height: '100vh',
-          }}
         />
       )}
       

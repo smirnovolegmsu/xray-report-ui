@@ -25,6 +25,7 @@ import { handleApiError } from '@/lib/utils';
 import NumberFlow from '@number-flow/react';
 import { defaultNumberFlowConfig } from '@/lib/number-flow-config';
 import { motion } from 'framer-motion';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface UserDetailsSheetProps {
   open: boolean;
@@ -149,9 +150,7 @@ export function UserDetailsSheet({
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
+            <LoadingSpinner size="md" fullScreen />
           ) : stats ? (
             <div className="flex-1 overflow-y-auto">
               {/* Connection Dates Section */}
