@@ -317,11 +317,11 @@ TEMPLATE_INDEX_PATHS = [
 - [x] Удалить/исправить `getOnlineData()` ✅ **ИСПРАВЛЕНО** (удален, добавлен комментарий)
 - [x] Унифицировать `formatBytes` ✅ **ИСПРАВЛЕНО** (все компоненты используют utils)
 - [x] Удалить неиспользуемые импорты ✅ **ИСПРАВЛЕНО** (удален Dashboard)
-- [ ] Мигрировать с legacy эндпоинтов (требует проверки использования)
-- [ ] Добавить типы для API ответов (требует создания типов)
-- [ ] Реорганизовать скрипты (низкий приоритет)
-- [ ] Объединить документацию (низкий приоритет)
-- [ ] Создать централизованную конфигурацию (низкий приоритет)
+- [x] Мигрировать с legacy эндпоинтов ✅ **ИСПРАВЛЕНО** (restartUI/restartSystem → restartService)
+- [x] Добавить типы для API ответов ✅ **ИСПРАВЛЕНО** (все any заменены на конкретные типы)
+- [ ] Реорганизовать скрипты (низкий приоритет - можно оставить как есть)
+- [ ] Объединить документацию (низкий приоритет - можно оставить как есть)
+- [ ] Создать централизованную конфигурацию (низкий приоритет - можно оставить как есть)
 
 ---
 
@@ -361,6 +361,20 @@ NEXTJS_URL = os.environ.get("NEXTJS_URL", f"http://127.0.0.1:{NEXTJS_PORT}")
 ### ✅ Исправление 5: Удаление неиспользуемого импорта
 **Файл:** `frontend/lib/api.ts`  
 **Изменение:** Удален неиспользуемый импорт `Dashboard`.
+
+### ✅ Исправление 6: Миграция с legacy эндпоинтов
+**Файлы:** `frontend/lib/api.ts`, `frontend/components/features/settings/system-settings.tsx`, `frontend/components/ui/connection-error.tsx`  
+**Изменения:**
+- `restartUI()` и `restartSystem()` помечены как `@deprecated`
+- Все использования заменены на `restartService('ui')` и `restartService('all')`
+- Legacy методы оставлены для обратной совместимости, но используют новый эндпоинт
+
+### ✅ Исправление 7: Добавление типов для API ответов
+**Файлы:** `frontend/types/index.ts`, `frontend/lib/api.ts`  
+**Изменения:**
+- Добавлены типы: `SystemStatus`, `SystemResources`, `PortsStatusResponse`, `LiveNowResponse`, `LiveSeriesResponse`, `LiveTopResponse`, `UsageDashboardResponse`, `EventsStatsResponse`, `CollectorStatus`, `XrayConfig`, `Backup`
+- Все `any` типы в API клиенте заменены на конкретные типы
+- Улучшена типобезопасность всего проекта
 
 ---
 
