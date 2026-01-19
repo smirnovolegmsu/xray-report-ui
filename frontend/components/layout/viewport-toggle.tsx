@@ -16,6 +16,11 @@ export function ViewportToggle() {
   const [mode, setMode] = useState<ViewportMode>('auto');
 
   useEffect(() => {
+    // Проверяем, что код выполняется только на клиенте
+    if (typeof window === 'undefined' || typeof document === 'undefined' || typeof localStorage === 'undefined') {
+      return;
+    }
+    
     // Load from localStorage
     const saved = localStorage.getItem('viewport-mode') as ViewportMode;
     if (saved) {
@@ -25,6 +30,10 @@ export function ViewportToggle() {
   }, []);
 
   const applyViewportMode = (newMode: ViewportMode) => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    
     const root = document.documentElement;
     
     // Remove all viewport classes
@@ -41,7 +50,9 @@ export function ViewportToggle() {
 
   const handleModeChange = (newMode: ViewportMode) => {
     setMode(newMode);
-    localStorage.setItem('viewport-mode', newMode);
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.setItem('viewport-mode', newMode);
+    }
     applyViewportMode(newMode);
   };
 

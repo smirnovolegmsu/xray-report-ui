@@ -18,6 +18,9 @@ import type {
   CollectorStatus,
   XrayConfig,
   Backup,
+  BackupPreview,
+  BackupDetail,
+  BackupContent,
 } from '@/types';
 
 // Создаём axios instance
@@ -120,8 +123,8 @@ export const apiClient = {
     params: { target: 'all' },
   }),
   
-  getJournal: (params: { service: 'xray-report-ui' | 'xray'; lines?: number }) => 
-    api.get<{ logs: string }>('/system/journal', { params }),
+  getJournal: (params: { target: 'ui' | 'xray'; limit?: number }) => 
+    api.get<{ service: string; journal: string; lines: string[]; timezone?: string }>('/system/journal', { params }),
 
   // Xray
   getXrayConfig: () => api.get<XrayConfig>('/xray/config'),
@@ -138,6 +141,21 @@ export const apiClient = {
 
   // Backups
   getBackups: () => api.get<{ backups: Backup[] }>('/backups'),
+  
+  getBackupPreview: (filename: string) => 
+    api.get<BackupPreview>('/backups/preview', { params: { filename } }),
+  
+  getBackupDetail: (filename: string) => 
+    api.get<BackupDetail>('/backups/detail', { params: { filename } }),
+  
+  getBackupContent: (filename: string) => 
+    api.get<BackupContent>('/backups/view', { params: { filename } }),
+  
+  downloadBackup: (filename: string) => 
+    api.get<Blob>('/backups/download', { 
+      params: { filename },
+      responseType: 'blob',
+    }),
   
   // Live Top
   getLiveTop: (params: {

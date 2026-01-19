@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "dev:turbo": "next dev --turbo",
-    "build": "next build",
-    "build:fast": "SKIP_ENV_VALIDATION=true next build",
-    "build:analyze": "ANALYZE=true next build",
+    "build": "next build --webpack",
+    "build:fast": "SKIP_ENV_VALIDATION=true SKIP_TYPE_CHECK=true SKIP_LINT=true next build --webpack",
+    "build:webpack": "next build --webpack",
+    "build:turbo": "USE_TURBOPACK=true next build --turbo",
+    "build:analyze": "ANALYZE=true next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "type-check": "tsc --noEmit"
@@ -38,7 +40,6 @@
     "qrcode.react": "^4.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "recharts": "^3.6.0",
     "sonner": "^2.0.7",
     "swr": "^2.3.8",
     "tailwind-merge": "^3.4.0",

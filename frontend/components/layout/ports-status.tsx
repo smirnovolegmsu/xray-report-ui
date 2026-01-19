@@ -32,6 +32,15 @@ export const PortsStatus = memo(function PortsStatus() {
     }
   }, []);
 
+  // CRITICAL: useEffect MUST be called before any early returns (Rules of Hooks)
+  useEffect(() => {
+    loadPorts();
+    // Update every 30 seconds
+    const interval = setInterval(loadPorts, 30000);
+    return () => clearInterval(interval);
+  }, [loadPorts]);
+
+  // Early returns AFTER all hooks are called
   if (loading) {
     return (
       <div className="flex items-center gap-1.5">

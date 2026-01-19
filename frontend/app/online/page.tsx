@@ -15,6 +15,11 @@ export default function OnlinePage() {
 
   // Load from localStorage
   useEffect(() => {
+    // Проверяем, что localStorage доступен (только на клиенте)
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return;
+    }
+    
     const savedScope = localStorage.getItem('live-scope');
     if (savedScope === 'global' || savedScope === 'users') {
       setScope(savedScope);
@@ -38,22 +43,30 @@ export default function OnlinePage() {
 
   const handleScopeChange = (newScope: 'global' | 'users') => {
     setScope(newScope);
-    localStorage.setItem('live-scope', newScope);
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.setItem('live-scope', newScope);
+    }
   };
 
   const handleMetricChange = (newMetric: 'traffic' | 'conns' | 'online') => {
     setMetric(newMetric);
-    localStorage.setItem('live-metric', newMetric);
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.setItem('live-metric', newMetric);
+    }
   };
 
   const handlePeriodChange = (newPeriod: string) => {
     setPeriod(newPeriod);
-    localStorage.setItem('live-period', newPeriod);
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.setItem('live-period', newPeriod);
+    }
   };
 
   const handleGranularityChange = (newGranularity: string) => {
     setGranularity(newGranularity);
-    localStorage.setItem('live-granularity', newGranularity);
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.setItem('live-granularity', newGranularity);
+    }
   };
 
   return (

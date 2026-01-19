@@ -362,8 +362,40 @@ export interface XrayConfig {
 
 // ==================== BACKUP TYPES ====================
 export interface Backup {
-  filename: string;
+  name: string;
   size: number;
-  created_at: string;
-  type: 'config' | 'settings' | 'manual';
+  mtime: string;
+}
+
+export interface BackupPreview {
+  users_count: number;
+  ports: number[];
+  protocols: string[];
+  inbounds_count: number;
+}
+
+export interface BackupUser {
+  id: string;
+  email: string;
+  alias?: string;
+  flow?: string;
+}
+
+export interface BackupInbound {
+  protocol: string;
+  port: number;
+  tag: string;
+  listen: string;
+  users: BackupUser[];
+}
+
+export interface BackupDetail {
+  users: BackupUser[];
+  inbounds: BackupInbound[];
+  ports: number[];
+  protocols: string[];
+}
+
+export interface BackupContent {
+  content: any;
 }

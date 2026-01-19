@@ -1,5 +1,34 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+
+// ==================== CUSTOM STORAGE ====================
+// Custom storage that only runs on client-side to prevent hydration issues
+const clientStorage = {
+  getItem: (name: string): string | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string): void => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(name, value);
+    } catch {
+      // Ignore localStorage errors
+    }
+  },
+  removeItem: (name: string): void => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.removeItem(name);
+    } catch {
+      // Ignore localStorage errors
+    }
+  },
+};
 
 // ==================== APP STATE INTERFACE ====================
 interface AppState {
@@ -100,6 +129,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'xray-ui-storage', // localStorage key
+      storage: createJSONStorage(() => clientStorage),
       partialize: (state) => ({
         // Сохраняем только нужные поля
         theme: state.theme,
@@ -113,6 +143,7 @@ export const useAppStore = create<AppState>()(
         liveMetric: state.liveMetric,
         liveScope: state.liveScope,
       }),
+      skipHydration: true, // Skip initial hydration to prevent SSR mismatches
     }
   )
 );

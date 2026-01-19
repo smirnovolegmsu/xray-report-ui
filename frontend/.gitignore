@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# static files (should not be in Next.js project)
+/static/
+
 # production
 /build
 

@@ -9,10 +9,8 @@ import { RefreshCw, Pause, Play } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/utils';
-import type { LogsApiResponse } from '@/types';
 
-export function JournalViewer() {
-  const [service, setService] = useState<'xray-report-ui' | 'xray'>('xray-report-ui');
+export function JournalViewer({ target = 'ui' }: { target?: 'ui' | 'xray' }) {
   const [lines, setLines] = useState<number>(100);
   const [logs, setLogs] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -20,7 +18,7 @@ export function JournalViewer() {
 
   useEffect(() => {
     loadLogs();
-  }, [service, lines]);
+  }, [target, lines]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -30,12 +28,12 @@ export function JournalViewer() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [autoRefresh, service, lines]);
+  }, [autoRefresh, target, lines]);
 
   const loadLogs = async () => {
     try {
-      const response = await apiClient.getJournal({ service, lines });
-      setLogs((response.data as LogsApiResponse).logs || 'No logs available');
+      const response = await apiClient.getJournal({ target, limit: lines });
+      setLogs(response.data.journal || 'No logs available');
       setLoading(false);
     } catch (error) {
       toast.error(handleApiError(error));
@@ -72,16 +70,6 @@ export function JournalViewer() {
       <CardContent className="space-y-4">
         {/* Controls */}
         <div className="flex flex-wrap gap-3">
-          <Select value={service} onValueChange={(v: any) => setService(v)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="xray-report-ui">UI Service</SelectItem>
-              <SelectItem value="xray">Xray Service</SelectItem>
-            </SelectContent>
-          </Select>
-
           <Select value={lines.toString()} onValueChange={(v) => setLines(parseInt(v))}>
             <SelectTrigger className="w-[120px]">
               <SelectValue />

@@ -1,0 +1,41 @@
+[Unit]
+Description=Xray Report UI Backend (Gunicorn)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/xray-report-ui
+
+# Gunicorn с оптимизированными параметрами для слабого сервера
+# 2 workers × 2 threads = 4 параллельных запроса
+ExecStart=/opt/xray-report-ui/venv/bin/gunicorn \
+    --workers 2 \
+    --threads 2 \
+    --timeout 60 \
+    --bind 127.0.0.1:8787 \
+    --access-logfile - \
+    --error-logfile - \
+    --capture-output \
+    --preload \
+    app:app
+
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# === РЕСУРСНЫЕ ЛИМИТЫ для 3.8GB RAM сервера ===
+MemoryMax=512M
+MemoryHigh=400M
+CPUQuota=50%
+LimitNOFILE=4096
+
+# Graceful shutdown
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

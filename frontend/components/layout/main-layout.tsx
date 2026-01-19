@@ -11,6 +11,11 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const { lang } = useAppStore();
 
   useEffect(() => {
+    // Проверяем, что код выполняется только на клиенте
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+    
     // Check if mobile (real device or force-mobile viewport)
     const checkMobile = () => {
       const isRealMobile = window.innerWidth < 768;
@@ -24,9 +29,13 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         setSidebarOpen(false);
       } else {
         // On desktop, restore from localStorage
-        const saved = localStorage.getItem('sidebar-open');
-        if (saved !== null) {
-          setSidebarOpen(saved === 'true');
+        if (typeof localStorage !== 'undefined') {
+          const saved = localStorage.getItem('sidebar-open');
+          if (saved !== null) {
+            setSidebarOpen(saved === 'true');
+          } else {
+            setSidebarOpen(true); // Default open on desktop
+          }
         } else {
           setSidebarOpen(true); // Default open on desktop
         }
@@ -58,7 +67,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       const newState = !prev;
       
       // Save to localStorage only on desktop
-      if (!isMobile) {
+      if (!isMobile && typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
         localStorage.setItem('sidebar-open', String(newState));
       }
       

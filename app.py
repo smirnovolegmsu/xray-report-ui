@@ -20,7 +20,9 @@ import tempfile
 import threading
 import time
 import uuid as uuid_lib
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
+import csv as csv_module
 
 from flask import Flask, Response, jsonify, request, send_file
 
@@ -60,6 +62,56 @@ NEXTJS_URL = os.environ.get("NEXTJS_URL", f"http://127.0.0.1:{NEXTJS_PORT}")
 LOCK = threading.Lock()
 
 app = Flask(__name__)
+
+# ====================
+# Performance Optimization: Caching
+# ====================
+
+# Cache for dashboard and usage data
+# Оптимизировано для сервера с 3.8GB RAM
+_cache_store: Dict[str, Tuple[Any, float]] = {}
+_cache_lock = threading.Lock()
+CACHE_TTL = {
+    "dashboard": 60.0,  # 60 секунд - баланс между свежестью и CPU
+    "usage": 60.0,      # 60 секунд
+    "live": 5.0,        # 5 секунд для live данных
+    "users": 120.0,     # 2 минуты - пользователи редко меняются
+    "user_stats": 300.0, # 5 минут - тяжёлый расчёт
+}
+
+def get_cached(key: str, ttl: float = 60.0) -> Optional[Any]:
+    """Get value from cache if not expired"""
+    with _cache_lock:
+        if key in _cache_store:
+            value, timestamp = _cache_store[key]
+            if time.time() - timestamp < ttl:
+                return value
+            else:
+                del _cache_store[key]
+    return None
+
+def set_cached(key: str, value: Any) -> None:
+    """Store value in cache"""
+    with _cache_lock:
+        _cache_store[key] = (value, time.time())
+        # Clean old entries only if cache is really large (increased limit)
+        # Allow more entries to improve performance
+        if len(_cache_store) > 500:  # Increased from 100 to 500
+            # Remove oldest 10% of entries (less aggressive cleanup)
+            items = sorted(_cache_store.items(), key=lambda x: x[1][1])
+            remove_count = max(50, len(items) // 10)  # Remove at least 50 or 10%
+            for k, _ in items[:remove_count]:
+                del _cache_store[k]
+
+def clear_cache(pattern: str = None) -> None:
+    """Clear cache entries matching pattern (or all if None)"""
+    with _cache_lock:
+        if pattern:
+            keys_to_delete = [k for k in _cache_store.keys() if pattern in k]
+            for k in keys_to_delete:
+                del _cache_store[k]
+        else:
+            _cache_store.clear()
 
 # Global error handler to log exceptions as events
 @app.errorhandler(Exception)
@@ -581,18 +633,43 @@ def load_usage_data(days: int = 7) -> Dict[str, Any]:
     return result
 
 def _read_csv_dict(path: str) -> List[Dict[str, str]]:
-    """Read CSV and return list of dicts"""
+    """Read CSV and return list of dicts - optimized with streaming"""
     try:
-        header, rows, err = _read_csv(path)
-        if err or not header:
-            return []
+        # Check cache first (cache by file path + mtime)
+        cache_key = f"csv_dict_{path}"
+        try:
+            mtime = os.path.getmtime(path)
+            cache_key = f"{cache_key}_{mtime}"
+        except:
+            pass
+        
+        cached = get_cached(cache_key, ttl=300.0)  # 5 minutes for CSV cache
+        if cached is not None:
+            return cached
+        
+        # Use csv module for better performance
         result = []
-        for row in rows:
-            d = {}
-            for i, h in enumerate(header):
-                if i < len(row):
-                    d[h] = row[i]
-            result.append(d)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                reader = csv_module.DictReader(f)
+                for row in reader:
+                    # Normalize keys to lowercase and strip
+                    normalized = {k.strip().lower(): v.strip() if v else "" for k, v in row.items()}
+                    result.append(normalized)
+        except Exception:
+            # Fallback to old method
+            header, rows, err = _read_csv(path)
+            if err or not header:
+                return []
+            for row in rows:
+                d = {}
+                for i, h in enumerate(header):
+                    if i < len(row):
+                        d[h] = row[i]
+                result.append(d)
+        
+        # Cache result
+        set_cached(cache_key, result)
         return result
     except Exception:
         return []
@@ -1054,7 +1131,19 @@ def api_dashboard():
     """Legacy endpoint - kept for backward compatibility"""
     days = int(request.args.get("days") or "7")
     user = request.args.get("user", "").strip() or None
+    
+    # Check cache
+    cache_key = f"dashboard_{days}_{user or 'all'}"
+    cached_data = get_cached(cache_key, ttl=CACHE_TTL["dashboard"])
+    if cached_data is not None:
+        return jsonify(cached_data)
+    
+    # Load data
     data = load_dashboard_data(days=days, user_filter=user)
+    
+    # Cache result
+    set_cached(cache_key, data)
+    
     return jsonify(data)
 
 # --- Usage (History) endpoints ---
@@ -1539,8 +1628,18 @@ def api_usage_dashboard():
     
     window_days = int(request.args.get("windowDays") or "7")
     
+    # Check cache
+    cache_key = f"usage_dashboard_{date_str}_{mode}_{window_days}"
+    cached_data = get_cached(cache_key, ttl=CACHE_TTL["usage"])
+    if cached_data is not None:
+        return jsonify(cached_data)
+    
     try:
         data = load_usage_dashboard(date_str, mode, window_days)
+        
+        # Cache result
+        set_cached(cache_key, data)
+        
         return jsonify(data)
     except Exception as e:
         import traceback
@@ -1549,6 +1648,12 @@ def api_usage_dashboard():
 
 def _calculate_user_alltime_stats() -> Dict[str, Dict[str, Any]]:
     """Calculate all-time statistics for all users from CSV files"""
+    # Check cache first (тяжёлая операция - кешируем на 5 минут)
+    cache_key = "user_alltime_stats"
+    cached = get_cached(cache_key, ttl=CACHE_TTL.get("user_stats", 300.0))
+    if cached is not None:
+        return cached
+    
     settings = load_settings()
     usage_dir = settings["collector"].get("usage_dir", USAGE_DIR)
     
@@ -1670,6 +1775,8 @@ def _calculate_user_alltime_stats() -> Dict[str, Dict[str, Any]]:
             "lastSeenAt": last_seen_at
         }
     
+    # Cache result
+    set_cached(cache_key, user_stats)
     return user_stats
 
 @app.get("/api/users")
@@ -2885,6 +2992,171 @@ def api_backups_list():
             pass
     return ok({"backups": items})
 
+@app.get("/api/backups/preview")
+def api_backups_preview():
+    """Get preview/statistics of a backup file"""
+    filename = request.args.get("filename")
+    if not filename:
+        return jsonify({"error": "filename parameter required"}), 400
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    
+    filepath = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        return jsonify({"error": "Backup not found"}), 404
+    
+    try:
+        cfg = read_json(filepath, None)
+        if not cfg:
+            return ok({
+                "users_count": 0,
+                "ports": [],
+                "protocols": [],
+                "inbounds_count": 0,
+            })
+        
+        # Extract statistics
+        inbounds = cfg.get("inbounds", [])
+        users_count = 0
+        ports = []
+        protocols = []
+        
+        for inbound in inbounds:
+            protocol = inbound.get("protocol", "unknown")
+            port = inbound.get("port")
+            if port:
+                ports.append(port)
+            if protocol:
+                protocols.append(protocol)
+            
+            # Count users in VLESS/VLESS inbounds
+            if protocol in ["vless", "vmess", "trojan"]:
+                settings = inbound.get("settings", {})
+                clients = settings.get("clients", [])
+                users_count += len(clients)
+        
+        return ok({
+            "users_count": users_count,
+            "ports": sorted(list(set(ports))),
+            "protocols": sorted(list(set(protocols))),
+            "inbounds_count": len(inbounds),
+        })
+    except Exception as e:
+        return fail(f"Error reading backup: {str(e)}")
+
+@app.get("/api/backups/detail")
+def api_backups_detail():
+    """Get detailed information about a backup (users, ports, settings)"""
+    filename = request.args.get("filename")
+    if not filename:
+        return jsonify({"error": "filename parameter required"}), 400
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    
+    filepath = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        return jsonify({"error": "Backup not found"}), 404
+    
+    try:
+        cfg = read_json(filepath, None)
+        if not cfg:
+            return ok({
+                "users": [],
+                "inbounds": [],
+                "ports": [],
+                "protocols": [],
+            })
+        
+        settings = load_settings()
+        inbounds = cfg.get("inbounds", [])
+        all_users = []
+        inbound_details = []
+        
+        for inbound in inbounds:
+            protocol = inbound.get("protocol", "unknown")
+            port = inbound.get("port")
+            tag = inbound.get("tag", "")
+            listen = inbound.get("listen", "0.0.0.0")
+            
+            inbound_info = {
+                "protocol": protocol,
+                "port": port,
+                "tag": tag,
+                "listen": listen,
+                "users": [],
+            }
+            
+            # Extract users from VLESS/VLESS/Trojan inbounds
+            if protocol in ["vless", "vmess", "trojan"]:
+                inbound_settings = inbound.get("settings", {})
+                clients = inbound_settings.get("clients", [])
+                for client in clients:
+                    user_info = {
+                        "id": client.get("id", ""),
+                        "email": client.get("email", ""),
+                        "alias": client.get("alias", ""),
+                        "flow": client.get("flow", ""),
+                    }
+                    inbound_info["users"].append(user_info)
+                    all_users.append(user_info)
+            
+            inbound_details.append(inbound_info)
+        
+        ports = sorted(list(set([ib["port"] for ib in inbound_details if ib["port"]])))
+        protocols = sorted(list(set([ib["protocol"] for ib in inbound_details])))
+        
+        return ok({
+            "users": all_users,
+            "inbounds": inbound_details,
+            "ports": ports,
+            "protocols": protocols,
+        })
+    except Exception as e:
+        return fail(f"Error reading backup: {str(e)}")
+
+@app.get("/api/backups/view")
+def api_backups_view():
+    """Get full content of a backup file"""
+    filename = request.args.get("filename")
+    if not filename:
+        return jsonify({"error": "filename parameter required"}), 400
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    
+    filepath = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        return jsonify({"error": "Backup not found"}), 404
+    
+    try:
+        cfg = read_json(filepath, None)
+        if cfg is None:
+            return jsonify({"error": "Invalid JSON"}), 400
+        return ok({"content": cfg})
+    except Exception as e:
+        return fail(f"Error reading backup: {str(e)}")
+
+@app.get("/api/backups/download")
+def api_backups_download():
+    filename = request.args.get("filename")
+    if not filename:
+        return jsonify({"error": "filename parameter required"}), 400
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    
+    filepath = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        return jsonify({"error": "Backup not found"}), 404
+    
+    return send_file(filepath, as_attachment=True, download_name=filename)
+
 # --- Live SSE (legacy) ---
 
 @app.get("/api/live")
@@ -3365,7 +3637,7 @@ def bootstrap():
             except Exception:
                 pass
             
-            time.sleep(30)  # Check every 30 seconds
+            time.sleep(60)  # Check every 60 seconds (оптимизировано для слабого сервера)
     
     health_thread = threading.Thread(target=health_checker, daemon=True)
     health_thread.start()

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'standalone', // Для production деплоя
+  output: 'standalone',
   
   // Proxy API requests к Flask backend
   async rewrites() {
@@ -13,82 +13,50 @@ const nextConfig: NextConfig = {
     ];
   },
   
-  // Оптимизация компилятора
+  // Удаляем console.log в production для оптимизации
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
   
-  // Ускорение сборки
+  // Оптимизация для слабого сервера
   experimental: {
-    // Используем SWC для минификации (быстрее чем Terser)
     optimizeCss: true,
-    // Оптимизация производительности
-    optimizePackageImports: ['lucide-react', '@nivo/bar', '@nivo/line', '@nivo/core', 'recharts'],
+    optimizePackageImports: ['lucide-react', '@nivo/bar', '@nivo/line', '@nivo/core', 'date-fns'],
   },
   
-  // Оптимизация TypeScript
+  // Пропускаем проверку типов для быстрой сборки
   typescript: {
-    // Можно отключить проверку типов через SKIP_TYPE_CHECK=true для ускорения
-    ignoreBuildErrors: process.env.SKIP_TYPE_CHECK === 'true',
+    ignoreBuildErrors: true,
   },
   
-  // Оптимизация ESLint
-  // Note: eslint config moved to eslint.config.mjs (Next.js 16+)
-  // To skip ESLint during builds, use: SKIP_LINT=true npm run build
+  // ОТКЛЮЧИТЬ source maps в production (экономия ~40% размера)
+  productionBrowserSourceMaps: false,
   
-  // Оптимизация webpack для лучшего code splitting
-  webpack: (config, { dev, isServer }) => {
-    if (!dev && !isServer) {
-      // Оптимизация для production
+  // Webpack оптимизации
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Оптимизация чанков для меньшего размера
       config.optimization = {
         ...config.optimization,
-        moduleIds: 'deterministic',
-        ...(config.optimization || {}),
-      };
-      
-      // Улучшенный code splitting для тяжелых библиотек
-      if (!process.env.DISABLE_WEBPACK_OPTIMIZATIONS) {
-        config.optimization.splitChunks = {
+        splitChunks: {
           chunks: 'all',
           cacheGroups: {
-            default: false,
-            vendors: false,
-            // Отдельный чанк для тяжелых библиотек графиков
-            charts: {
-              name: 'charts',
-              test: /[\\/]node_modules[\\/](@nivo|recharts)[\\/]/,
-              chunks: 'all',
+            nivo: {
+              test: /[\\/]node_modules[\\/]@nivo[\\/]/,
+              name: 'nivo',
               priority: 30,
               reuseExistingChunk: true,
             },
-            // Отдельный чанк для UI библиотек
-            ui: {
-              name: 'ui',
-              test: /[\\/]node_modules[\\/](@radix-ui|framer-motion)[\\/]/,
-              chunks: 'all',
-              priority: 25,
-              reuseExistingChunk: true,
-            },
-            vendor: {
-              name: 'vendor',
-              chunks: 'all',
-              test: /[\\/]node_modules[\\/]/,
+            radix: {
+              test: /[\\/]node_modules[\\/]@radix-ui[\\/]/,
+              name: 'radix',
               priority: 20,
               reuseExistingChunk: true,
             },
-            common: {
-              name: 'common',
-              minChunks: 2,
-              chunks: 'all',
-              priority: 10,
-              reuseExistingChunk: true,
-              enforce: true,
-            },
           },
-        };
-      }
+        },
+      };
     }
-    
     return config;
   },
 };

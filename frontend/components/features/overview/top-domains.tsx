@@ -64,8 +64,13 @@ export const TopDomains = memo(function TopDomains({ selectedDate, mode }: TopDo
     }
   }, [selectedDate, mode]);
 
+  // CRITICAL: useEffect MUST be called before any early returns (Rules of Hooks)
+  useEffect(() => {
+    loadDomains();
+  }, [loadDomains]);
+
   // Size matches 2 metric cards: 408px width (200+200+8), 238px height (115+115+8)
-  
+  // Early returns AFTER all hooks are called
   if (loading) {
     return (
       <Card className="p-3 w-[408px] h-[238px]">

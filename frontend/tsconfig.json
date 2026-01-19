@@ -13,8 +13,11 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    // Оптимизация для ускорения компиляции
+    // Оптимизация для ускорения компиляции и снижения нагрузки на CPU
     "tsBuildInfoFile": ".next/tsconfig.tsbuildinfo",
+    // Оптимизация для TypeScript Language Server (снижает нагрузку на CPU)
+    "maxNodeModuleJsDepth": 1,
+    "disableSourceOfProjectReferenceRedirect": true,
     "plugins": [
       {
         "name": "next"

@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Users, Globe, TrendingUp, TrendingDown } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts';
+import { ResponsiveLine } from '@nivo/line';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import { handleApiError, formatBytes, calculateChange, devLog } from '@/lib/utils';
@@ -38,8 +38,14 @@ export function UserStatsCards() {
   const [users, setUsers] = useState<UserStatsCard[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
-  const { lang } = useAppStore();
+  const [mounted, setMounted] = useState(false);
+  const lang = useAppStore((state) => state.lang);
   const usersRef = useRef<UserStatsCard[]>([]);
+  
+  // Ensure component is mounted before accessing store
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Keep usersRef in sync with users
   useEffect(() => {
@@ -130,17 +136,21 @@ export function UserStatsCards() {
   }, []);
 
   const getChartData = useCallback((user: UserStatsCard) => {
-    return user.daily_traffic_bytes.map((bytes, index) => ({
-      day: index + 1,
-      v: bytes / 1024 / 1024 / 1024,
-    }));
+    return [{
+      id: 'traffic',
+      data: user.daily_traffic_bytes.map((bytes, index) => ({
+        x: index + 1,
+        y: bytes / 1024 / 1024 / 1024,
+      })),
+    }];
   }, []);
 
   const filteredUsers = useMemo(() => {
+    if (!mounted) return [];
     return selectedUser === 'all' 
       ? users 
       : users.filter(u => u.uuid === selectedUser);
-  }, [users, selectedUser]);
+  }, [users, selectedUser, mounted]);
 
   const isUserOnline = useCallback((user: UserStatsCard): boolean => {
     return onlineUsers.has(user.email) || onlineUsers.has(user.uuid);
@@ -275,37 +285,40 @@ export function UserStatsCards() {
 
               {/* Mini Chart */}
               <div className="h-12 mb-2 relative overflow-hidden rounded-md bg-muted/30">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={getChartData(user)} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
-                    <defs>
-                      <linearGradient id={`gradient-${user.uuid}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--popover))',
+                <ResponsiveLine
+                  data={getChartData(user)}
+                  margin={{ top: 4, right: 4, bottom: 4, left: 4 }}
+                  xScale={{ type: 'linear', min: 1, max: 7 }}
+                  yScale={{ type: 'linear', min: 0, max: 'auto' }}
+                  curve="monotoneX"
+                  enableArea={true}
+                  areaOpacity={0.3}
+                  lineWidth={2}
+                  colors={['#3b82f6']}
+                  enablePoints={false}
+                  enableGridX={false}
+                  enableGridY={false}
+                  axisTop={null}
+                  axisRight={null}
+                  axisBottom={null}
+                  axisLeft={null}
+                  animate={false}
+                  isInteractive={true}
+                  useMesh={true}
+                  tooltip={({ point }) => (
+                    <div
+                      style={{
+                        background: 'hsl(var(--popover))',
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '6px',
                         fontSize: '10px',
                         padding: '4px 8px',
                       }}
-                      formatter={(value: number | undefined) => value !== undefined ? [`${value.toFixed(2)} GB`, ''] : ['', '']}
-                      labelStyle={{ display: 'none' }}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="v" 
-                      stroke="#3b82f6" 
-                      strokeWidth={2}
-                      fill={`url(#gradient-${user.uuid})`}
-                      isAnimationActive={false}
-                      dot={false}
-                      activeDot={{ r: 3 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                    >
+                      {typeof point.data.y === 'number' ? point.data.y.toFixed(2) : point.data.y} GB
+                    </div>
+                  )}
+                />
               </div>
 
               {/* Top 5 Domains */}

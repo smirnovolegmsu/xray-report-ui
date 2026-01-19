@@ -102,91 +102,78 @@ export const MetricsCards = memo(function MetricsCards({ selectedDate, mode }: M
     loadStats();
   }, [loadStats]);
 
-  // Card dimensions: 200px width, 115px height, 8px gap
-  // Two cards = 408px width, 238px height
-  
-  if (loading) {
-    return (
-      <div className="grid grid-cols-2 gap-2 w-fit">
-        {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="p-3 w-[200px] h-[115px]">
-            <div className="animate-pulse space-y-2">
-              <div className="h-6 w-6 bg-muted rounded-md"></div>
-              <div className="h-3 w-24 bg-muted rounded"></div>
-              <div className="h-6 w-14 bg-muted rounded"></div>
-            </div>
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
-  if (!stats) return null;
-
+  // All useMemo hooks must be called before any early returns (Rules of Hooks)
   const trafficChange = useMemo(
-    () => calculateChange(stats.traffic_total_bytes, stats.traffic_prev_bytes),
-    [stats.traffic_total_bytes, stats.traffic_prev_bytes]
+    () => stats ? calculateChange(stats.traffic_total_bytes, stats.traffic_prev_bytes) : 0,
+    [stats]
   );
   const connsChange = useMemo(
-    () => calculateChange(stats.connections_total, stats.connections_prev),
-    [stats.connections_total, stats.connections_prev]
+    () => stats ? calculateChange(stats.connections_total, stats.connections_prev) : 0,
+    [stats]
   );
   const avgTrafficChange = useMemo(
-    () => calculateChange(stats.avg_traffic_per_user, stats.avg_traffic_prev),
-    [stats.avg_traffic_per_user, stats.avg_traffic_prev]
+    () => stats ? calculateChange(stats.avg_traffic_per_user, stats.avg_traffic_prev) : 0,
+    [stats]
   );
 
   const trafficFormatted = useMemo(
-    () => formatBytes(stats.traffic_total_bytes, { returnObject: true }) as { value: string; unit: string },
-    [stats.traffic_total_bytes]
+    () => stats 
+      ? formatBytes(stats.traffic_total_bytes, { returnObject: true }) as { value: string; unit: string }
+      : { value: '0', unit: 'B' },
+    [stats]
   );
   const avgTrafficFormatted = useMemo(
-    () => formatBytes(stats.avg_traffic_per_user, { returnObject: true }) as { value: string; unit: string },
-    [stats.avg_traffic_per_user]
+    () => stats 
+      ? formatBytes(stats.avg_traffic_per_user, { returnObject: true }) as { value: string; unit: string }
+      : { value: '0', unit: 'B' },
+    [stats]
   );
 
-  const cards = useMemo(() => [
-    {
-      title: lang === 'ru' ? 'Всего пользователей' : 'Total Users',
-      value: stats.users_total,
-      subtitle: lang === 'ru' 
-        ? `${stats.users_active} активных` 
-        : `${stats.users_active} active`,
-      icon: Users,
-      color: 'blue',
-      change: null,
-      isNumber: true,
-    },
-    {
-      title: lang === 'ru' ? 'Трафик (7 дней)' : 'Traffic (7 days)',
-      value: trafficFormatted.value,
-      unit: trafficFormatted.unit,
-      subtitle: lang === 'ru' ? 'Всего передано' : 'Total transferred',
-      icon: TrendingUp,
-      color: 'green',
-      change: trafficChange,
-      isNumber: false,
-    },
-    {
-      title: lang === 'ru' ? 'Подключения' : 'Connections',
-      value: stats.connections_total,
-      subtitle: lang === 'ru' ? 'За 7 дней' : 'Last 7 days',
-      icon: Activity,
-      color: 'purple',
-      change: connsChange,
-      isNumber: true,
-    },
-    {
-      title: lang === 'ru' ? 'Средний трафик' : 'Avg Traffic',
-      value: avgTrafficFormatted.value,
-      unit: avgTrafficFormatted.unit,
-      subtitle: lang === 'ru' ? 'На чел./день' : 'Per user/day',
-      icon: Zap,
-      color: 'orange',
-      change: avgTrafficChange,
-      isNumber: false,
-    },
-  ], [lang, stats, trafficFormatted, avgTrafficFormatted, trafficChange, connsChange, avgTrafficChange]);
+  const cards = useMemo(() => {
+    if (!stats) return [];
+    return [
+      {
+        title: lang === 'ru' ? 'Всего пользователей' : 'Total Users',
+        value: stats.users_total,
+        subtitle: lang === 'ru' 
+          ? `${stats.users_active} активных` 
+          : `${stats.users_active} active`,
+        icon: Users,
+        color: 'blue',
+        change: null,
+        isNumber: true,
+      },
+      {
+        title: lang === 'ru' ? 'Трафик (7 дней)' : 'Traffic (7 days)',
+        value: trafficFormatted.value,
+        unit: trafficFormatted.unit,
+        subtitle: lang === 'ru' ? 'Всего передано' : 'Total transferred',
+        icon: TrendingUp,
+        color: 'green',
+        change: trafficChange,
+        isNumber: false,
+      },
+      {
+        title: lang === 'ru' ? 'Подключения' : 'Connections',
+        value: stats.connections_total,
+        subtitle: lang === 'ru' ? 'За 7 дней' : 'Last 7 days',
+        icon: Activity,
+        color: 'purple',
+        change: connsChange,
+        isNumber: true,
+      },
+      {
+        title: lang === 'ru' ? 'Средний трафик' : 'Avg Traffic',
+        value: avgTrafficFormatted.value,
+        unit: avgTrafficFormatted.unit,
+        subtitle: lang === 'ru' ? 'На чел./день' : 'Per user/day',
+        icon: Zap,
+        color: 'orange',
+        change: avgTrafficChange,
+        isNumber: false,
+      },
+    ];
+  }, [lang, stats, trafficFormatted, avgTrafficFormatted, trafficChange, connsChange, avgTrafficChange]);
 
   const colorClasses = useMemo(() => ({
     blue: {
@@ -206,6 +193,28 @@ export const MetricsCards = memo(function MetricsCards({ selectedDate, mode }: M
       text: 'text-orange-600 dark:text-orange-400',
     },
   }), []);
+
+  // Card dimensions: 200px width, 115px height, 8px gap
+  // Two cards = 408px width, 238px height
+  
+  // Early returns AFTER all hooks are called
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 gap-2 w-fit">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="p-3 w-[200px] h-[115px]">
+            <div className="animate-pulse space-y-2">
+              <div className="h-6 w-6 bg-muted rounded-md"></div>
+              <div className="h-3 w-24 bg-muted rounded"></div>
+              <div className="h-6 w-14 bg-muted rounded"></div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (!stats) return null;
 
   return (
     <div className="grid grid-cols-2 gap-2 w-fit">

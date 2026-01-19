@@ -16,6 +16,11 @@ export default function OverviewPage() {
   const [metric, setMetric] = useState<'traffic' | 'conns'>('traffic');
 
   useEffect(() => {
+    // Проверяем, что localStorage доступен (только на клиенте)
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return;
+    }
+    
     const savedMode = localStorage.getItem('overview-mode');
     if (savedMode === 'cumulative' || savedMode === 'daily') {
       setMode(savedMode);
@@ -29,12 +34,16 @@ export default function OverviewPage() {
 
   const handleModeChange = (newMode: 'daily' | 'cumulative') => {
     setMode(newMode);
-    localStorage.setItem('overview-mode', newMode);
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.setItem('overview-mode', newMode);
+    }
   };
 
   const handleMetricChange = (newMetric: 'traffic' | 'conns') => {
     setMetric(newMetric);
-    localStorage.setItem('overview-metric', newMetric);
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.setItem('overview-metric', newMetric);
+    }
   };
 
   return (
