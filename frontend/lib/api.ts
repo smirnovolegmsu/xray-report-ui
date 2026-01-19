@@ -4,10 +4,20 @@ import type {
   User,
   UserStats,
   DashboardApiResponse,
-  LiveData,
   UserLink,
   Event,
   ApiResponse,
+  SystemStatus,
+  SystemResources,
+  PortsStatusResponse,
+  LiveNowResponse,
+  LiveSeriesResponse,
+  LiveTopResponse,
+  UsageDashboardResponse,
+  EventsStatsResponse,
+  CollectorStatus,
+  XrayConfig,
+  Backup,
 } from '@/types';
 
 // Создаём axios instance
@@ -62,54 +72,64 @@ export const apiClient = {
     date?: string;
     mode?: 'daily' | 'cumulative';
     window_days?: number;
-  }) => api.get<any>('/usage/dashboard', { params }),
+  }) => api.get<UsageDashboardResponse>('/usage/dashboard', { params }),
 
   // Online/Live
-  getOnlineData: () => api.get<LiveData>('/online'),
+  // Note: getOnlineData() removed - endpoint /api/online doesn't exist
+  // Use getLiveNow() instead which calls /api/live/now
   
-  getLiveNow: () => api.get<any>('/live/now'),
+  getLiveNow: () => api.get<LiveNowResponse>('/live/now'),
   
   getLiveSeries: (params: {
     metric: 'conns' | 'traffic' | 'online_users';
     period: string;
     gran: string;
     scope: string;
-  }) => api.get<any>('/live/series', { params }),
+  }) => api.get<LiveSeriesResponse>('/live/series', { params }),
 
   // Events
   getEvents: (params?: { limit?: number }) => 
     api.get<{ events: Event[] }>('/events', { params }),
   
   getEventsStats: (hours?: number) =>
-    api.get<any>('/events/stats', { params: { hours } }),
+    api.get<EventsStatsResponse>('/events/stats', { params: { hours } }),
 
   // System
-  restartService: (service: string) => 
-    api.post<ApiResponse>('/system/restart', { service }),
+  restartService: (service: 'ui' | 'xray' | 'nextjs' | 'all') => 
+    api.post<ApiResponse>('/system/restart', {}, {
+      params: { target: service },
+    }),
   
   getServiceStatus: (service: string) => 
     api.get<{ active: boolean; status: string }>('/system/status', {
       params: { service },
     }),
   
-  getSystemStatus: () => api.get<any>('/system/status'),
+  getSystemStatus: () => api.get<SystemStatus>('/system/status'),
   
-  getSystemResources: () => api.get<any>('/system/resources'),
+  getSystemResources: () => api.get<SystemResources>('/system/resources'),
   
-  restartUI: () => api.post<ApiResponse>('/system/restart-ui'),
+  // Legacy methods - use restartService() instead
+  /** @deprecated Use restartService('ui') instead */
+  restartUI: () => api.post<ApiResponse>('/system/restart', {}, {
+    params: { target: 'ui' },
+  }),
   
-  restartSystem: () => api.post<ApiResponse>('/system/restart'),
+  /** @deprecated Use restartService('all') instead */
+  restartSystem: () => api.post<ApiResponse>('/system/restart', {}, {
+    params: { target: 'all' },
+  }),
   
   getJournal: (params: { service: 'xray-report-ui' | 'xray'; lines?: number }) => 
     api.get<{ logs: string }>('/system/journal', { params }),
 
   // Xray
-  getXrayConfig: () => api.get<any>('/xray/config'),
+  getXrayConfig: () => api.get<XrayConfig>('/xray/config'),
   
   restartXray: () => api.post<ApiResponse>('/xray/restart'),
 
   // Collector
-  getCollectorStatus: () => api.get<any>('/collector/status'),
+  getCollectorStatus: () => api.get<CollectorStatus>('/collector/status'),
   
   toggleCollector: () => api.post<ApiResponse>('/collector/toggle'),
   
@@ -117,17 +137,17 @@ export const apiClient = {
     api.post<ApiResponse>('/collector/update-schedule', { script, schedule }),
 
   // Backups
-  getBackups: () => api.get<{ backups: any[] }>('/backups'),
+  getBackups: () => api.get<{ backups: Backup[] }>('/backups'),
   
-  // Live Top (missing endpoint)
+  // Live Top
   getLiveTop: (params: {
     metric: 'conns' | 'traffic';
     period: string;
     scope: string;
-  }) => api.get<any>('/live/top', { params }),
+  }) => api.get<LiveTopResponse>('/live/top', { params }),
 
   // Ports Status
-  getPortsStatus: () => api.get<any>('/ports/status'),
+  getPortsStatus: () => api.get<PortsStatusResponse>('/ports/status'),
 
   // Generic request method
   request: <T = any>(url: string, options?: any) => api.get<T>(url, options),

@@ -49,7 +49,7 @@ export function ConnectionError({ onRetry, error }: ConnectionErrorProps) {
     
     try {
       // Try to restart via API
-      await apiClient.restartSystem();
+      await apiClient.restartService('all');
       setRestartStatus('success');
       setStatusMessage('Команда перезапуска отправлена. Подождите 10 секунд...');
       

@@ -200,3 +200,149 @@ export interface EventsTimelinePoint {
   errors: number;
   warnings: number;
 }
+
+// ==================== SYSTEM TYPES ====================
+export interface SystemStatus {
+  xray_active?: boolean;
+  xray_state?: string;
+  backend_active?: boolean;
+  backend_state?: string;
+  nextjs_active?: boolean;
+  nextjs_state?: string;
+  nextjs_port?: number;
+  nextjs_url?: string;
+  nextjs_status_code?: number;
+}
+
+export interface SystemResources {
+  cpu_percent?: number;
+  memory_percent?: number;
+  memory_used?: number;
+  memory_total?: number;
+  disk_percent?: number;
+  disk_used?: number;
+  disk_total?: number;
+}
+
+export interface PortStatus {
+  port: number;
+  service: string;
+  status: 'open' | 'closed' | 'filtered';
+  process?: string;
+  description?: string;
+}
+
+export interface PortsStatusResponse {
+  ports: PortStatus[];
+  summary: {
+    total: number;
+    open: number;
+    critical: number;
+  };
+}
+
+// ==================== LIVE TYPES ====================
+export interface LiveNowData {
+  onlineUsers: string[];
+  conns: number;
+  trafficBytes: number;
+}
+
+export interface LiveNowResponse {
+  ok: boolean;
+  meta: {
+    source: string;
+    rollingWindowSec: number;
+  };
+  now: LiveNowData;
+}
+
+export interface LiveSeriesPoint {
+  ts: number;
+  value: number;
+  users?: string[];
+}
+
+export interface LiveSeriesResponse {
+  ok: boolean;
+  series: LiveSeriesPoint[];
+  meta: {
+    metric: string;
+    period: number;
+    gran: number;
+    scope: string;
+  };
+}
+
+export interface LiveTopItem {
+  user: string;
+  value: number;
+  pct?: number;
+}
+
+export interface LiveTopResponse {
+  ok: boolean;
+  top: LiveTopItem[];
+  meta: {
+    metric: string;
+    period: number;
+    scope: string;
+  };
+}
+
+// ==================== USAGE TYPES ====================
+export interface UsageDashboardResponse {
+  ok: boolean;
+  global?: {
+    daily_traffic_bytes?: number[];
+    prev_daily_traffic_bytes?: number[];
+    daily_conns?: number[];
+    prev_daily_conns?: number[];
+    cumulative_traffic_bytes?: number[];
+    cumulative_conns?: number[];
+    top_domains_traffic?: Array<{ domain: string; value: number }>;
+    top_domains_conns?: Array<{ domain: string; value: number }>;
+  };
+  users?: Record<string, any>;
+  meta?: {
+    days?: string[];
+  };
+}
+
+// ==================== EVENTS TYPES ====================
+export interface EventsStatsResponse {
+  total: number;
+  errors: number;
+  warnings: number;
+  info: number;
+  byType: Record<EventType, number>;
+  recentCritical: Event[];
+}
+
+// ==================== COLLECTOR TYPES ====================
+export interface CollectorStatus {
+  enabled: boolean;
+  last_run?: string;
+  next_run?: string;
+  schedule?: string;
+  status?: string;
+}
+
+// ==================== XRAY CONFIG TYPES ====================
+export interface XrayConfig {
+  log?: any;
+  api?: any;
+  routing?: any;
+  policy?: any;
+  inbounds?: any[];
+  outbounds?: any[];
+  stats?: any;
+}
+
+// ==================== BACKUP TYPES ====================
+export interface Backup {
+  filename: string;
+  size: number;
+  created_at: string;
+  type: 'config' | 'settings' | 'manual';
+}

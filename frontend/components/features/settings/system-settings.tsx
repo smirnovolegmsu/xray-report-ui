@@ -44,7 +44,7 @@ export function SystemSettings() {
     }
 
     try {
-      await apiClient.restartUI();
+      await apiClient.restartService('ui');
       toast.success(
         lang === 'ru' ? 'UI перезапускается...' : 'UI restarting...'
       );
@@ -64,7 +64,7 @@ export function SystemSettings() {
     }
 
     try {
-      await apiClient.restartSystem();
+      await apiClient.restartService('all');
       toast.success(
         lang === 'ru' ? 'Система перезагружается...' : 'System rebooting...'
       );
