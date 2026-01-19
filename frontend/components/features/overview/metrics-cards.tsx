@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users, Activity, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import { apiClient } from '@/lib/api';
-import { handleApiError, formatBytes, devLog } from '@/lib/utils';
+import { handleApiError, formatBytes, devLog, calculateChange, formatChange } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import NumberFlow from '@number-flow/react';
@@ -28,16 +28,12 @@ interface MetricsCardsProps {
   mode: 'daily' | 'cumulative';
 }
 
-export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
+export const MetricsCards = memo(function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
 
-  useEffect(() => {
-    loadStats();
-  }, [selectedDate, mode]);
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiClient.getDashboard({ days: 14 });
@@ -100,22 +96,11 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate, mode]);
 
-  // Use formatBytes from utils with returnObject option
-
-  const calculateChange = (current: number, previous: number): number | null => {
-    if (previous === 0) return null;
-    return ((current - previous) / previous) * 100;
-  };
-
-  const formatChange = (change: number): string => {
-    const absChange = Math.abs(change);
-    if (absChange >= 10) {
-      return Math.round(absChange).toString();
-    }
-    return absChange.toFixed(1);
-  };
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   // Card dimensions: 200px width, 115px height, 8px gap
   // Two cards = 408px width, 238px height
@@ -138,14 +123,29 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
 
   if (!stats) return null;
 
-  const trafficChange = calculateChange(stats.traffic_total_bytes, stats.traffic_prev_bytes);
-  const connsChange = calculateChange(stats.connections_total, stats.connections_prev);
-  const avgTrafficChange = calculateChange(stats.avg_traffic_per_user, stats.avg_traffic_prev);
+  const trafficChange = useMemo(
+    () => calculateChange(stats.traffic_total_bytes, stats.traffic_prev_bytes),
+    [stats.traffic_total_bytes, stats.traffic_prev_bytes]
+  );
+  const connsChange = useMemo(
+    () => calculateChange(stats.connections_total, stats.connections_prev),
+    [stats.connections_total, stats.connections_prev]
+  );
+  const avgTrafficChange = useMemo(
+    () => calculateChange(stats.avg_traffic_per_user, stats.avg_traffic_prev),
+    [stats.avg_traffic_per_user, stats.avg_traffic_prev]
+  );
 
-  const trafficFormatted = formatBytes(stats.traffic_total_bytes, { returnObject: true }) as { value: string; unit: string };
-  const avgTrafficFormatted = formatBytes(stats.avg_traffic_per_user, { returnObject: true }) as { value: string; unit: string };
+  const trafficFormatted = useMemo(
+    () => formatBytes(stats.traffic_total_bytes, { returnObject: true }) as { value: string; unit: string },
+    [stats.traffic_total_bytes]
+  );
+  const avgTrafficFormatted = useMemo(
+    () => formatBytes(stats.avg_traffic_per_user, { returnObject: true }) as { value: string; unit: string },
+    [stats.avg_traffic_per_user]
+  );
 
-  const cards = [
+  const cards = useMemo(() => [
     {
       title: lang === 'ru' ? 'Всего пользователей' : 'Total Users',
       value: stats.users_total,
@@ -186,9 +186,9 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
       change: avgTrafficChange,
       isNumber: false,
     },
-  ];
+  ], [lang, stats, trafficFormatted, avgTrafficFormatted, trafficChange, connsChange, avgTrafficChange]);
 
-  const colorClasses = {
+  const colorClasses = useMemo(() => ({
     blue: {
       bg: 'bg-blue-100 dark:bg-blue-900/30',
       text: 'text-blue-600 dark:text-blue-400',
@@ -205,7 +205,7 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
       bg: 'bg-orange-100 dark:bg-orange-900/30',
       text: 'text-orange-600 dark:text-orange-400',
     },
-  };
+  }), []);
 
   return (
     <div className="grid grid-cols-2 gap-2 w-fit">
@@ -274,4 +274,4 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
       })}
     </div>
   );
-}
+});

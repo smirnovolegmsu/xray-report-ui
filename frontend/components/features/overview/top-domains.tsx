@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 import { Card } from '@/components/ui/card';
 import {
   Table,
@@ -29,16 +29,12 @@ interface TopDomainsProps {
   mode: 'daily' | 'cumulative';
 }
 
-export function TopDomains({ selectedDate, mode }: TopDomainsProps) {
+export const TopDomains = memo(function TopDomains({ selectedDate, mode }: TopDomainsProps) {
   const [domains, setDomains] = useState<DomainStat[]>([]);
   const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
 
-  useEffect(() => {
-    loadDomains();
-  }, [selectedDate, mode]);
-
-  const loadDomains = async () => {
+  const loadDomains = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -66,7 +62,7 @@ export function TopDomains({ selectedDate, mode }: TopDomainsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate, mode]);
 
   // Size matches 2 metric cards: 408px width (200+200+8), 238px height (115+115+8)
   
@@ -140,4 +136,4 @@ export function TopDomains({ selectedDate, mode }: TopDomainsProps) {
       </div>
     </Card>
   );
-}
+});

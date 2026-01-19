@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { Card } from '@/components/ui/card';
 import { ResponsiveBar } from '@nivo/bar';
 import { apiClient } from '@/lib/api';
@@ -22,16 +22,12 @@ interface TrafficChartProps {
   metric: 'traffic' | 'conns';
 }
 
-export function TrafficChart({ selectedDate, mode, metric }: TrafficChartProps) {
+export const TrafficChart = memo(function TrafficChart({ selectedDate, mode, metric }: TrafficChartProps) {
   const [data, setData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
 
-  useEffect(() => {
-    loadChartData();
-  }, [selectedDate, mode, metric]);
-
-  const loadChartData = async () => {
+  const loadChartData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -73,7 +69,11 @@ export function TrafficChart({ selectedDate, mode, metric }: TrafficChartProps) 
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate, mode, metric]);
+
+  useEffect(() => {
+    loadChartData();
+  }, [loadChartData]);
 
   // Height matches 2 metric cards: 115 + 115 + 8 (gap) = 238px
   
@@ -194,4 +194,4 @@ export function TrafficChart({ selectedDate, mode, metric }: TrafficChartProps) 
       </div>
     </Card>
   );
-}
+});

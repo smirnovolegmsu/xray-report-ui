@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,7 +30,7 @@ interface ChartDataPoint {
   [key: string]: string | number;
 }
 
-export function LiveCharts({ scope, metric, period, granularity }: LiveChartsProps) {
+export const LiveCharts = memo(function LiveCharts({ scope, metric, period, granularity }: LiveChartsProps) {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -82,7 +82,7 @@ export function LiveCharts({ scope, metric, period, granularity }: LiveChartsPro
       }
       setLoading(false);
     }
-  }, [scope, metric, period, granularity, paused, loading]);
+  }, [scope, metric, period, granularity, loading]);
 
   useEffect(() => {
     loadData();
@@ -92,7 +92,7 @@ export function LiveCharts({ scope, metric, period, granularity }: LiveChartsPro
     }
   }, [loadData, paused]);
 
-  const getChartTitle = () => {
+  const getChartTitle = useCallback(() => {
     const titles: Record<string, { ru: string; en: string }> = {
       traffic: { ru: 'Трафик (MB)', en: 'Traffic (MB)' },
       conns: { ru: 'Активные подключения', en: 'Active Connections' },
@@ -100,19 +100,22 @@ export function LiveCharts({ scope, metric, period, granularity }: LiveChartsPro
     };
     const title = titles[metric] || titles.conns;
     return lang === 'ru' ? title.ru : title.en;
-  };
+  }, [metric, lang]);
 
-  const getChartColor = () => {
+  const getChartColor = useCallback(() => {
     if (metric === 'traffic') return 'rgb(59, 130, 246)'; // Blue
     if (metric === 'conns') return 'rgb(34, 197, 94)'; // Green
     return 'rgb(168, 85, 247)'; // Purple
-  };
+  }, [metric]);
+
+  const chartTitle = useMemo(() => getChartTitle(), [getChartTitle]);
+  const chartColor = useMemo(() => getChartColor(), [getChartColor]);
 
   return (
     <div className="space-y-2">
       {/* Chart Header with Pause */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">{getChartTitle()}</h3>
+        <h3 className="text-sm font-semibold">{chartTitle}</h3>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
             {paused ? (lang === 'ru' ? 'Пауза' : 'Paused') : (lang === 'ru' ? 'Обновление 5с' : 'Update 5s')}
@@ -232,4 +235,4 @@ export function LiveCharts({ scope, metric, period, granularity }: LiveChartsPro
       )}
     </div>
   );
-}
+});

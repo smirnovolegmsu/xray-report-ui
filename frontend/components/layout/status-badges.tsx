@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Server, Activity, Database } from 'lucide-react';
 import { apiClient } from '@/lib/api';
@@ -14,18 +14,12 @@ interface StatusData {
   collector: { active: boolean; found: boolean };
 }
 
-export function StatusBadges() {
+export const StatusBadges = memo(function StatusBadges() {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    loadStatus();
-    const interval = setInterval(loadStatus, 10000); // Update every 10 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadStatus = async () => {
+  const loadStatus = useCallback(async () => {
     try {
       const [systemRes, collectorRes] = await Promise.all([
         apiClient.getSystemStatus(),
@@ -48,19 +42,25 @@ export function StatusBadges() {
       devLog.error('Failed to load status:', error);
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleUIClick = () => {
+  useEffect(() => {
+    loadStatus();
+    const interval = setInterval(loadStatus, 10000); // Update every 10 seconds
+    return () => clearInterval(interval);
+  }, [loadStatus]);
+
+  const handleUIClick = useCallback(() => {
     router.push('/settings?tab=system');
-  };
+  }, [router]);
 
-  const handleXrayClick = () => {
+  const handleXrayClick = useCallback(() => {
     router.push('/settings?tab=system');
-  };
+  }, [router]);
 
-  const handleCollectorClick = () => {
+  const handleCollectorClick = useCallback(() => {
     router.push('/settings?tab=collector');
-  };
+  }, [router]);
 
   if (loading) {
     return (
@@ -113,4 +113,4 @@ export function StatusBadges() {
       </Badge>
     </div>
   );
-}
+});

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Cpu, MemoryStick } from 'lucide-react';
 import { apiClient } from '@/lib/api';
@@ -14,13 +14,12 @@ interface SystemResources {
   ram_used_gb: number;
 }
 
-export function SystemResources() {
+export const SystemResources = memo(function SystemResources() {
   const [resources, setResources] = useState<SystemResources | null>(null);
   const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
 
-  useEffect(() => {
-    const loadResources = async () => {
+  const loadResources = useCallback(async () => {
       try {
         const response = await apiClient.getSystemResources();
         // API returns { ok: true, cpu: ..., ram: ..., ram_total_gb: ..., ram_used_gb: ... }
@@ -46,25 +45,29 @@ export function SystemResources() {
         devLog.warn('Failed to load system resources:', error);
         setLoading(false);
       }
-    };
+    }, []);
 
+  useEffect(() => {
     loadResources();
     // Update every 1 minute (60000ms)
     const interval = setInterval(loadResources, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadResources]);
 
-  const getCpuColor = (cpu: number) => {
+  const getCpuColor = useCallback((cpu: number) => {
     if (cpu >= 80) return 'text-red-600 dark:text-red-400';
     if (cpu >= 60) return 'text-orange-600 dark:text-orange-400';
     return 'text-green-600 dark:text-green-400';
-  };
+  }, []);
 
-  const getRamColor = (ram: number) => {
+  const getRamColor = useCallback((ram: number) => {
     if (ram >= 85) return 'text-red-600 dark:text-red-400';
     if (ram >= 70) return 'text-orange-600 dark:text-orange-400';
     return 'text-green-600 dark:text-green-400';
-  };
+  }, []);
+
+  const cpuColor = useMemo(() => resources ? getCpuColor(resources.cpu) : '', [resources, getCpuColor]);
+  const ramColor = useMemo(() => resources ? getRamColor(resources.ram) : '', [resources, getRamColor]);
 
   if (loading || !resources) {
     return (
@@ -84,7 +87,7 @@ export function SystemResources() {
       {/* CPU */}
       <Badge 
         variant="outline" 
-        className={`h-6 px-2 text-xs gap-1 ${getCpuColor(resources.cpu)}`}
+        className={`h-6 px-2 text-xs gap-1 ${cpuColor}`}
         title={lang === 'ru' ? `CPU: ${resources.cpu.toFixed(1)}%` : `CPU: ${resources.cpu.toFixed(1)}%`}
       >
         <Cpu className="w-3 h-3" />
@@ -94,7 +97,7 @@ export function SystemResources() {
       {/* RAM */}
       <Badge 
         variant="outline" 
-        className={`h-6 px-2 text-xs gap-1 ${getRamColor(resources.ram)}`}
+        className={`h-6 px-2 text-xs gap-1 ${ramColor}`}
         title={
           lang === 'ru' 
             ? `RAM: ${resources.ram.toFixed(1)}% (${resources.ram_used_gb.toFixed(1)}/${resources.ram_total_gb.toFixed(1)} GB)`
@@ -106,4 +109,4 @@ export function SystemResources() {
       </Badge>
     </div>
   );
-}
+});

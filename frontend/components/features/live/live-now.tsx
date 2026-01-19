@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users, Activity, HardDrive, TrendingUp, TrendingDown, Minus } from 'lucide-react';
@@ -14,7 +14,7 @@ import type { User } from '@/types';
 import { getCardColorClasses } from '@/lib/card-colors';
 import { useTr } from '@/lib/i18n';
 
-export function LiveNow() {
+export const LiveNow = memo(function LiveNow() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
@@ -22,27 +22,16 @@ export function LiveNow() {
   const { lang } = useAppStore();
   const tr = useTr();
 
-  useEffect(() => {
-    loadUsers();
-    loadNow();
-    loadHourStats();
-    const interval = setInterval(() => {
-      loadNow();
-      loadHourStats();
-    }, 5000); // Update every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       const response = await apiClient.getUsers();
       setUsers(response.data.users || []);
     } catch (error) {
       devLog.error('Failed to load users:', error);
     }
-  };
+  }, []);
 
-  const loadNow = async () => {
+  const loadNow = useCallback(async () => {
     try {
       const response = await apiClient.getLiveNow();
       setData(response.data);
@@ -53,9 +42,9 @@ export function LiveNow() {
       }
       setLoading(false);
     }
-  };
+  }, [loading]);
 
-  const loadHourStats = async () => {
+  const loadHourStats = useCallback(async () => {
     try {
       const response = await apiClient.getLiveSeries({
         metric: 'online_users',
@@ -83,15 +72,24 @@ export function LiveNow() {
     } catch (error) {
       devLog.error('Failed to load hour stats:', error);
     }
-  };
+  }, []);
 
-  // Use formatBytes from utils instead of local implementation
+  useEffect(() => {
+    loadUsers();
+    loadNow();
+    loadHourStats();
+    const interval = setInterval(() => {
+      loadNow();
+      loadHourStats();
+    }, 5000); // Update every 5 seconds
+    return () => clearInterval(interval);
+  }, [loadUsers, loadNow, loadHourStats]);
 
-  const getUserDisplayName = (uuid: string): string => {
+  const getUserDisplayName = useCallback((uuid: string): string => {
     const user = users.find(u => u.uuid === uuid || u.email === uuid);
     if (!user) return uuid;
     return user.alias || user.email || uuid;
-  };
+  }, [users]);
 
   if (loading) {
     return (
@@ -204,4 +202,4 @@ export function LiveNow() {
       )}
     </Card>
   );
-}
+});

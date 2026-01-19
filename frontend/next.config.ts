@@ -22,9 +22,8 @@ const nextConfig: NextConfig = {
   experimental: {
     // Используем SWC для минификации (быстрее чем Terser)
     optimizeCss: true,
-    // Параллельная сборка страниц (может быть отключена автоматически из-за кастомного webpack)
-    // Если нужно принудительно включить, раскомментируйте следующую строку:
-    // webpackBuildWorker: true,
+    // Оптимизация производительности
+    optimizePackageImports: ['lucide-react', '@nivo/bar', '@nivo/line', '@nivo/core', 'recharts'],
   },
   
   // Оптимизация TypeScript
@@ -37,31 +36,45 @@ const nextConfig: NextConfig = {
   // Note: eslint config moved to eslint.config.mjs (Next.js 16+)
   // To skip ESLint during builds, use: SKIP_LINT=true npm run build
   
-  // Оптимизация webpack
-  // ВАЖНО: Кастомный webpack конфиг может отключить webpackBuildWorker автоматически
-  // Если нужна максимальная скорость, можно упростить или убрать этот блок
+  // Оптимизация webpack для лучшего code splitting
   webpack: (config, { dev, isServer }) => {
-    // Кеширование для ускорения повторных сборок (только для production)
     if (!dev && !isServer) {
-      // Минимальные оптимизации для совместимости с webpackBuildWorker
+      // Оптимизация для production
       config.optimization = {
         ...config.optimization,
-        moduleIds: 'deterministic', // Детерминированные ID для кеширования
+        moduleIds: 'deterministic',
         ...(config.optimization || {}),
       };
       
-      // Оптимизация splitChunks только если не мешает worker режиму
+      // Улучшенный code splitting для тяжелых библиотек
       if (!process.env.DISABLE_WEBPACK_OPTIMIZATIONS) {
         config.optimization.splitChunks = {
           chunks: 'all',
           cacheGroups: {
             default: false,
             vendors: false,
+            // Отдельный чанк для тяжелых библиотек графиков
+            charts: {
+              name: 'charts',
+              test: /[\\/]node_modules[\\/](@nivo|recharts)[\\/]/,
+              chunks: 'all',
+              priority: 30,
+              reuseExistingChunk: true,
+            },
+            // Отдельный чанк для UI библиотек
+            ui: {
+              name: 'ui',
+              test: /[\\/]node_modules[\\/](@radix-ui|framer-motion)[\\/]/,
+              chunks: 'all',
+              priority: 25,
+              reuseExistingChunk: true,
+            },
             vendor: {
               name: 'vendor',
               chunks: 'all',
-              test: /node_modules/,
+              test: /[\\/]node_modules[\\/]/,
               priority: 20,
+              reuseExistingChunk: true,
             },
             common: {
               name: 'common',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Server, Wifi, WifiOff } from 'lucide-react';
 import { apiClient } from '@/lib/api';
@@ -8,19 +8,12 @@ import { toast } from 'sonner';
 import { devLog } from '@/lib/utils';
 import type { PortInfo, PortsStatusResponse } from '@/types';
 
-export function PortsStatus() {
+export const PortsStatus = memo(function PortsStatus() {
   const [ports, setPorts] = useState<PortInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    loadPorts();
-    // Refresh every 10 seconds
-    const interval = setInterval(loadPorts, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadPorts = async () => {
+  const loadPorts = useCallback(async () => {
     try {
       const response = await apiClient.getPortsStatus();
       const data = response.data as PortsStatusResponse;
@@ -37,7 +30,7 @@ export function PortsStatus() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   if (loading) {
     return (
@@ -87,4 +80,4 @@ export function PortsStatus() {
       ))}
     </div>
   );
-}
+});
