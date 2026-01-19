@@ -9,7 +9,8 @@ echo ""
 # Сначала показываем анализ
 echo "📊 Анализ текущих портов..."
 echo ""
-/opt/xray-report-ui/analyze-ports.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$SCRIPT_DIR/analyze.sh"
 
 echo ""
 echo "=========================================="
@@ -19,27 +20,27 @@ echo ""
 
 # Вариант 1: Только просмотр (безопасно)
 echo "1️⃣  ПРОСМОТР (безопасно - ничего не закрывает):"
-echo "   ./cleanup-ports.sh --dry-run"
+echo "   ./scripts/ports/cleanup.sh --dry-run"
 echo "   Покажет, какие порты будут закрыты без реального закрытия"
 echo ""
 
 # Вариант 2: Закрыть только неиспользуемые отладочные порты
 echo "2️⃣  ЗАКРЫТЬ НЕИСПОЛЬЗУЕМЫЕ ОТЛАДОЧНЫЕ ПОРТЫ:"
-echo "   ./cleanup-ports.sh"
+echo "   ./scripts/ports/cleanup.sh"
 echo "   Закроет только временные порты отладки (если они есть)"
 echo "   НЕ затронет критичные порты и Cursor Server"
 echo ""
 
 # Вариант 3: Закрыть порты Cursor Server
 echo "3️⃣  ЗАКРЫТЬ ПОРТЫ CURSOR SERVER:"
-echo "   ./cleanup-ports.sh --kill-cursor"
+echo "   ./scripts/ports/cleanup.sh --kill-cursor"
 echo "   ⚠️  ВНИМАНИЕ: Это остановит работу Cursor через SSH!"
 echo "   Используйте только если не используете Cursor для разработки"
 echo ""
 
 # Вариант 4: Комбинированный (просмотр + закрытие)
 echo "4️⃣  КОМБИНИРОВАННЫЙ (просмотр + закрытие):"
-echo "   ./cleanup-ports.sh --kill-cursor --dry-run"
+echo "   ./scripts/ports/cleanup.sh --kill-cursor --dry-run"
 echo "   Покажет, что будет закрыто, включая Cursor Server"
 echo ""
 
@@ -49,12 +50,13 @@ echo "=========================================="
 echo ""
 
 # Проверяем, есть ли неиспользуемые порты
-UNUSED_COUNT=$(./cleanup-ports.sh --dry-run 2>/dev/null | grep -c "Будет закрыт" || echo "0")
+CLEANUP_SCRIPT="$SCRIPT_DIR/cleanup.sh"
+UNUSED_COUNT=$("$CLEANUP_SCRIPT" --dry-run 2>/dev/null | grep -c "Будет закрыт" || echo "0")
 CURSOR_COUNT=$(ss -tulpn | grep LISTEN | grep "127.0.0.1:" | awk '{print $5}' | sed 's/.*://' | awk '$1 > 30000 && $1 < 60000' | wc -l)
 
 if [ "$UNUSED_COUNT" -gt 0 ]; then
     echo "✅ Найдено неиспользуемых портов: $UNUSED_COUNT"
-    echo "   Рекомендуется запустить: ./cleanup-ports.sh"
+    echo "   Рекомендуется запустить: ./scripts/ports/cleanup.sh"
     echo ""
 fi
 
@@ -80,11 +82,11 @@ echo "  БЫСТРЫЙ СТАРТ"
 echo "=========================================="
 echo ""
 echo "Для безопасного просмотра:"
-echo "  ./optimize-ports.sh"
+echo "  ./scripts/ports/optimize.sh"
 echo ""
 echo "Для закрытия неиспользуемых портов:"
-echo "  ./cleanup-ports.sh"
+echo "  ./scripts/ports/cleanup.sh"
 echo ""
 echo "Для закрытия портов Cursor Server:"
-echo "  ./cleanup-ports.sh --kill-cursor"
+echo "  ./scripts/ports/cleanup.sh --kill-cursor"
 echo ""

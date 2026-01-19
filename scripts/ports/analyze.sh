@@ -143,7 +143,7 @@ if [ ${#CURSOR_PORTS[@]} -gt 0 ]; then
     echo "   - Эти порты слушают только на localhost (127.0.0.1)"
     echo "   - Они безопасны и не доступны извне"
     echo "   - Если вы не используете Cursor через SSH, их можно закрыть:"
-    echo "     ./cleanup-ports.sh --kill-cursor"
+    echo "     ./scripts/ports/cleanup.sh --kill-cursor"
     echo ""
 fi
 
