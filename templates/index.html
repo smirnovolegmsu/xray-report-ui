@@ -1529,9 +1529,13 @@ label {
       <span>Xray Usage</span>
     </div>
     <div class="status-badges-compact">
-      <div class="badge-compact badge-clickable" id="badgeUI" title="UI сервис. Кликните для просмотра статуса и управления">
+      <div class="badge-compact badge-clickable" id="badgeUI" title="UI сервис (Legacy Flask). Кликните для просмотра статуса и управления">
         <span class="dot" id="dotUI"></span>
         <span>UI</span>
+      </div>
+      <div class="badge-compact badge-clickable" id="badgeNextJS" title="Next.js UI (Новая версия). Кликните для открытия">
+        <span class="dot" id="dotNextJS"></span>
+        <span>Next.js</span>
       </div>
       <div class="badge-compact badge-clickable" id="badgeXray" title="Xray сервис. Кликните для просмотра статуса и управления. Если остановлен - можно перезапустить">
         <span class="dot" id="dotXray"></span>
@@ -9159,9 +9163,10 @@ async function loadCollectorStatus() {
 
 // ==================== SYSTEM STATUS ====================
 function updateHeaderStatusBadges(services) {
-  // services is { ui: {...}, xray: {...} }
+  // services is { ui: {...}, xray: {...}, nextjs: {...} }
   const ui = services.ui || {};
   const xray = services.xray || {};
+  const nextjs = services.nextjs || {};
   
   // UI status - only color indicator (green = ok, red = bad, yellow = warn)
   const uiActive = Boolean(ui.active);
@@ -9175,6 +9180,19 @@ function updateHeaderStatusBadges(services) {
       statusClass = 'bad'; // red = не работает
     }
     dotUI.className = 'dot ' + statusClass;
+  }
+  
+  // Next.js status - color indicator
+  const nextjsActive = Boolean(nextjs.active);
+  const dotNextJS = $('#dotNextJS');
+  if (dotNextJS) {
+    let statusClass = 'bad';
+    if (nextjsActive) {
+      statusClass = 'ok'; // green = работает
+    } else {
+      statusClass = 'bad'; // red = не работает
+    }
+    dotNextJS.className = 'dot ' + statusClass;
   }
   
   // Xray status - only color indicator
@@ -9196,17 +9214,20 @@ async function loadSystemStatus() {
     const data = await api('/api/system/status');
     if (!data.ok) return;
     
-    // API returns ui and xray directly, not inside services
+    // API returns ui, xray, and nextjs directly
     const ui = data.ui || {};
     const xray = data.xray || {};
+    const nextjs = data.nextjs || {};
     
-    updateHeaderStatusBadges({ ui, xray });
+    updateHeaderStatusBadges({ ui, xray, nextjs });
   } catch (e) {
     console.error('Status load error:', e);
     const dotUI = $('#dotUI');
     const dotXray = $('#dotXray');
+    const dotNextJS = $('#dotNextJS');
     if (dotUI) dotUI.className = 'dot bad';
     if (dotXray) dotXray.className = 'dot bad';
+    if (dotNextJS) dotNextJS.className = 'dot bad';
   }
 }
 
@@ -9798,11 +9819,19 @@ async function init() {
   // Status badges click handlers
   const badgeUI = $('#badgeUI');
   const badgeXray = $('#badgeXray');
+  const badgeNextJS = $('#badgeNextJS');
   const xrayActionEl = $('#xrayAction');
   
   if (badgeUI) {
     badgeUI.onclick = () => {
       setTab('settings'); // Status info is in settings
+    };
+  }
+  
+  // Next.js badge - opens in new tab/window
+  if (badgeNextJS) {
+    badgeNextJS.onclick = () => {
+      window.open('http://185.235.130.184:3002/', '_blank');
     };
   }
   

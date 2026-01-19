@@ -1,0 +1,18 @@
+[Unit]
+Description=Xray Report UI (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/xray-report-ui/frontend
+Environment="PORT=3002"
+Environment="NODE_ENV=production"
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/xray-nextjs-ui.log
+StandardError=append:/var/log/xray-nextjs-ui-error.log
+
+[Install]
+WantedBy=multi-user.target

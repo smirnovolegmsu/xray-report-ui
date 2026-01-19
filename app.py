@@ -52,6 +52,9 @@ LIVE_STATE_OFFSET_PATH = os.path.join(DATA_DIR, "usage_state.json")
 
 SERVICE_UI = "xray-report-ui"
 SERVICE_XRAY_DEFAULT = "xray"
+SERVICE_NEXTJS = "xray-nextjs-ui"
+NEXTJS_PORT = 3002
+NEXTJS_URL = f"http://185.235.130.184:{NEXTJS_PORT}"
 
 LOCK = threading.Lock()
 
@@ -386,6 +389,56 @@ def systemctl_is_active(service: str) -> Tuple[bool, str]:
         return (s == "active"), s or "unknown"
     except Exception as e:
         return False, str(e)
+
+def check_nextjs_status() -> Dict[str, Any]:
+    """Check Next.js dev server status"""
+    try:
+        import urllib.request
+        import socket
+        
+        # Check if port is listening
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result = sock.connect_ex(('127.0.0.1', NEXTJS_PORT))
+        sock.close()
+        
+        if result != 0:
+            return {
+                "active": False,
+                "state": "inactive",
+                "port": NEXTJS_PORT,
+                "url": NEXTJS_URL,
+                "error": "Port not listening"
+            }
+        
+        # Try to make HTTP request
+        try:
+            req = urllib.request.Request(f"http://127.0.0.1:{NEXTJS_PORT}/", method='HEAD')
+            with urllib.request.urlopen(req, timeout=3) as response:
+                status_code = response.status
+                return {
+                    "active": True,
+                    "state": "active",
+                    "port": NEXTJS_PORT,
+                    "url": NEXTJS_URL,
+                    "status_code": status_code,
+                }
+        except Exception as e:
+            return {
+                "active": False,
+                "state": "error",
+                "port": NEXTJS_PORT,
+                "url": NEXTJS_URL,
+                "error": str(e)
+            }
+    except Exception as e:
+        return {
+            "active": False,
+            "state": "error",
+            "port": NEXTJS_PORT,
+            "url": NEXTJS_URL,
+            "error": str(e)
+        }
 
 # ---------------------------
 # CSV metrics loader (FIXED for real format)
@@ -1633,21 +1686,33 @@ def api_users_kick():
 
 @app.get("/api/users/link")
 def api_users_link():
+    # Support both email and uuid parameters
     email = request.args.get("email", "").strip()
-    if not email:
-        return fail("email_required")
+    uuid = request.args.get("uuid", "").strip()
+    
+    if not email and not uuid:
+        return fail("email_or_uuid_required")
     
     clients = get_xray_clients()
-    user = next((c for c in clients if c.get("email") == email), None)
+    
+    # Find user by email or uuid
+    if uuid:
+        user = next((c for c in clients if c.get("id") == uuid), None)
+    else:
+        user = next((c for c in clients if c.get("email") == email), None)
+    
     if not user:
         return fail("user_not_found")
     
-    result = build_vless_link(user["id"], email)
+    user_email = user.get("email", "unknown")
+    user_uuid = user.get("id")
+    
+    result = build_vless_link(user_uuid, user_email)
     if not result.get("ok"):
-        append_event({"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": email, "error": result.get("error")})
+        append_event({"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": user_email, "error": result.get("error")})
         return fail(result.get("error", "Link build failed"))
     
-    append_event({"type": "LINK", "severity": "INFO", "action": "built", "email": email})
+    append_event({"type": "LINK", "severity": "INFO", "action": "built", "email": user_email})
     return ok({"link": result["link"]})
 
 @app.get("/api/users/stats")
@@ -2255,6 +2320,9 @@ def api_system_status():
     ui_active, ui_state = systemctl_is_active(SERVICE_UI)
     xray_active, xray_state = systemctl_is_active(srv)
     
+    # Check Next.js status
+    nextjs_status = check_nextjs_status()
+    
     # Get uptime and restart counts
     ui_uptime, ui_restarts = systemctl_get_uptime(SERVICE_UI)
     xray_uptime, xray_restarts = systemctl_get_uptime(srv)
@@ -2326,6 +2394,7 @@ def api_system_status():
             "restart_count": xray_restarts,
             "restart_count_14d": restart_counts_14d["xray"],
         },
+        "nextjs": nextjs_status,
         "restart_history": restart_events,
     })
 
