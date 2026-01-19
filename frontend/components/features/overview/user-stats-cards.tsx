@@ -147,16 +147,17 @@ export function UserStatsCards() {
                 <h4 className="font-semibold text-sm truncate min-w-0 flex-1">{user.alias || user.email}</h4>
               </div>
 
-              {/* Stats Badges */}
+              {/* Stats Badges - using grid for alignment */}
               <div className="flex gap-2 mb-3">
                 {/* Traffic Card */}
-                <div className="flex-1 bg-muted/50 rounded-lg p-2.5 border border-border">
-                  <div className="flex items-center justify-between mb-1.5">
+                <div className="flex-1 bg-muted/50 rounded-lg p-2 border border-border grid grid-rows-[16px_24px] gap-1">
+                  {/* Row 1: Label + Badge */}
+                  <div className="flex items-center justify-between">
                     <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Traffic</span>
                     {trafficChange !== null && (
                       <Badge 
                         variant="outline"
-                        className={`h-4 px-1.5 text-[10px] font-semibold gap-0.5 border-0 ${
+                        className={`h-4 px-1 text-[10px] font-semibold gap-0.5 border-0 ${
                           trafficChange > 0 
                             ? 'bg-green-500/15 text-green-600 dark:text-green-400' 
                             : 'bg-red-500/15 text-red-600 dark:text-red-400'
@@ -167,7 +168,8 @@ export function UserStatsCards() {
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-baseline gap-1">
+                  {/* Row 2: Value */}
+                  <div className="flex items-center gap-1">
                     <span className="text-lg font-bold leading-none">
                       <NumberFlow 
                         value={user.sum7_traffic_bytes / 1024 / 1024 / 1024} 
@@ -180,13 +182,14 @@ export function UserStatsCards() {
                 </div>
                 
                 {/* Connections Card */}
-                <div className="flex-1 bg-muted/50 rounded-lg p-2.5 border border-border">
-                  <div className="flex items-center justify-between mb-1.5">
+                <div className="flex-1 bg-muted/50 rounded-lg p-2 border border-border grid grid-rows-[16px_24px] gap-1">
+                  {/* Row 1: Label + Badge */}
+                  <div className="flex items-center justify-between">
                     <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Conns</span>
                     {connsChange !== null && (
                       <Badge 
                         variant="outline"
-                        className={`h-4 px-1.5 text-[10px] font-semibold gap-0.5 border-0 ${
+                        className={`h-4 px-1 text-[10px] font-semibold gap-0.5 border-0 ${
                           connsChange > 0 
                             ? 'bg-green-500/15 text-green-600 dark:text-green-400' 
                             : 'bg-red-500/15 text-red-600 dark:text-red-400'
@@ -197,7 +200,8 @@ export function UserStatsCards() {
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-baseline gap-1">
+                  {/* Row 2: Value */}
+                  <div className="flex items-center gap-1">
                     <span className="text-lg font-bold leading-none">
                       {formatConns(user.sum7_conns)}
                     </span>

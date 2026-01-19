@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Activity, TrendingUp, Zap } from 'lucide-react';
+import { Users, Activity, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import { apiClient, handleApiError } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
@@ -224,9 +224,9 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
         const colors = colorClasses[card.color as keyof typeof colorClasses];
 
         return (
-          <Card key={index} className="p-3 w-[200px] h-[115px] flex flex-col hover:shadow-md transition-all duration-200">
-            {/* Header: Title + Icon */}
-            <div className="flex items-start justify-between mb-2">
+          <Card key={index} className="p-3 w-[200px] h-[115px] grid grid-rows-[28px_32px_20px] hover:shadow-md transition-all duration-200">
+            {/* Row 1: Title + Icon - fixed 28px */}
+            <div className="flex items-start justify-between">
               <p className="text-[11px] text-muted-foreground leading-tight flex-1 pr-2">
                 {card.title}
               </p>
@@ -235,8 +235,8 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
               </div>
             </div>
             
-            {/* Value */}
-            <div className="flex items-baseline gap-1 mb-1">
+            {/* Row 2: Value - fixed 32px */}
+            <div className="flex items-center gap-1">
               <span className="text-2xl font-bold leading-none">
                 {card.isNumber ? (
                   <NumberFlow 
@@ -258,15 +258,15 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
               )}
             </div>
             
-            {/* Footer: subtitle + change */}
-            <div className="flex items-center justify-between mt-auto pt-1">
+            {/* Row 3: Footer - fixed 20px */}
+            <div className="flex items-center justify-between">
               <p className="text-[10px] text-muted-foreground truncate flex-1 mr-1">
                 {card.subtitle}
               </p>
               {card.change !== null && (
                 <Badge 
                   variant="outline"
-                  className={`h-4 px-1.5 text-[10px] font-semibold shrink-0 ${
+                  className={`h-4 px-1 text-[10px] font-semibold shrink-0 flex items-center gap-0.5 ${
                     card.change > 0 
                       ? 'border-green-500/50 bg-green-500/10 text-green-600 dark:text-green-400' 
                       : card.change < 0
@@ -274,7 +274,8 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
                       : 'border-gray-500/50 bg-gray-500/10 text-gray-600'
                   }`}
                 >
-                  {card.change > 0 ? '↑' : '↓'}{formatChange(card.change)}%
+                  {card.change > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                  {formatChange(card.change)}%
                 </Badge>
               )}
             </div>
