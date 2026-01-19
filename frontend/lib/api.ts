@@ -69,7 +69,7 @@ export const apiClient = {
   getLiveNow: () => api.get<any>('/live/now'),
   
   getLiveSeries: (params: {
-    metric: 'conns' | 'traffic';
+    metric: 'conns' | 'traffic' | 'online_users';
     period: string;
     gran: string;
     scope: string;
@@ -78,6 +78,9 @@ export const apiClient = {
   // Events
   getEvents: (params?: { limit?: number }) => 
     api.get<{ events: Event[] }>('/events', { params }),
+  
+  getEventsStats: (hours?: number) =>
+    api.get<any>('/events/stats', { params: { hours } }),
 
   // System
   restartService: (service: string) => 
@@ -119,6 +122,12 @@ export const apiClient = {
     period: string;
     scope: string;
   }) => api.get<any>('/live/top', { params }),
+
+  // Ports Status
+  getPortsStatus: () => api.get<any>('/ports/status'),
+
+  // Generic request method
+  request: <T = any>(url: string, options?: any) => api.get<T>(url, options),
 };
 
 // Error handler для удобства

@@ -3,24 +3,41 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Activity, HardDrive } from 'lucide-react';
+import { Users, Activity, HardDrive, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/utils';
 import NumberFlow from '@number-flow/react';
 import { liveNumberFlowConfig } from '@/lib/number-flow-config';
+import type { User } from '@/types';
 
 export function LiveNow() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<User[]>([]);
+  const [hourStats, setHourStats] = useState<any>(null);
   const { lang } = useAppStore();
 
   useEffect(() => {
+    loadUsers();
     loadNow();
-    const interval = setInterval(loadNow, 5000); // Update every 5 seconds
+    loadHourStats();
+    const interval = setInterval(() => {
+      loadNow();
+      loadHourStats();
+    }, 5000); // Update every 5 seconds
     return () => clearInterval(interval);
   }, []);
+
+  const loadUsers = async () => {
+    try {
+      const response = await apiClient.getUsers();
+      setUsers(response.data.users || []);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    }
+  };
 
   const loadNow = async () => {
     try {
@@ -32,6 +49,36 @@ export function LiveNow() {
         toast.error(handleApiError(error));
       }
       setLoading(false);
+    }
+  };
+
+  const loadHourStats = async () => {
+    try {
+      const response = await apiClient.getLiveSeries({
+        metric: 'online_users',
+        period: '3600',
+        gran: '300',
+        scope: 'global',
+      });
+      if (response.data.series && response.data.series.length > 0) {
+        const series = response.data.series;
+        const latest = series[series.length - 1]?.value || 0;
+        const previous = series[series.length - 2]?.value || 0;
+        const max = Math.max(...series.map((s: any) => s.value || 0));
+        const min = Math.min(...series.map((s: any) => s.value || 0));
+        const avg = series.reduce((sum: number, s: any) => sum + (s.value || 0), 0) / series.length;
+        
+        setHourStats({
+          current: latest,
+          previous,
+          max,
+          min,
+          avg: Math.round(avg),
+          trend: latest > previous ? 'up' : latest < previous ? 'down' : 'stable',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load hour stats:', error);
     }
   };
 
@@ -47,6 +94,12 @@ export function LiveNow() {
       return `${mb.toFixed(1)} MB`;
     }
     return `${gb.toFixed(2)} GB`;
+  };
+
+  const getUserDisplayName = (uuid: string): string => {
+    const user = users.find(u => u.uuid === uuid || u.email === uuid);
+    if (!user) return uuid;
+    return user.alias || user.email || uuid;
   };
 
   if (loading) {
@@ -66,84 +119,98 @@ export function LiveNow() {
 
   const now = data?.now || {};
   const onlineUsers = now.onlineUsers || [];
-  const totalConns = now.totalConns || 0;
-  const totalTraffic = now.totalTraffic || 0;
+  const totalConns = now.conns || 0;
+  const totalTraffic = now.trafficBytes || 0;
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm text-muted-foreground">
-                {lang === 'ru' ? 'Онлайн пользователей' : 'Online Users'}
-              </p>
-              <p className="text-2xl font-bold">
-                <NumberFlow 
-                  value={onlineUsers.length}
-                  {...liveNumberFlowConfig}
-                  willChange
-                />
-              </p>
-            </div>
+    <Card className="p-3 md:p-4">
+      <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
+        {/* Online Users */}
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center shrink-0">
+            <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           </div>
-        </Card>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground truncate">
+              {lang === 'ru' ? 'Онлайн' : 'Online'}
+            </p>
+            <p className="text-xl font-bold">
+              <NumberFlow 
+                value={onlineUsers.length}
+                {...liveNumberFlowConfig}
+                willChange
+              />
+            </p>
+          </div>
+        </div>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
-              <Activity className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm text-muted-foreground">
-                {lang === 'ru' ? 'Активные подключения' : 'Active Connections'}
-              </p>
-              <p className="text-2xl font-bold">
-                <NumberFlow 
-                  value={totalConns}
-                  {...liveNumberFlowConfig}
-                  willChange
-                />
-              </p>
-            </div>
+        {/* Active Connections */}
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center shrink-0">
+            <Activity className="w-4 h-4 text-green-600 dark:text-green-400" />
           </div>
-        </Card>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground truncate">
+              {lang === 'ru' ? 'Подключения' : 'Connections'}
+            </p>
+            <p className="text-xl font-bold">
+              <NumberFlow 
+                value={totalConns}
+                {...liveNumberFlowConfig}
+                willChange
+              />
+            </p>
+          </div>
+        </div>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/20 rounded-full flex items-center justify-center">
-              <HardDrive className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+        {/* Current Traffic */}
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center shrink-0">
+            <HardDrive className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground truncate">
+              {lang === 'ru' ? 'Трафик' : 'Traffic'}
+            </p>
+            <p className="text-xl font-bold truncate">
+              {formatBytes(totalTraffic)}
+            </p>
+          </div>
+        </div>
+
+        {/* Hour Stats */}
+        {hourStats && (
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/20 rounded-lg flex items-center justify-center shrink-0">
+              {hourStats.trend === 'up' && <TrendingUp className="w-4 h-4 text-green-600 dark:text-green-400" />}
+              {hourStats.trend === 'down' && <TrendingDown className="w-4 h-4 text-red-600 dark:text-red-400" />}
+              {hourStats.trend === 'stable' && <Minus className="w-4 h-4 text-muted-foreground" />}
             </div>
-            <div className="flex-1">
-              <p className="text-sm text-muted-foreground">
-                {lang === 'ru' ? 'Текущий трафик' : 'Current Traffic'}
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground truncate">
+                {lang === 'ru' ? 'Среднее/ч' : 'Avg/h'}
               </p>
-              <p className="text-2xl font-bold">
-                {formatBytes(totalTraffic)}
+              <p className="text-xl font-bold">
+                {hourStats.avg} <span className="text-xs text-muted-foreground">({hourStats.min}-{hourStats.max})</span>
               </p>
             </div>
           </div>
-        </Card>
+        )}
       </div>
 
+      {/* Online Users List */}
       {onlineUsers.length > 0 && (
-        <Card className="p-4">
-          <h3 className="text-sm font-semibold mb-3">
-            {lang === 'ru' ? 'Онлайн пользователи' : 'Online Users'}
-          </h3>
-          <div className="flex flex-wrap gap-2">
+        <div className="mt-3 pt-3 border-t">
+          <div className="flex flex-wrap gap-1.5">
             {onlineUsers.map((user: string, idx: number) => (
-              <Badge key={idx} variant="outline" className="gap-1">
-                <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                {user}
+              <Badge key={idx} variant="outline" className="gap-1 text-xs h-6 px-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                {getUserDisplayName(user)}
               </Badge>
             ))}
           </div>
-        </Card>
+        </div>
       )}
-    </div>
+    </Card>
   );
 }

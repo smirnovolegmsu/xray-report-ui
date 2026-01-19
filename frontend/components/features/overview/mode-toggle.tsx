@@ -10,24 +10,24 @@ interface ModeToggleProps {
 
 export function ModeToggle({ mode, onModeChange }: ModeToggleProps) {
   return (
-    <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+    <div className="flex items-center gap-0.5 p-0.5 bg-muted rounded-lg">
       <Button
         variant={mode === 'daily' ? 'default' : 'ghost'}
         size="sm"
         onClick={() => onModeChange('daily')}
-        className="h-8"
+        className="h-9 sm:h-8 min-h-[44px] sm:min-h-0 text-xs px-2"
       >
-        <BarChart3 className="w-4 h-4 mr-1" />
-        Daily
+        <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
+        <span className="hidden xs:inline">Daily</span>
       </Button>
       <Button
         variant={mode === 'cumulative' ? 'default' : 'ghost'}
         size="sm"
         onClick={() => onModeChange('cumulative')}
-        className="h-8"
+        className="h-9 sm:h-8 min-h-[44px] sm:min-h-0 text-xs px-2"
       >
-        <TrendingUp className="w-4 h-4 mr-1" />
-        Cumulative
+        <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
+        <span className="hidden xs:inline">Cumul.</span>
       </Button>
     </div>
   );

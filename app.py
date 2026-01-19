@@ -53,12 +53,36 @@ LIVE_STATE_OFFSET_PATH = os.path.join(DATA_DIR, "usage_state.json")
 SERVICE_UI = "xray-report-ui"
 SERVICE_XRAY_DEFAULT = "xray"
 SERVICE_NEXTJS = "xray-nextjs-ui"
-NEXTJS_PORT = 3002
+NEXTJS_PORT = 3000
 NEXTJS_URL = f"http://185.235.130.184:{NEXTJS_PORT}"
 
 LOCK = threading.Lock()
 
 app = Flask(__name__)
+
+# Global error handler to log exceptions as events
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Log all unhandled exceptions as APP_ERROR events"""
+    try:
+        import traceback
+        error_type = type(e).__name__
+        error_msg = str(e)
+        trace = traceback.format_exc()
+        
+        append_event({
+            "type": "APP_ERROR",
+            "severity": "ERROR",
+            "action": "exception",
+            "error": error_type,
+            "message": f"{error_type}: {error_msg}",
+            "details": trace[:500]  # Limit trace length
+        })
+    except Exception:
+        pass
+    
+    # Re-raise the exception to be handled by Flask
+    raise e
 
 # ---------------------------
 # Utilities
@@ -369,7 +393,7 @@ def backup_file(path: str, label: str) -> str:
     return dst
 
 def systemctl_restart(service: str) -> Tuple[bool, str]:
-    allowed = {SERVICE_UI, SERVICE_XRAY_DEFAULT, "xray"}
+    allowed = {SERVICE_UI, SERVICE_XRAY_DEFAULT, "xray", SERVICE_NEXTJS}
     s = load_settings()
     allowed.add(s["xray"].get("service_name", SERVICE_XRAY_DEFAULT))
     if service not in allowed:
@@ -934,6 +958,70 @@ def users_test_page():
 @app.get("/api/ping")
 def api_ping():
     return ok({"ts": now_utc_iso()})
+
+@app.get("/api/ports/status")
+def api_ports_status():
+    """Get status of running ports and services"""
+    import socket
+    
+    ports_info = []
+    
+    # Define expected ports
+    expected_ports = [
+        {"port": 8787, "name": "Flask Backend", "type": "backend"},
+        {"port": 3000, "name": "Next.js Dev", "type": "frontend"},
+        {"port": 5000, "name": "Production", "type": "production"},
+    ]
+    
+    for port_config in expected_ports:
+        port = port_config["port"]
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        
+        # Check localhost
+        is_open_local = False
+        try:
+            result = sock.connect_ex(('127.0.0.1', port))
+            is_open_local = (result == 0)
+        except:
+            pass
+        finally:
+            sock.close()
+        
+        # Check 0.0.0.0 (public)
+        sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock2.settimeout(1)
+        is_open_public = False
+        try:
+            result = sock2.connect_ex(('0.0.0.0', port))
+            is_open_public = (result == 0)
+        except:
+            pass
+        finally:
+            sock2.close()
+        
+        if is_open_local or is_open_public:
+            ports_info.append({
+                "port": port,
+                "name": port_config["name"],
+                "type": port_config["type"],
+                "status": "running",
+                "host": "0.0.0.0" if is_open_public else "127.0.0.1"
+            })
+    
+    # Get current app info
+    current_port = APP_PORT
+    current_host = APP_HOST
+    
+    return ok({
+        "ports": ports_info,
+        "current": {
+            "port": current_port,
+            "host": current_host,
+            "url": f"http://{current_host}:{current_port}"
+        },
+        "timestamp": now_utc_iso()
+    })
 
 # --- Settings ---
 
@@ -1566,10 +1654,20 @@ def _calculate_user_alltime_stats() -> Dict[str, Dict[str, Any]]:
                 "sharePct": share_pct
             })
         
+        # Calculate first and last seen dates
+        first_seen_at = None
+        last_seen_at = None
+        if days_set:
+            sorted_days = sorted(days_set)
+            first_seen_at = sorted_days[0] + "T00:00:00Z"
+            last_seen_at = sorted_days[-1] + "T23:59:59Z"
+        
         user_stats[user] = {
             "daysUsed": len(days_set),
             "totalTrafficBytes": total_bytes,
-            "top3Domains": top3_list
+            "top3Domains": top3_list,
+            "firstSeenAt": first_seen_at,
+            "lastSeenAt": last_seen_at
         }
     
     return user_stats
@@ -1709,10 +1807,10 @@ def api_users_link():
     
     result = build_vless_link(user_uuid, user_email)
     if not result.get("ok"):
-        append_event({"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": user_email, "error": result.get("error")})
+        append_event({"type": "CONNECTION", "severity": "ERROR", "action": "build_failed", "email": user_email, "error": result.get("error")})
         return fail(result.get("error", "Link build failed"))
     
-    append_event({"type": "LINK", "severity": "INFO", "action": "built", "email": user_email})
+    append_event({"type": "CONNECTION", "severity": "INFO", "action": "built", "email": user_email})
     return ok({"link": result["link"]})
 
 @app.get("/api/users/stats")
@@ -1735,7 +1833,9 @@ def api_users_stats():
             user_stat = alltime_stats.get(email, {
                 "daysUsed": 0,
                 "totalTrafficBytes": 0,
-                "top3Domains": []
+                "top3Domains": [],
+                "firstSeenAt": None,
+                "lastSeenAt": None
             })
             
             users_stats.append({
@@ -1744,6 +1844,8 @@ def api_users_stats():
                 "daysUsed": user_stat["daysUsed"],
                 "totalTrafficBytes": user_stat["totalTrafficBytes"],
                 "top3Domains": user_stat["top3Domains"],
+                "firstSeenAt": user_stat.get("firstSeenAt"),
+                "lastSeenAt": user_stat.get("lastSeenAt"),
                 "isOnline": email in online_users_set
             })
         
@@ -1823,6 +1925,102 @@ def api_events():
     events = events[:limit]
     
     return ok({"events": events})
+
+@app.get("/api/events/stats")
+def api_events_stats():
+    """Get statistics about events for dashboard"""
+    hours = int(request.args.get("hours") or "24")
+    
+    events = []
+    if os.path.exists(EVENTS_PATH):
+        try:
+            with open(EVENTS_PATH, "r", encoding="utf-8") as f:
+                for ln in f:
+                    ln = ln.strip()
+                    if ln:
+                        try:
+                            events.append(json.loads(ln))
+                        except:
+                            pass
+        except:
+            pass
+    
+    # Filter by time range
+    now = dt.datetime.utcnow()
+    cutoff = now - dt.timedelta(hours=hours)
+    
+    filtered_events = []
+    for e in events:
+        try:
+            ts_str = e.get("ts", "")
+            if ts_str:
+                # Parse ISO format with Z suffix
+                if ts_str.endswith("Z"):
+                    ts = dt.datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ")
+                else:
+                    ts = dt.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                
+                if ts >= cutoff:
+                    filtered_events.append(e)
+        except Exception:
+            pass
+    
+    # Calculate statistics
+    total = len(filtered_events)
+    errors = sum(1 for e in filtered_events if e.get("severity") == "ERROR")
+    warnings = sum(1 for e in filtered_events if e.get("severity") == "WARN")
+    info = sum(1 for e in filtered_events if e.get("severity") == "INFO")
+    
+    # Count by type
+    by_type = {}
+    for e in filtered_events:
+        event_type = e.get("type", "UNKNOWN")
+        by_type[event_type] = by_type.get(event_type, 0) + 1
+    
+    # Recent critical events (last 10 errors or warnings)
+    recent_critical = [
+        e for e in reversed(filtered_events)
+        if e.get("severity") in ["ERROR", "WARN"]
+    ][:10]
+    
+    # Timeline data (hourly buckets)
+    timeline = []
+    for i in range(hours):
+        bucket_start = cutoff + dt.timedelta(hours=i)
+        bucket_end = bucket_start + dt.timedelta(hours=1)
+        
+        bucket_events = []
+        for e in filtered_events:
+            try:
+                ts_str = e.get("ts", "")
+                if ts_str:
+                    # Parse ISO format with Z suffix
+                    if ts_str.endswith("Z"):
+                        ts = dt.datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ")
+                    else:
+                        ts = dt.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                    
+                    if bucket_start <= ts < bucket_end:
+                        bucket_events.append(e)
+            except Exception:
+                pass
+        
+        timeline.append({
+            "timestamp": int(bucket_start.timestamp() * 1000),
+            "count": len(bucket_events),
+            "errors": sum(1 for e in bucket_events if e.get("severity") == "ERROR"),
+            "warnings": sum(1 for e in bucket_events if e.get("severity") == "WARN")
+        })
+    
+    return ok({
+        "total": total,
+        "errors": errors,
+        "warnings": warnings,
+        "info": info,
+        "byType": by_type,
+        "recentCritical": recent_critical,
+        "timeline": timeline
+    })
 
 # --- Collector ---
 
@@ -2409,23 +2607,37 @@ def api_restart_ui():
 
 @app.post("/api/system/restart")
 def api_system_restart():
-    """Restart UI or Xray service"""
-    target = request.args.get("target", "").strip().lower()
-    if target not in ["ui", "xray"]:
-        return fail("target must be 'ui' or 'xray'")
+    """Restart UI, Xray, NextJS or all services"""
+    target = request.args.get("target", "all").strip().lower()
+    if target not in ["ui", "xray", "nextjs", "all"]:
+        return fail("target must be 'ui', 'xray', 'nextjs' or 'all'")
     
-    if target == "ui":
+    results = []
+    
+    if target in ["ui", "all"]:
         append_event({"type": "SYSTEM", "severity": "WARN", "action": "restart_ui"})
         ok_r, msg = systemctl_restart(SERVICE_UI)
-    else:
+        results.append({"service": "ui", "ok": ok_r, "message": msg})
+    
+    if target in ["nextjs", "all"]:
+        append_event({"type": "SYSTEM", "severity": "WARN", "action": "restart_nextjs"})
+        ok_r, msg = systemctl_restart(SERVICE_NEXTJS)
+        results.append({"service": "nextjs", "ok": ok_r, "message": msg})
+    
+    if target == "xray":
         settings = load_settings()
         srv = settings["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
         append_event({"type": "SYSTEM", "severity": "WARN", "action": "restart_xray", "service": srv})
         ok_r, msg = systemctl_restart(srv)
+        results.append({"service": "xray", "ok": ok_r, "message": msg})
     
-    if not ok_r:
-        return fail(msg)
-    return ok({"result": msg, "target": target})
+    # Check if any failed
+    all_ok = all(r["ok"] for r in results)
+    if not all_ok:
+        failed = [r for r in results if not r["ok"]]
+        return fail(f"Some services failed: {failed}")
+    
+    return ok({"results": results, "target": target})
 
 def get_system_timezone() -> str:
     """Get system timezone info"""
@@ -2725,8 +2937,8 @@ def _get_live_now() -> Dict[str, Any]:
     with live_buffer_lock:
         cutoff = time.time() - 300  # 5 minutes
         online_users = set()
-        total_conns = 0
-        total_traffic = 0
+        conns_values = []
+        traffic_values = []
         
         # Aggregate from buffer
         for metric_name, metric_data in live_buffer.items():
@@ -2735,15 +2947,19 @@ def _get_live_now() -> Dict[str, Any]:
                     if metric_name == "online_users" and "users" in point:
                         online_users.update(point["users"])
                     elif metric_name == "conns":
-                        total_conns += point.get("value", 0)
+                        conns_values.append(point.get("value", 0))
                     elif metric_name == "traffic":
-                        total_traffic += point.get("value", 0)
+                        traffic_values.append(point.get("value", 0))
+        
+        # Use last value (most recent) instead of sum
+        current_conns = conns_values[-1] if conns_values else 0
+        current_traffic = traffic_values[-1] if traffic_values else 0
         
         return {
             "onlineUsers": list(online_users),  # Return list of user IDs
             "onlineUsersCount": len(online_users),
-            "conns": total_conns,
-            "trafficBytes": total_traffic,
+            "conns": current_conns,
+            "trafficBytes": current_traffic,
             "trafficAvailable": live_traffic_available,
         }
 
@@ -2773,7 +2989,7 @@ def api_live_series():
     # Validate
     if period not in [3600, 21600, 86400]:  # 60m, 6h, 24h
         period = 3600
-    if gran not in [60, 300, 600]:  # 1m, 5m, 10m
+    if gran not in [60, 300, 600, 900, 1800]:  # 1m, 5m, 10m, 15m, 30m
         gran = 300
     
     # Aggregate from ring buffer
@@ -2897,6 +3113,20 @@ def bootstrap():
     load_settings()
     _load_live_buffer_from_dump()
     
+    # Log startup event
+    try:
+        import sys
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        append_event({
+            "type": "SYSTEM",
+            "severity": "INFO",
+            "action": "startup",
+            "message": f"xray-report-ui started (Python {python_version})",
+            "version": "2.0"
+        })
+    except Exception:
+        pass
+    
     # Start background thread for live buffer updates (every minute)
     def live_updater():
         while True:
@@ -2908,8 +3138,156 @@ def bootstrap():
     
     updater_thread = threading.Thread(target=live_updater, daemon=True)
     updater_thread.start()
+    
+    # Start health check monitor (every 30 seconds)
+    def health_checker():
+        import socket
+        import http.client
+        
+        service_status = {}  # Track service states to detect changes
+        
+        while True:
+            try:
+                # Check Frontend (Next.js on port 3002)
+                frontend_healthy = False
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(2)
+                    result = sock.connect_ex(('127.0.0.1', NEXTJS_PORT))
+                    sock.close()
+                    frontend_healthy = (result == 0)
+                except Exception:
+                    frontend_healthy = False
+                
+                if service_status.get('frontend') != frontend_healthy:
+                    if not frontend_healthy:
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "ERROR",
+                            "action": "service_down",
+                            "service": "Frontend",
+                            "port": NEXTJS_PORT,
+                            "message": f"Сервис Frontend (порт {NEXTJS_PORT}) недоступен"
+                        })
+                    elif 'frontend' in service_status:  # Was down, now up
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "INFO",
+                            "action": "service_up",
+                            "service": "Frontend",
+                            "port": NEXTJS_PORT,
+                            "message": f"Сервис Frontend (порт {NEXTJS_PORT}) восстановлен"
+                        })
+                    service_status['frontend'] = frontend_healthy
+                
+                # Check API Backend (this server on APP_PORT)
+                backend_healthy = False
+                try:
+                    conn = http.client.HTTPConnection('127.0.0.1', APP_PORT, timeout=2)
+                    conn.request('GET', '/api/settings')
+                    response = conn.getresponse()
+                    backend_healthy = (response.status == 200)
+                    conn.close()
+                except Exception:
+                    backend_healthy = False
+                
+                if service_status.get('backend') != backend_healthy:
+                    if not backend_healthy:
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "ERROR",
+                            "action": "service_down",
+                            "service": "API Backend",
+                            "port": APP_PORT,
+                            "message": f"Сервис API Backend (порт {APP_PORT}) недоступен"
+                        })
+                    elif 'backend' in service_status:
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "INFO",
+                            "action": "service_up",
+                            "service": "API Backend",
+                            "port": APP_PORT,
+                            "message": f"Сервис API Backend (порт {APP_PORT}) восстановлен"
+                        })
+                    service_status['backend'] = backend_healthy
+                
+                # Check Xray service
+                xray_healthy = False
+                try:
+                    result = subprocess.run(
+                        ["systemctl", "is-active", SERVICE_XRAY_DEFAULT],
+                        capture_output=True,
+                        text=True,
+                        timeout=2
+                    )
+                    xray_healthy = (result.returncode == 0 and result.stdout.strip() == "active")
+                except Exception:
+                    xray_healthy = False
+                
+                if service_status.get('xray') != xray_healthy:
+                    if not xray_healthy:
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "ERROR",
+                            "action": "service_down",
+                            "service": "Xray",
+                            "message": "Сервис Xray не активен"
+                        })
+                    elif 'xray' in service_status:
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "INFO",
+                            "action": "service_up",
+                            "service": "Xray",
+                            "message": "Сервис Xray восстановлен"
+                        })
+                    service_status['xray'] = xray_healthy
+                
+            except Exception:
+                pass
+            
+            time.sleep(30)  # Check every 30 seconds
+    
+    health_thread = threading.Thread(target=health_checker, daemon=True)
+    health_thread.start()
 
 bootstrap()
+
+# Shutdown handler
+import atexit
+import signal
+
+def shutdown_handler():
+    """Log shutdown event"""
+    try:
+        append_event({
+            "type": "SYSTEM",
+            "severity": "INFO",
+            "action": "shutdown",
+            "message": "xray-report-ui shutting down"
+        })
+    except Exception:
+        pass
+
+atexit.register(shutdown_handler)
+
+def signal_handler(signum, frame):
+    """Handle termination signals"""
+    try:
+        append_event({
+            "type": "SYSTEM",
+            "severity": "WARN",
+            "action": "shutdown",
+            "message": f"xray-report-ui received signal {signum}"
+        })
+    except Exception:
+        pass
+    import sys
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
 
 if __name__ == "__main__":
     app.run(host=APP_HOST, port=APP_PORT, debug=False)

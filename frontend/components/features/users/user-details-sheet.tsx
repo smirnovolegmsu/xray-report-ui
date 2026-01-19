@@ -4,14 +4,20 @@ import { useEffect, useState } from 'react';
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Activity, HardDrive, Calendar, Globe } from 'lucide-react';
+import { 
+  HardDrive, 
+  Calendar, 
+  Globe, 
+  Clock, 
+  User, 
+  CalendarDays,
+  CalendarClock,
+  Timer
+} from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
@@ -63,69 +69,174 @@ export function UserDetailsSheet({
     const gb = bytes / 1024 / 1024 / 1024;
     if (gb < 1) {
       const mb = bytes / 1024 / 1024;
-      return `${mb.toFixed(1)} MB`;
+      return `${Math.round(mb)} MB`;
     }
-    return `${gb.toFixed(2)} GB`;
+    return `${gb.toFixed(1)} GB`;
+  };
+
+  const formatDate = (dateStr: string | undefined): string => {
+    if (!dateStr) return '—';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getDaysSince = (dateStr: string | undefined): number => {
+    if (!dateStr) return 0;
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  };
+
+  const formatDaysSince = (days: number): string => {
+    if (days === 0) return lang === 'ru' ? 'Сегодня' : 'Today';
+    if (days === 1) return lang === 'ru' ? '1 день' : '1 day';
+    if (lang === 'ru') {
+      if (days >= 11 && days <= 14) return `${days} дней`;
+      const lastDigit = days % 10;
+      if (lastDigit === 1) return `${days} день`;
+      if (lastDigit >= 2 && lastDigit <= 4) return `${days} дня`;
+      return `${days} дней`;
+    }
+    return `${days} days`;
   };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+      <SheetContent className="w-[400px] sm:w-[480px] overflow-y-auto p-0">
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+          className="flex flex-col h-full"
         >
-          <SheetHeader>
-            <SheetTitle>{stats?.alias || user.email}</SheetTitle>
-            <SheetDescription>
-              {lang === 'ru' ? 'Детальная статистика пользователя' : 'User detailed statistics'}
-            </SheetDescription>
-          </SheetHeader>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        ) : stats ? (
-          <div className="mt-6 space-y-6">
-            {/* Status Badge */}
-            <div className="flex items-center gap-2">
-              <Badge variant={stats.isOnline ? 'default' : 'secondary'}>
-                {stats.isOnline 
-                  ? (lang === 'ru' ? 'Онлайн' : 'Online')
-                  : (lang === 'ru' ? 'Офлайн' : 'Offline')}
-              </Badge>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid gap-4">
-              <Card className="p-4">
+          {/* Header */}
+          <div className="p-6 pb-4 border-b bg-muted/30">
+            <SheetHeader className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
-                    <HardDrive className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="w-6 h-6 text-primary" />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground">
-                      {lang === 'ru' ? 'Общий трафик' : 'Total Traffic'}
-                    </p>
-                    <p className="text-2xl font-bold">
-                      {formatBytes(stats.totalTrafficBytes || 0)}
+                  <div className="space-y-1">
+                    <SheetTitle className="text-lg leading-tight">
+                      {stats?.alias || user.email.split('@')[0]}
+                    </SheetTitle>
+                    <p className="text-sm text-muted-foreground font-mono">
+                      {user.email}
                     </p>
                   </div>
                 </div>
-              </Card>
+                {stats && (
+                  <Badge 
+                    variant={stats.isOnline ? 'default' : 'secondary'}
+                    className={stats.isOnline ? 'bg-green-600' : ''}
+                  >
+                    <div className={`w-2 h-2 rounded-full mr-1.5 ${stats.isOnline ? 'bg-white' : 'bg-muted-foreground'}`} />
+                    {stats.isOnline 
+                      ? (lang === 'ru' ? 'Онлайн' : 'Online')
+                      : (lang === 'ru' ? 'Офлайн' : 'Offline')}
+                  </Badge>
+                )}
+              </div>
+            </SheetHeader>
+          </div>
 
-              <Card className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
-                    <Calendar className="w-5 h-5 text-green-600 dark:text-green-400" />
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : stats ? (
+            <div className="flex-1 overflow-y-auto">
+              {/* Connection Dates Section */}
+              <div className="p-6 space-y-4 border-b">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  {lang === 'ru' ? 'Подключения' : 'Connections'}
+                </h3>
+                
+                <div className="grid gap-3">
+                  {/* First Connection */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                    <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                      <CalendarDays className="w-4 h-4 text-blue-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">
+                        {lang === 'ru' ? 'Первое подключение' : 'First Connection'}
+                      </p>
+                      <p className="text-sm font-medium truncate">
+                        {formatDate(stats.firstSeenAt)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground">
-                      {lang === 'ru' ? 'Дней использования' : 'Days Used'}
+
+                  {/* Last Connection */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                    <div className="w-9 h-9 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
+                      <CalendarClock className="w-4 h-4 text-green-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">
+                        {lang === 'ru' ? 'Последнее подключение' : 'Last Connection'}
+                      </p>
+                      <p className="text-sm font-medium truncate">
+                        {formatDate(stats.lastSeenAt)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Days Since Last Connection */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                    <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                      <Timer className="w-4 h-4 text-orange-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">
+                        {lang === 'ru' ? 'С последнего подключения' : 'Since Last Connection'}
+                      </p>
+                      <p className="text-sm font-medium">
+                        {stats.lastSeenAt ? formatDaysSince(getDaysSince(stats.lastSeenAt)) : '—'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Traffic Stats Section */}
+              <div className="p-6 space-y-4 border-b">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  {lang === 'ru' ? 'Статистика' : 'Statistics'}
+                </h3>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Total Traffic */}
+                  <div className="p-4 rounded-lg bg-blue-500/5 border border-blue-500/10">
+                    <div className="flex items-center gap-2 mb-2">
+                      <HardDrive className="w-4 h-4 text-blue-500" />
+                      <span className="text-xs text-muted-foreground">
+                        {lang === 'ru' ? 'Трафик' : 'Traffic'}
+                      </span>
+                    </div>
+                    <p className="text-xl font-bold">
+                      {formatBytes(stats.totalTrafficBytes || 0)}
                     </p>
-                    <p className="text-2xl font-bold">
+                  </div>
+
+                  {/* Days Used */}
+                  <div className="p-4 rounded-lg bg-green-500/5 border border-green-500/10">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar className="w-4 h-4 text-green-500" />
+                      <span className="text-xs text-muted-foreground">
+                        {lang === 'ru' ? 'Дней' : 'Days'}
+                      </span>
+                    </div>
+                    <p className="text-xl font-bold">
                       <NumberFlow 
                         value={stats.daysUsed || 0}
                         {...defaultNumberFlowConfig}
@@ -133,68 +244,66 @@ export function UserDetailsSheet({
                     </p>
                   </div>
                 </div>
-              </Card>
-            </div>
-
-            <Separator />
-
-            {/* Top Domains */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4 text-muted-foreground" />
-                <h3 className="text-sm font-semibold">
-                  {lang === 'ru' ? 'Топ-домены' : 'Top Domains'}
-                </h3>
               </div>
 
-              {stats.top3Domains && stats.top3Domains.length > 0 ? (
-                <div className="space-y-2">
-                  {stats.top3Domains.map((domain: any, idx: number) => (
-                    <Card key={idx} className="p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-mono text-sm truncate">
+              {/* Top Domains Section */}
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    {lang === 'ru' ? 'Топ домены' : 'Top Domains'}
+                  </h3>
+                </div>
+
+                {stats.top3Domains && stats.top3Domains.length > 0 ? (
+                  <div className="space-y-2">
+                    {stats.top3Domains.map((domain: any, idx: number) => (
+                      <div 
+                        key={idx} 
+                        className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="w-6 h-6 rounded bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
+                            {idx + 1}
+                          </div>
+                          <span className="font-mono text-sm truncate" title={domain.domain}>
                             {domain.domain}
-                          </p>
+                          </span>
                         </div>
-                        <div className="text-sm font-medium text-muted-foreground">
+                        <span className="text-sm font-medium text-muted-foreground shrink-0">
                           {formatBytes(domain.trafficBytes)}
-                        </div>
+                        </span>
                       </div>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {lang === 'ru' ? 'Нет данных' : 'No data'}
-                </p>
-              )}
-            </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    {lang === 'ru' ? 'Нет данных о доменах' : 'No domain data'}
+                  </p>
+                )}
+              </div>
 
-            <Separator />
-
-            {/* User Info */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold">
-                {lang === 'ru' ? 'Информация' : 'Information'}
-              </h3>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Email:</span>
-                  <span className="font-mono">{user.email}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">UUID:</span>
-                  <span className="font-mono text-xs">{user.uuid.slice(0, 8)}...</span>
+              {/* User Info Footer */}
+              <div className="p-6 pt-0">
+                <div className="p-3 rounded-lg bg-muted/30 text-xs text-muted-foreground">
+                  <div className="flex justify-between mb-1">
+                    <span>UUID:</span>
+                    <span className="font-mono">{user.uuid.slice(0, 12)}...</span>
+                  </div>
+                  {stats.alias && (
+                    <div className="flex justify-between">
+                      <span>{lang === 'ru' ? 'Псевдоним:' : 'Alias:'}</span>
+                      <span>{stats.alias}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="py-8 text-center text-muted-foreground">
-            {lang === 'ru' ? 'Нет данных' : 'No data available'}
-          </div>
-        )}
+          ) : (
+            <div className="py-16 text-center text-muted-foreground">
+              {lang === 'ru' ? 'Нет данных' : 'No data available'}
+            </div>
+          )}
         </motion.div>
       </SheetContent>
     </Sheet>

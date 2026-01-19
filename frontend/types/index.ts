@@ -15,11 +15,15 @@ export interface UserStats {
   totalTrafficBytes: number;
   daysUsed: number;
   isOnline: boolean;
+  firstSeenAt?: string; // ISO timestamp of first connection
+  lastSeenAt?: string; // ISO timestamp of last activity
   top3Domains: Array<{
     domain: string;
     trafficBytes: number;
   }>;
 }
+
+export type UserFilter = 'all' | 'active' | 'low-activity' | 'online';
 
 // ==================== SETTINGS TYPES ====================
 export interface Settings {
@@ -101,15 +105,58 @@ export interface UserLink {
 }
 
 // ==================== EVENT TYPES ====================
+export type EventType = 
+  | 'USER'           // User management events (add, delete, kick, update)
+  | 'SYSTEM'         // System events (startup, shutdown, restart)
+  | 'SETTINGS'       // Settings changes
+  | 'XRAY'           // Xray service events
+  | 'CONNECTION'     // User connection link generation (renamed from LINK)
+  | 'COLLECTOR'      // Data collector events
+  | 'SERVICE_HEALTH' // Service health monitoring (ports, availability)
+  | 'APP_ERROR'      // Application errors and exceptions
+  | 'PERFORMANCE'    // Performance warnings (slow responses, high load)
+  | 'UPDATE'         // Software updates and version checks
+  | 'UNKNOWN';       // Unknown event type
+
+export type EventSeverity = 'INFO' | 'WARN' | 'ERROR';
+
 export interface Event {
   ts: string;
-  type: 'USER' | 'SYSTEM' | 'SETTINGS' | 'XRAY' | 'UNKNOWN';
+  type: EventType;
   action: string;
-  severity: 'INFO' | 'WARN' | 'ERROR';
+  severity: EventSeverity;
   user?: string;
   email?: string;
   userId?: string;
   target?: string;
+  service?: string;
+  port?: number;
+  error?: string;
   message?: string;
   details?: string;
+  duration_ms?: number;
+  downtime_sec?: number;
+  endpoint?: string;
+  current?: string;
+  latest?: string;
+  version?: string;
+  enabled?: boolean;
+  result?: string;
+  alias?: string;
+}
+
+export interface EventsStats {
+  total: number;
+  errors: number;
+  warnings: number;
+  info: number;
+  byType: Record<EventType, number>;
+  recentCritical: Event[];
+}
+
+export interface EventsTimelinePoint {
+  timestamp: number;
+  count: number;
+  errors: number;
+  warnings: number;
 }

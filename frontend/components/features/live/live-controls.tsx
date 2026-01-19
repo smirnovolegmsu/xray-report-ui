@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Users, Globe, TrendingUp, Activity, Clock } from 'lucide-react';
 
 interface LiveControlsProps {
   scope: 'global' | 'users';
@@ -25,124 +24,135 @@ export function LiveControls({
   onGranularityChange,
 }: LiveControlsProps) {
   return (
-    <div className="space-y-3">
-      {/* Scope Selector */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-muted-foreground min-w-[80px]">Scope:</span>
-        <div className="inline-flex items-center rounded-lg border p-1 gap-1">
-          <Button
-            variant={scope === 'global' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => onScopeChange('global')}
-            className="gap-2"
-          >
-            <Globe className="w-4 h-4" />
-            Global
-          </Button>
-          <Button
-            variant={scope === 'users' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => onScopeChange('users')}
-            className="gap-2"
-          >
-            <Users className="w-4 h-4" />
-            Per User
-          </Button>
-        </div>
-      </div>
-
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
       {/* Metric Selector */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-muted-foreground min-w-[80px]">Metric:</span>
-        <div className="inline-flex items-center rounded-lg border p-1 gap-1">
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">Metric</label>
+        <div className="inline-flex items-center rounded-md border p-0.5 w-full">
           <Button
             variant={metric === 'traffic' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onMetricChange('traffic')}
-            className="gap-2"
+            className="flex-1 h-7 text-xs px-2"
           >
-            <TrendingUp className="w-4 h-4" />
             Traffic
           </Button>
           <Button
             variant={metric === 'conns' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onMetricChange('conns')}
-            className="gap-2"
+            className="flex-1 h-7 text-xs px-2"
           >
-            <Activity className="w-4 h-4" />
-            Connections
+            Conns
           </Button>
           <Button
             variant={metric === 'online' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onMetricChange('online')}
-            className="gap-2"
+            className="flex-1 h-7 text-xs px-2"
           >
-            <Users className="w-4 h-4" />
             Online
           </Button>
         </div>
       </div>
 
       {/* Period Selector */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-muted-foreground min-w-[80px]">Period:</span>
-        <div className="inline-flex items-center rounded-lg border p-1 gap-1">
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">Period</label>
+        <div className="inline-flex items-center rounded-md border p-0.5 w-full">
           <Button
             variant={period === '1h' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onPeriodChange('1h')}
+            className="flex-1 h-7 text-xs px-2"
           >
-            1 Hour
+            1h
           </Button>
           <Button
             variant={period === '6h' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onPeriodChange('6h')}
+            className="flex-1 h-7 text-xs px-2"
           >
-            6 Hours
+            6h
           </Button>
           <Button
             variant={period === '24h' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onPeriodChange('24h')}
+            className="flex-1 h-7 text-xs px-2"
           >
-            24 Hours
+            24h
           </Button>
         </div>
       </div>
 
       {/* Granularity Selector */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-muted-foreground min-w-[80px]">Granularity:</span>
-        <div className="inline-flex items-center rounded-lg border p-1 gap-1">
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">Granularity</label>
+        <div className="inline-flex items-center rounded-md border p-0.5 w-full">
           <Button
             variant={granularity === '1m' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onGranularityChange('1m')}
-            className="gap-2"
+            className="flex-1 h-7 text-xs px-1"
           >
-            <Clock className="w-3 h-3" />
-            1 Min
+            1m
           </Button>
           <Button
             variant={granularity === '5m' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onGranularityChange('5m')}
-            className="gap-2"
+            className="flex-1 h-7 text-xs px-1"
           >
-            <Clock className="w-3 h-3" />
-            5 Min
+            5m
           </Button>
           <Button
             variant={granularity === '10m' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onGranularityChange('10m')}
-            className="gap-2"
+            className="flex-1 h-7 text-xs px-1"
           >
-            <Clock className="w-3 h-3" />
-            10 Min
+            10m
+          </Button>
+          <Button
+            variant={granularity === '15m' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => onGranularityChange('15m')}
+            className="flex-1 h-7 text-xs px-1"
+          >
+            15m
+          </Button>
+          <Button
+            variant={granularity === '30m' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => onGranularityChange('30m')}
+            className="flex-1 h-7 text-xs px-1"
+          >
+            30m
+          </Button>
+        </div>
+      </div>
+
+      {/* Scope Selector */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">Scope</label>
+        <div className="inline-flex items-center rounded-md border p-0.5 w-full">
+          <Button
+            variant={scope === 'global' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => onScopeChange('global')}
+            className="flex-1 h-7 text-xs px-2"
+          >
+            Global
+          </Button>
+          <Button
+            variant={scope === 'users' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => onScopeChange('users')}
+            className="flex-1 h-7 text-xs px-2"
+          >
+            Per User
           </Button>
         </div>
       </div>

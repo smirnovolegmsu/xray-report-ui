@@ -7,6 +7,7 @@ import { Moon, Sun, Globe, Menu, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { StatusBadges } from './status-badges';
 import { ViewportToggle } from './viewport-toggle';
+import { PortsStatus } from './ports-status';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -28,54 +29,65 @@ export function Header({ onMenuClick, sidebarOpen }: HeaderProps = {}) {
   return (
     <header className="border-b h-12 flex items-center px-3 justify-between bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex items-center gap-2">
-        {/* Hamburger Menu Button - shows on mobile OR force-mobile mode */}
+        {/* Hamburger Menu Button - always visible for sidebar toggle */}
         <Button
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className="force-mobile:block md:force-mobile:block md:hidden h-8 w-8"
-          title={sidebarOpen ? 'Close menu' : 'Open menu'}
+          className="h-10 w-10 min-h-[44px] min-w-[44px] md:min-h-0 md:h-9 md:w-9"
+          title={sidebarOpen ? (lang === 'ru' ? 'Скрыть меню' : 'Hide menu') : (lang === 'ru' ? 'Показать меню' : 'Show menu')}
         >
-          {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
 
-        <h1 className="text-lg font-semibold hidden sm:block">Xray Admin Panel</h1>
-        <h1 className="text-base font-semibold sm:hidden">Xray</h1>
-        <Badge variant="outline" className="text-[10px] h-4 px-1.5">
+        {/* Adaptive title: full → short → shortest */}
+        <h1 className="text-base font-semibold hidden lg:block">Xray Admin Panel</h1>
+        <h1 className="text-base font-semibold hidden sm:block lg:hidden">Xray UI</h1>
+        <h1 className="text-sm font-semibold sm:hidden">Xray</h1>
+        
+        {/* Version badge - hide on very small screens */}
+        <Badge variant="outline" className="text-[10px] h-4 px-1.5 hidden min-[375px]:inline-flex">
           v2.1
         </Badge>
       </div>
 
-      <div className="flex items-center gap-1.5 md:gap-2">
-        {/* Status Badges */}
-        <StatusBadges />
+      <div className="flex items-center gap-1">
+        {/* Ports Status - show running ports */}
+        <PortsStatus />
+        
+        {/* Status Badges - hide on very small screens */}
+        <div className="hidden sm:block">
+          <StatusBadges />
+        </div>
 
-        {/* Viewport Toggle */}
-        <ViewportToggle />
+        {/* Viewport Toggle - hide on very small screens */}
+        <div className="hidden min-[400px]:block">
+          <ViewportToggle />
+        </div>
 
-        {/* Language Toggle */}
+        {/* Language Toggle - touch-friendly size */}
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleLang}
           title={lang === 'ru' ? 'Switch to English' : 'Переключить на Русский'}
-          className="h-8 w-8"
+          className="h-10 w-10 min-h-[44px] min-w-[44px]"
         >
-          <Globe className="h-4 w-4" />
+          <Globe className="h-5 w-5" />
         </Button>
 
-        {/* Theme Toggle */}
+        {/* Theme Toggle - touch-friendly size */}
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleTheme}
           title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          className="h-8 w-8"
+          className="h-10 w-10 min-h-[44px] min-w-[44px]"
         >
           {theme === 'dark' ? (
-            <Sun className="h-4 w-4" />
+            <Sun className="h-5 w-5" />
           ) : (
-            <Moon className="h-4 w-4" />
+            <Moon className="h-5 w-5" />
           )}
         </Button>
       </div>

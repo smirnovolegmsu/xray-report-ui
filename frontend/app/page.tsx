@@ -42,17 +42,17 @@ export default function OverviewPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-2">
+      <div className="space-y-2 smooth-scroll">
         {/* Header with Date, Mode and Metric controls */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Overview</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-lg font-bold tracking-tight truncate">Overview</h1>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">
               System overview and metrics
             </p>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col xs:flex-row sm:flex-row gap-1.5 sm:gap-2">
             <DateSelector 
               selectedDate={selectedDate}
               onDateChange={setSelectedDate}

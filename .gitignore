@@ -9,7 +9,6 @@ env/
 
 # Данные приложения (НЕ добавлять в Git)
 data/
-*.backup
 
 # IDE
 .cursor/
@@ -19,21 +18,31 @@ data/
 *.swo
 *~
 
+# Логи
+*.log
+logs/
+
 # Временные файлы
 *.tmp
-*.log
 .DS_Store
 Thumbs.db
 
-# История разработки и бэкапы (НЕ нужны в Git)
-*_back_up*/
-history/
-state/
-archive/
+# Legacy (если остались)
+static/
+templates/
+_archive_legacy/
 
-# Legacy archive - можно добавить в Git для истории
-# _archive_legacy/
-
-# Системные файлы Linux
+# Системные
 *.pid
 *.lock
+*.backup
+
+# Next.js
+frontend/.next/
+frontend/node_modules/
+frontend/.env*.local
+
+# Build
+build/
+dist/
+out/

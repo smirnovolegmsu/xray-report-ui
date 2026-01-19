@@ -43,42 +43,42 @@ export function TrafficChart({ selectedDate, mode, metric }: TrafficChartProps) 
       try {
         setLoading(true);
         
-        // Always use getUsageDashboard to support mode parameter
-        let response;
-        if (selectedDate) {
-          response = await apiClient.getUsageDashboard({
-            date: selectedDate,
-            mode,
-            window_days: 7
-          });
-        } else {
-          // Current data - use today's date
-          const today = new Date().toISOString().split('T')[0];
-          response = await apiClient.getUsageDashboard({
-            date: today,
-            mode,
-            window_days: 7
-          });
+        // Use getDashboard API (same as port 8787)
+        const response = await apiClient.getDashboard({ days: 14 });
+        const apiData = response.data as any;
+        
+        if (!apiData.ok) {
+          throw new Error(apiData.error || 'Failed to load data');
         }
         
-      const apiData = response.data as any;
-      
-      // Transform data from Flask API format
-      const dates = apiData.meta?.days || [];
-      const dailyTraffic = apiData.global?.daily_traffic_bytes || [];
-      const dailyConns = apiData.global?.daily_conns || [];
-      
-      const chartData = dates.map((dateStr: string, index: number) => ({
-        date: new Date(dateStr).toLocaleDateString('ru-RU', {
-          day: '2-digit',
-          month: '2-digit',
-        }),
-        traffic_gb: Math.round((dailyTraffic[index] / 1024 / 1024 / 1024) * 100) / 100,
-        connections: dailyConns[index] || 0,
-      }));
+        // Get data from global object
+        const globalData = apiData.global || {};
+        const dates = apiData.meta?.days || [];
+        
+        // Choose data based on mode
+        let trafficData: number[];
+        let connsData: number[];
+        
+        if (mode === 'cumulative') {
+          trafficData = globalData.cumulative_traffic_bytes || [];
+          connsData = globalData.cumulative_conns || [];
+        } else {
+          trafficData = globalData.daily_traffic_bytes || [];
+          connsData = globalData.daily_conns || [];
+        }
+        
+        const chartData = dates.map((dateStr: string, index: number) => ({
+          date: new Date(dateStr).toLocaleDateString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+          }),
+          traffic_gb: Math.round((trafficData[index] / 1024 / 1024 / 1024) * 100) / 100,
+          connections: connsData[index] || 0,
+        }));
 
       setData(chartData);
     } catch (error) {
+      console.error('Error loading chart data:', error);
       toast.error(handleApiError(error));
     } finally {
       setLoading(false);
@@ -87,34 +87,39 @@ export function TrafficChart({ selectedDate, mode, metric }: TrafficChartProps) 
 
   if (loading) {
     return (
-      <Card className="p-2">
+      <Card className="p-2 container-chart">
         <div className="h-3 w-28 bg-muted animate-pulse rounded mb-2"></div>
-        <div className="h-[160px] bg-muted animate-pulse rounded"></div>
+        <div className="h-[140px] @[400px]:h-[180px] @[600px]:h-[200px] bg-muted animate-pulse rounded"></div>
       </Card>
     );
   }
 
   if (data.length === 0) {
     return (
-      <Card className="p-2">
-        <h3 className="text-xs font-semibold mb-2">
+      <Card className="p-2 container-chart">
+        <h3 className="text-[10px] @[400px]:text-xs font-semibold mb-2">
           {lang === 'ru' ? 'Статистика за 7 дней' : 'Last 7 Days Stats'}
         </h3>
-        <div className="h-[160px] flex items-center justify-center text-muted-foreground text-xs">
+        <div className="h-[140px] @[400px]:h-[180px] flex items-center justify-center text-muted-foreground text-xs">
           {lang === 'ru' ? 'Нет данных для отображения' : 'No data to display'}
         </div>
       </Card>
     );
   }
 
+  // Adaptive chart height based on container width
+  const chartHeight = 'var(--chart-height, 140px)';
+
   return (
-    <Card className="p-2">
-      <h3 className="text-xs font-semibold mb-2">
+    <Card className="p-2 container-chart" style={{
+      '--chart-height': '140px'
+    } as React.CSSProperties}>
+      <h3 className="text-[10px] @[400px]:text-xs font-semibold mb-2 truncate">
         {metric === 'traffic' 
           ? (lang === 'ru' ? 'Трафик за 7 дней' : 'Traffic (7 Days)')
           : (lang === 'ru' ? 'Подключения за 7 дней' : 'Connections (7 Days)')}
       </h3>
-      <ResponsiveContainer width="100%" height={160}>
+      <ResponsiveContainer width="100%" height={140} className="@[400px]:!h-[180px] @[600px]:!h-[200px]">
         <AreaChart data={data}>
           <defs>
             <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
@@ -125,19 +130,21 @@ export function TrafficChart({ selectedDate, mode, metric }: TrafficChartProps) 
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis
             dataKey="date"
-            className="text-xs"
+            className="text-[9px] @[400px]:text-[10px]"
             stroke="currentColor"
+            tick={{ fontSize: 9 }}
           />
           <YAxis
-            className="text-xs"
+            className="text-[9px] @[400px]:text-[10px]"
             stroke="currentColor"
+            tick={{ fontSize: 9 }}
             label={{
               value: metric === 'traffic' 
-                ? (lang === 'ru' ? 'Трафик (GB)' : 'Traffic (GB)')
-                : (lang === 'ru' ? 'Подключения' : 'Connections'),
+                ? (lang === 'ru' ? 'GB' : 'GB')
+                : (lang === 'ru' ? 'Подкл.' : 'Conns'),
               angle: -90,
               position: 'insideLeft',
-              className: 'text-xs',
+              style: { fontSize: 9 },
             }}
           />
           <Tooltip
@@ -145,9 +152,11 @@ export function TrafficChart({ selectedDate, mode, metric }: TrafficChartProps) 
               backgroundColor: 'hsl(var(--background))',
               border: '1px solid hsl(var(--border))',
               borderRadius: '8px',
+              fontSize: '10px',
             }}
           />
-          <Legend />
+          {/* Hide legend on very small screens */}
+          <Legend wrapperStyle={{ fontSize: '10px' }} className="hidden @[400px]:block" />
           <Area
             type="monotone"
             dataKey={metric === 'traffic' ? 'traffic_gb' : 'connections'}

@@ -8,6 +8,7 @@ import { XraySettings } from '@/components/features/settings/xray-settings';
 import { CollectorSettings } from '@/components/features/settings/collector-settings';
 import { SystemSettings } from '@/components/features/settings/system-settings';
 import { BackupsSettings } from '@/components/features/settings/backups-settings';
+import { PortsSettings } from '@/components/features/settings/ports-settings';
 
 function SettingsContent() {
   const searchParams = useSearchParams();
@@ -28,6 +29,7 @@ function SettingsContent() {
           <TabsList>
             <TabsTrigger value="xray">Xray</TabsTrigger>
             <TabsTrigger value="collector">Collector</TabsTrigger>
+            <TabsTrigger value="ports">Ports</TabsTrigger>
             <TabsTrigger value="system">System</TabsTrigger>
             <TabsTrigger value="backups">Backups</TabsTrigger>
           </TabsList>
@@ -38,6 +40,10 @@ function SettingsContent() {
 
           <TabsContent value="collector" className="space-y-4">
             <CollectorSettings />
+          </TabsContent>
+
+          <TabsContent value="ports" className="space-y-4">
+            <PortsSettings />
           </TabsContent>
 
           <TabsContent value="system" className="space-y-4">

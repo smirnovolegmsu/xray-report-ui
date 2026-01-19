@@ -130,6 +130,64 @@
 }
 
 @layer utilities {
+  /* ========================================
+     CONTAINER QUERIES SUPPORT
+     ======================================== */
+  
+  /* Container types for adaptive components */
+  .container-card {
+    container-type: inline-size;
+    container-name: card;
+  }
+  
+  .container-metric {
+    container-type: inline-size;
+    container-name: metric;
+  }
+  
+  .container-user {
+    container-type: inline-size;
+    container-name: user;
+  }
+  
+  .container-chart {
+    container-type: inline-size;
+    container-name: chart;
+  }
+  
+  /* ========================================
+     RESPONSIVE TYPOGRAPHY WITH CLAMP
+     ======================================== */
+  
+  /* Fluid font sizes that scale with viewport */
+  .text-fluid-xs {
+    font-size: clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem); /* 10-12px */
+  }
+  
+  .text-fluid-sm {
+    font-size: clamp(0.75rem, 0.625rem + 0.5vw, 0.875rem); /* 12-14px */
+  }
+  
+  .text-fluid-base {
+    font-size: clamp(0.875rem, 0.75rem + 0.5vw, 1rem); /* 14-16px */
+  }
+  
+  .text-fluid-lg {
+    font-size: clamp(1rem, 0.875rem + 0.5vw, 1.125rem); /* 16-18px */
+  }
+  
+  .text-fluid-xl {
+    font-size: clamp(1.125rem, 1rem + 0.75vw, 1.5rem); /* 18-24px */
+  }
+  
+  .text-fluid-2xl {
+    font-size: clamp(1.25rem, 1rem + 1vw, 1.875rem); /* 20-30px */
+  }
+  
+  /* ========================================
+     EXISTING UTILITIES
+     ======================================== */
+  
   .gradient-blur {
     background: linear-gradient(
       135deg,
@@ -149,7 +207,24 @@
     50% { background-position: 100% 50%; }
   }
   
-  /* Mobile optimizations for iPhone 14 Pro Max and similar */
+  /* ========================================
+     MOBILE OPTIMIZATIONS
+     ======================================== */
+  
+  /* Touch-friendly targets - Apple HIG: minimum 44x44px */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Enhanced scrolling for mobile */
+  .smooth-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+  }
+  
+  /* Mobile breakpoints */
   @media (max-width: 428px) {
     /* iPhone 14 Pro Max: 430x932px */
     .mobile-hidden {
@@ -165,8 +240,9 @@
       width: 100% !important;
     }
     
-    /* Touch-friendly buttons (minimum 44x44px) */
-    button, a {
+    /* Touch-friendly interactive elements */
+    button:not(.no-touch-target), 
+    a:not(.no-touch-target) {
       min-height: 44px;
       min-width: 44px;
     }
@@ -180,6 +256,19 @@
     .mobile-scroll {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
+    }
+  }
+  
+  /* Very small phones (iPhone SE, etc) */
+  @media (max-width: 375px) {
+    .xs-hidden {
+      display: none !important;
+    }
+    
+    /* Even more compact spacing */
+    .xs-compact {
+      padding: 0.5rem !important;
+      gap: 0.5rem !important;
     }
   }
   
@@ -202,9 +291,21 @@
   
   /* Force Mobile View */
   .force-mobile {
-    /* Simulate mobile viewport */
+    /* Simulate mobile viewport with fixed width */
     max-width: 430px;
     margin: 0 auto;
+    /* Create a container for mobile simulation */
+    position: relative;
+  }
+  
+  /* Force mobile body to have dark background on sides */
+  .force-mobile::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.2);
+    z-index: -1;
+    pointer-events: none;
   }
   
   .force-mobile * {
@@ -231,6 +332,14 @@
   
   .force-mobile .mobile-scroll {
     overflow-x: auto !important;
+  }
+  
+  /* Ensure overlay works in force-mobile */
+  .force-mobile .sidebar-overlay {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    max-width: none !important;
   }
   
   /* Force Desktop View */
@@ -261,7 +370,7 @@
   @media (max-width: 768px) {
     /* On mobile, sidebar is hidden by default and slides in */
     aside {
-      box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+      box-shadow: 2px 0 16px rgba(0, 0, 0, 0.2);
     }
   }
   
@@ -276,7 +385,8 @@
   /* Force-mobile mode overrides */
   .force-mobile aside {
     position: fixed !important;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3) !important;
+    max-width: 256px !important;
   }
   
   /* Smooth transitions */
@@ -286,6 +396,38 @@
   
   /* Overlay backdrop */
   .sidebar-overlay {
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
+  
+  /* Ensure proper stacking in force-mobile */
+  .force-mobile .sidebar-overlay {
+    z-index: 45 !important;
+  }
+  
+  .force-mobile aside {
+    z-index: 50 !important;
+  }
+}
+
+/* Custom scrollbar styles for user cards */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thumb-muted::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 2px;
+}
+
+.scrollbar-thumb-muted::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.5);
+}
+
+.scrollbar-track-transparent::-webkit-scrollbar-track {
+  background-color: transparent;
 }

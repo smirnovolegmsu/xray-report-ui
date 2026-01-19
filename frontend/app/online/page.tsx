@@ -58,18 +58,15 @@ export default function OnlinePage() {
 
   return (
     <MainLayout>
-      <div className="space-y-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Live Monitoring</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Real-time connections and traffic
-          </p>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl md:text-2xl font-bold">Live Monitoring</h1>
         </div>
 
         <LiveNow />
 
-        {/* Controls Card */}
-        <Card className="p-4">
+        {/* Controls and Chart Combined */}
+        <Card className="p-3 md:p-4">
           <LiveControls
             scope={scope}
             metric={metric}
@@ -80,14 +77,16 @@ export default function OnlinePage() {
             onPeriodChange={handlePeriodChange}
             onGranularityChange={handleGranularityChange}
           />
+          
+          <div className="mt-3">
+            <LiveCharts 
+              scope={scope}
+              metric={metric}
+              period={period}
+              granularity={granularity}
+            />
+          </div>
         </Card>
-
-        <LiveCharts 
-          scope={scope}
-          metric={metric}
-          period={period}
-          granularity={granularity}
-        />
       </div>
     </MainLayout>
   );

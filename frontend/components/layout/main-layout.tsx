@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Header } from './header';
 import { Sidebar } from './sidebar';
 
@@ -20,6 +20,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       // Auto-close sidebar in mobile mode
       if (isMobileMode) {
         setSidebarOpen(false);
+      } else {
+        // On desktop, restore from localStorage
+        const saved = localStorage.getItem('sidebar-open');
+        if (saved !== null) {
+          setSidebarOpen(saved === 'true');
+        } else {
+          setSidebarOpen(true); // Default open on desktop
+        }
       }
     };
     
@@ -36,49 +44,61 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       attributeFilter: ['class'],
     });
     
-    // Load sidebar state from localStorage (desktop only)
-    if (!document.documentElement.classList.contains('force-mobile') && window.innerWidth >= 768) {
-      const saved = localStorage.getItem('sidebar-open');
-      if (saved !== null) {
-        setSidebarOpen(saved === 'true');
-      }
-    }
-    
     return () => {
       window.removeEventListener('resize', checkMobile);
       observer.disconnect();
     };
   }, []);
 
-  const toggleSidebar = () => {
-    const newState = !sidebarOpen;
-    setSidebarOpen(newState);
-    
-    // Save to localStorage only on desktop
-    if (!isMobile) {
-      localStorage.setItem('sidebar-open', String(newState));
-    }
-  };
+  // Use useCallback to prevent re-creation on every render
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen(prev => {
+      const newState = !prev;
+      
+      // Save to localStorage only on desktop
+      if (!isMobile) {
+        localStorage.setItem('sidebar-open', String(newState));
+      }
+      
+      return newState;
+    });
+  }, [isMobile]);
 
-  const closeSidebar = () => {
+  // Separate close function with useCallback
+  const closeSidebar = useCallback(() => {
     setSidebarOpen(false);
-  };
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Overlay for mobile when sidebar is open */}
       {isMobile && sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="sidebar-overlay fixed inset-0 bg-black/60 z-[45] md:hidden backdrop-blur-sm"
           onClick={closeSidebar}
+          role="button"
+          aria-label="Close sidebar"
+          style={{
+            // Ensure overlay covers everything in force-mobile mode
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
+          }}
         />
       )}
       
-      <Sidebar 
-        isOpen={sidebarOpen} 
-        isMobile={isMobile}
-        onClose={closeSidebar}
-      />
+      {/* Show sidebar only when open (both mobile and desktop) */}
+      {sidebarOpen && (
+        <Sidebar 
+          isOpen={sidebarOpen} 
+          isMobile={isMobile}
+          onClose={closeSidebar}
+        />
+      )}
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 

@@ -41,12 +41,28 @@ export function LiveCharts({ scope, metric, period, granularity }: LiveChartsPro
   const loadData = async () => {
     try {
       // Convert metric to API format
-      const apiMetric = metric === 'online' ? 'conns' : metric;
+      const apiMetric = metric === 'online' ? 'online_users' : metric;
+      
+      // Convert period string to seconds
+      const periodMap: Record<string, string> = {
+        '1h': '3600',
+        '6h': '21600',
+        '24h': '86400',
+      };
+      
+      // Convert granularity string to seconds
+      const granularityMap: Record<string, string> = {
+        '1m': '60',
+        '5m': '300',
+        '10m': '600',
+        '15m': '900',
+        '30m': '1800',
+      };
       
       const response = await apiClient.getLiveSeries({
         metric: apiMetric,
-        period,
-        gran: granularity,
+        period: periodMap[period] || '3600',
+        gran: granularityMap[granularity] || '300',
         scope,
       });
 
@@ -71,13 +87,13 @@ export function LiveCharts({ scope, metric, period, granularity }: LiveChartsPro
   };
 
   const getChartTitle = () => {
-    if (metric === 'traffic') {
-      return lang === 'ru' ? 'Трафик (MB)' : 'Traffic (MB)';
-    } else if (metric === 'conns') {
-      return lang === 'ru' ? 'Подключения' : 'Connections';
-    } else {
-      return lang === 'ru' ? 'Онлайн пользователи' : 'Online Users';
-    }
+    const titles: Record<string, { ru: string; en: string }> = {
+      traffic: { ru: 'Трафик (MB)', en: 'Traffic (MB)' },
+      conns: { ru: 'Активные подключения', en: 'Active Connections' },
+      online: { ru: 'Онлайн пользователи', en: 'Online Users' },
+    };
+    const title = titles[metric] || titles.conns;
+    return lang === 'ru' ? title.ru : title.en;
   };
 
   const getChartColor = () => {
@@ -87,61 +103,71 @@ export function LiveCharts({ scope, metric, period, granularity }: LiveChartsPro
   };
 
   return (
-    <div className="space-y-4">
-      {/* Pause Button */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setPaused(!paused)}
-          className="gap-2"
-        >
-          {paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-          {paused
-            ? (lang === 'ru' ? 'Возобновить' : 'Resume')
-            : (lang === 'ru' ? 'Пауза' : 'Pause')}
-        </Button>
-
-        <span className="text-sm text-muted-foreground">
-          {paused
-            ? (lang === 'ru' ? 'На паузе' : 'Paused')
-            : (lang === 'ru' ? 'Обновление каждые 5 сек' : 'Updating every 5s')}
-        </span>
+    <div className="space-y-2">
+      {/* Chart Header with Pause */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">{getChartTitle()}</h3>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {paused ? (lang === 'ru' ? 'Пауза' : 'Paused') : (lang === 'ru' ? 'Обновление 5с' : 'Update 5s')}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPaused(!paused)}
+            className="h-7 w-7 p-0"
+          >
+            {paused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+          </Button>
+        </div>
       </div>
 
       {/* Chart */}
-      <Card className="p-4">
-        <h3 className="text-sm font-semibold mb-3">{getChartTitle()}</h3>
-        {loading ? (
-          <div className="h-[300px] bg-muted animate-pulse rounded"></div>
-        ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis
-                dataKey="time"
-                className="text-xs"
-                stroke="currentColor"
-              />
-              <YAxis className="text-xs" stroke="currentColor" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--popover))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke={getChartColor()}
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </Card>
+      {loading ? (
+        <div className="h-[250px] md:h-[300px] bg-muted animate-pulse rounded"></div>
+      ) : chartData.length === 0 ? (
+        <div className="h-[250px] md:h-[300px] flex items-center justify-center border rounded-lg">
+          <p className="text-sm text-muted-foreground">
+            {lang === 'ru' ? 'Нет данных' : 'No data'}
+          </p>
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={250}>
+          <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <XAxis
+              dataKey="time"
+              className="text-xs"
+              stroke="currentColor"
+              tick={{ fontSize: 10 }}
+            />
+            <YAxis className="text-xs" stroke="currentColor" tick={{ fontSize: 10 }} />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'hsl(var(--popover))',
+                border: '1px solid hsl(var(--border))',
+                borderRadius: '8px',
+                fontSize: '12px',
+              }}
+              formatter={(value: number | undefined) => {
+                if (value === undefined) return ['0', ''];
+                if (metric === 'traffic') {
+                  return [`${value.toFixed(2)} MB`, 'Traffic'];
+                }
+                return [value.toFixed(0), metric === 'online' ? 'Users' : 'Connections'];
+              }}
+            />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke={getChartColor()}
+              strokeWidth={2}
+              dot={false}
+              animationDuration={300}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
     </div>
   );
 }

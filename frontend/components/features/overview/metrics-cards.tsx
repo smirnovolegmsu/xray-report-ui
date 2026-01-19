@@ -8,15 +8,17 @@ import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import NumberFlow from '@number-flow/react';
 import { defaultNumberFlowConfig } from '@/lib/number-flow-config';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 interface DashboardStats {
   users_total: number;
   users_active: number;
   traffic_total_bytes: number;
+  traffic_prev_bytes: number;
   connections_total: number;
-  prev_traffic_total_bytes: number;
-  prev_connections_total: number;
+  connections_prev: number;
+  avg_traffic_per_user: number;
+  avg_traffic_prev: number;
 }
 
 interface MetricsCardsProps {
@@ -37,53 +39,52 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
     try {
       setLoading(true);
       
-      // Always use getUsageDashboard to support mode parameter
-      let response;
-      if (selectedDate) {
-        // Historical data with selected date
-        response = await apiClient.getUsageDashboard({
-          date: selectedDate,
-          mode,
-          window_days: 7
-        });
-      } else {
-        // Current data - use today's date
-        const today = new Date().toISOString().split('T')[0];
-        response = await apiClient.getUsageDashboard({
-          date: today,
-          mode,
-          window_days: 7
-        });
-      }
-      
+      // Use getDashboard API (same as port 8787) - always works with 14 days for comparison
+      const response = await apiClient.getDashboard({ days: 14 });
       const data = response.data as any;
       
-      // Calculate totals from Flask API format
-      const dailyTraffic = data.global?.daily_traffic_bytes || [];
-      const dailyConns = data.global?.daily_conns || [];
-      const prevDailyTraffic = data.global?.prev_daily_traffic_bytes || [];
-      const prevDailyConns = data.global?.prev_daily_conns || [];
-      const users = data.users || {};
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to load dashboard data');
+      }
       
+      // Extract data from API response
+      const globalData = data.global || {};
+      const usersData = data.users || {};
+      
+      // Get traffic arrays
+      const dailyTraffic = globalData.daily_traffic_bytes || [];
+      const prevDailyTraffic = globalData.prev_daily_traffic_bytes || [];
+      const dailyConns = globalData.daily_conns || [];
+      const prevDailyConns = globalData.prev_daily_conns || [];
+      
+      // Calculate totals
       const traffic_total = dailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
+      const traffic_prev = prevDailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
       const connections_total = dailyConns.reduce((sum: number, val: number) => sum + val, 0);
-      const prev_traffic_total = prevDailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
-      const prev_connections_total = prevDailyConns.reduce((sum: number, val: number) => sum + val, 0);
+      const connections_prev = prevDailyConns.reduce((sum: number, val: number) => sum + val, 0);
       
-      const users_total = Object.keys(users).length;
-      const users_active = Object.values(users).filter(
+      // Count users
+      const users_total = Object.keys(usersData).length;
+      const users_active = Object.values(usersData).filter(
         (u: any) => (u.daily_traffic_bytes || []).some((v: number) => v > 0)
       ).length;
+      
+      // Calculate average per user
+      const avg_traffic = users_total > 0 ? traffic_total / users_total : 0;
+      const avg_traffic_prev = users_total > 0 ? traffic_prev / users_total : 0;
       
       setStats({
         users_total,
         users_active,
         traffic_total_bytes: traffic_total,
+        traffic_prev_bytes: traffic_prev,
         connections_total,
-        prev_traffic_total_bytes: prev_traffic_total,
-        prev_connections_total: prev_connections_total,
+        connections_prev,
+        avg_traffic_per_user: avg_traffic,
+        avg_traffic_prev: avg_traffic_prev,
       });
     } catch (error) {
+      console.error('Error loading dashboard stats:', error);
       toast.error(handleApiError(error));
     } finally {
       setLoading(false);
@@ -98,25 +99,19 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const calculateChange = (current: number, previous: number): { percent: number; isPositive: boolean } => {
-    if (previous === 0) {
-      return { percent: current > 0 ? 100 : 0, isPositive: current > 0 };
-    }
-    const change = ((current - previous) / previous) * 100;
-    return { percent: Math.abs(change), isPositive: change >= 0 };
-  };
-
   if (loading) {
     return (
-      <div className="grid gap-2 md:grid-cols-4">
+      <div className="grid gap-2" style={{
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))'
+      }}>
         {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="p-3">
+          <Card key={i} className="p-2.5 min-h-[100px]">
             <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="h-3 w-20 bg-muted animate-pulse rounded"></div>
-                <div className="h-6 w-14 bg-muted animate-pulse rounded"></div>
+              <div className="space-y-1 flex-1">
+                <div className="h-3 w-16 bg-muted animate-pulse rounded"></div>
+                <div className="h-6 w-12 bg-muted animate-pulse rounded"></div>
               </div>
-              <div className="w-10 h-10 bg-muted animate-pulse rounded-full"></div>
+              <div className="w-8 h-8 bg-muted animate-pulse rounded-full"></div>
             </div>
           </Card>
         ))}
@@ -126,11 +121,15 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
 
   if (!stats) return null;
 
-  const trafficChange = calculateChange(stats.traffic_total_bytes, stats.prev_traffic_total_bytes);
-  const connsChange = calculateChange(stats.connections_total, stats.prev_connections_total);
-  const avgTrafficCurrent = stats.users_total > 0 ? stats.traffic_total_bytes / stats.users_total : 0;
-  const avgTrafficPrev = stats.users_total > 0 ? stats.prev_traffic_total_bytes / stats.users_total : 0;
-  const avgTrafficChange = calculateChange(avgTrafficCurrent, avgTrafficPrev);
+  // Calculate percentage changes
+  const calculateChange = (current: number, previous: number): number | null => {
+    if (previous === 0) return null;
+    return ((current - previous) / previous) * 100;
+  };
+
+  const trafficChange = calculateChange(stats.traffic_total_bytes, stats.traffic_prev_bytes);
+  const connsChange = calculateChange(stats.connections_total, stats.connections_prev);
+  const avgTrafficChange = calculateChange(stats.avg_traffic_per_user, stats.avg_traffic_prev);
 
   const cards = [
     {
@@ -162,9 +161,7 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
     },
     {
       title: lang === 'ru' ? 'Средний трафик' : 'Avg Traffic',
-      value: stats.users_total > 0 
-        ? formatBytes((stats.traffic_total_bytes || 0) / stats.users_total)
-        : '0 B',
+      value: formatBytes(stats.avg_traffic_per_user || 0),
       subtitle: lang === 'ru' ? 'На пользователя' : 'Per user',
       icon: Zap,
       color: 'orange',
@@ -211,7 +208,10 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
 
   return (
     <motion.div
-      className="grid gap-2 md:grid-cols-2 lg:grid-cols-4"
+      className="grid gap-2"
+      style={{
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))'
+      }}
       variants={containerVariants}
       initial="hidden"
       animate="visible"
@@ -221,15 +221,15 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
         const colors = colorClasses[card.color as keyof typeof colorClasses];
 
         return (
-          <motion.div key={index} variants={cardVariants}>
-            <Card className="p-3">
+          <motion.div key={index} variants={cardVariants} className="container-metric">
+            <Card className="p-2.5 min-h-[100px]">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] @[180px]:text-xs text-muted-foreground truncate">
                     {card.title}
                   </p>
-                  <div className="flex items-baseline gap-1.5 mt-0.5">
-                    <p className="text-2xl font-bold">
+                  <div className="flex items-baseline gap-1 mt-0.5 flex-wrap">
+                    <p className="text-xl @[180px]:text-2xl font-bold">
                       {card.isNumber === false ? (
                         card.value
                       ) : (
@@ -240,31 +240,24 @@ export function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
                         />
                       )}
                     </p>
-                    {card.change && (
-                      <AnimatePresence mode="wait">
-                        <motion.span
-                          key={card.change.isPositive ? 'up' : 'down'}
-                          initial={{ scale: 0, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0, opacity: 0 }}
-                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                          className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            card.change.isPositive 
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                          }`}
-                        >
-                          {card.change.isPositive ? '↑' : '↓'} {card.change.percent.toFixed(1)}%
-                        </motion.span>
-                      </AnimatePresence>
+                    {/* Show change percentage */}
+                    {card.change !== null && card.change !== undefined && (
+                      <span className={`text-[10px] font-semibold ${
+                        card.change > 0 ? 'text-green-600 dark:text-green-400' : 
+                        card.change < 0 ? 'text-red-600 dark:text-red-400' : 
+                        'text-gray-500'
+                      }`}>
+                        {card.change > 0 ? '↑' : card.change < 0 ? '↓' : '='}{Math.abs(card.change).toFixed(1)}%
+                      </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate hidden @[180px]:block">
                     {card.subtitle}
                   </p>
                 </div>
-                <div className={`w-10 h-10 ${colors.bg} rounded-full flex items-center justify-center`}>
-                  <Icon className={`w-5 h-5 ${colors.text}`} />
+                {/* Icon - hide on very small, show on larger */}
+                <div className={`hidden @[200px]:flex w-8 h-8 @[220px]:w-10 @[220px]:h-10 ${colors.bg} rounded-full items-center justify-center shrink-0`}>
+                  <Icon className={`w-4 h-4 @[220px]:w-5 @[220px]:h-5 ${colors.text}`} />
                 </div>
               </div>
             </Card>
