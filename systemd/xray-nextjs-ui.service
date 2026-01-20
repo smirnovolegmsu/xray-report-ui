@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/xray-report-ui/frontend
+WorkingDirectory=/opt/xray-report-ui/frontend/.next/standalone
 
 # Environment variables
 Environment="PORT=3000"
@@ -15,7 +15,8 @@ Environment="NODE_OPTIONS=--max-old-space-size=512"
 Environment="HOSTNAME=0.0.0.0"
 
 # Используем standalone build для минимального потребления памяти
-ExecStart=/usr/bin/node /opt/xray-report-ui/frontend/.next/standalone/server.js
+# WorkingDirectory должен быть в standalone директории для правильных путей к статическим файлам
+ExecStart=/usr/bin/node server.js
 
 Restart=always
 RestartSec=10

@@ -333,20 +333,60 @@ export interface EventsStatsResponse {
 }
 
 // ==================== COLLECTOR TYPES ====================
+export interface CronJobStats {
+  runs_count: number;
+  last_run?: string;
+  last_success?: string;
+  last_error?: string;
+  errors_count: number;
+  created_files: string[];
+  files_count: number;
+  total_size_bytes?: number;
+  date_range?: {
+    oldest: string | null;
+    newest: string | null;
+  };
+  log_entries?: string[];
+}
+
+export interface CronJobStatus {
+  active: boolean;
+  reason?: string;
+}
+
+export interface CronJob {
+  schedule: string;
+  command: string;
+  script?: string;
+  description?: string;
+  stats?: CronJobStats;
+  status?: CronJobStatus;
+}
+
+export interface CronInfo {
+  found: boolean;
+  schedule?: string;
+  command?: string;
+  file?: string;
+  type?: string;
+  jobs_count?: number;
+  all_jobs?: CronJob[];
+}
+
 export interface CollectorStatus {
   enabled: boolean;
   last_run?: string;
   next_run?: string;
   schedule?: string;
   status?: string;
-  cron?: {
-    found: boolean;
-    all_jobs?: Array<{
-      status?: {
-        active: boolean;
-      };
-    }>;
-  };
+  usage_dir?: string;
+  files_count?: number;
+  lag_days?: number | null;
+  newest_file?: string | null;
+  disabled_reason?: string;
+  active_jobs_count?: number;
+  total_jobs_count?: number;
+  cron?: CronInfo;
 }
 
 // ==================== XRAY CONFIG TYPES ====================
@@ -398,4 +438,58 @@ export interface BackupDetail {
 
 export interface BackupContent {
   content: any;
+}
+
+export interface BackupCreateResponse {
+  backup: Backup;
+  message: string;
+}
+
+export interface BackupRestorePreview {
+  preview: true;
+  current: {
+    users_count: number;
+    config_exists: boolean;
+  };
+  backup: {
+    users_count: number;
+    inbounds_count: number;
+  };
+  warning: string;
+}
+
+export interface BackupRestoreResult {
+  restored: true;
+  backup_name: string;
+  pre_restore_backup: string | null;
+  restart_result: {
+    ok: boolean;
+    message: string;
+  } | null;
+  message: string;
+}
+
+export interface CollectorToggleResponse {
+  enabled: boolean;
+  cron_modified: boolean;
+  jobs_modified: number;
+  message: string;
+}
+
+export interface CollectorRunResponse {
+  success: boolean;
+  scripts_run: number;
+  scripts_failed: string[];
+  return_code: number;
+  output: string;
+  message: string;
+}
+
+export interface VersionResponse {
+  version: string;
+  name: string;
+  components: {
+    backend: string;
+    api: string;
+  };
 }

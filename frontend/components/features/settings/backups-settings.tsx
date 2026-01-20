@@ -24,26 +24,31 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { EmptyState } from '@/components/ui/empty-state';
 import { 
   Download, 
   RefreshCw, 
   Archive, 
   ChevronDown, 
   ChevronRight, 
-  Eye, 
   Users, 
   Server, 
   Network,
   User,
-  Code,
-  FileJson
+  FileJson,
+  Plus,
+  RotateCcw,
+  Trash2,
+  AlertTriangle,
+  Info,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/utils';
 import { CardLoadingSpinner } from '@/components/ui/loading-spinner';
-import type { Backup, BackupPreview, BackupDetail, BackupUser } from '@/types';
+import type { Backup, BackupPreview, BackupDetail, BackupRestorePreview } from '@/types';
 
 interface BackupWithPreview extends Backup {
   preview?: BackupPreview;
@@ -60,6 +65,29 @@ export function BackupsSettings() {
     open: false,
     content: null,
     filename: '',
+  });
+  const [creating, setCreating] = useState(false);
+  const [restoreDialog, setRestoreDialog] = useState<{
+    open: boolean;
+    filename: string;
+    preview: BackupRestorePreview | null;
+    loading: boolean;
+    restoring: boolean;
+  }>({
+    open: false,
+    filename: '',
+    preview: null,
+    loading: false,
+    restoring: false,
+  });
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    filename: string;
+    loading: boolean;
+  }>({
+    open: false,
+    filename: '',
+    loading: false,
   });
   const { lang } = useAppStore();
 
@@ -129,12 +157,10 @@ export function BackupsSettings() {
   const toggleRow = (index: number) => {
     const backup = backups[index];
     
-    // Load preview if not loaded
     if (!backup.preview && !backup.loadingPreview) {
       loadPreview(backup, index);
     }
     
-    // Load detail when expanding
     const willExpand = !expandedRows.has(index);
     if (willExpand && !backup.detail && !backup.loadingDetail) {
       loadDetail(backup, index);
@@ -164,6 +190,95 @@ export function BackupsSettings() {
     }
   };
 
+  const handleCreateBackup = async () => {
+    try {
+      setCreating(true);
+      const response = await apiClient.createBackup();
+      toast.success(
+        lang === 'ru' 
+          ? `Бэкап создан: ${response.data.backup.name}` 
+          : `Backup created: ${response.data.backup.name}`
+      );
+      loadBackups();
+    } catch (error) {
+      toast.error(handleApiError(error));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleRestoreClick = async (filename: string) => {
+    setRestoreDialog({
+      open: true,
+      filename,
+      preview: null,
+      loading: true,
+      restoring: false,
+    });
+
+    try {
+      const response = await apiClient.restoreBackup(filename, false);
+      if ('preview' in response.data) {
+        setRestoreDialog(prev => ({
+          ...prev,
+          preview: response.data as BackupRestorePreview,
+          loading: false,
+        }));
+      }
+    } catch (error) {
+      toast.error(handleApiError(error));
+      setRestoreDialog(prev => ({ ...prev, open: false }));
+    }
+  };
+
+  const handleRestoreConfirm = async () => {
+    setRestoreDialog(prev => ({ ...prev, restoring: true }));
+
+    try {
+      const response = await apiClient.restoreBackup(restoreDialog.filename, true, true);
+      if ('restored' in response.data && response.data.restored) {
+        toast.success(
+          lang === 'ru' 
+            ? 'Конфигурация успешно восстановлена' 
+            : 'Configuration restored successfully'
+        );
+        setRestoreDialog(prev => ({ ...prev, open: false }));
+        loadBackups();
+      }
+    } catch (error) {
+      toast.error(handleApiError(error));
+    } finally {
+      setRestoreDialog(prev => ({ ...prev, restoring: false }));
+    }
+  };
+
+  const handleDeleteClick = (filename: string) => {
+    setDeleteDialog({
+      open: true,
+      filename,
+      loading: false,
+    });
+  };
+
+  const handleDeleteConfirm = async () => {
+    setDeleteDialog(prev => ({ ...prev, loading: true }));
+
+    try {
+      await apiClient.deleteBackup(deleteDialog.filename);
+      toast.success(
+        lang === 'ru' 
+          ? 'Бэкап удален' 
+          : 'Backup deleted'
+      );
+      setDeleteDialog(prev => ({ ...prev, open: false }));
+      loadBackups();
+    } catch (error) {
+      toast.error(handleApiError(error));
+    } finally {
+      setDeleteDialog(prev => ({ ...prev, loading: false }));
+    }
+  };
+
   const formatDate = (dateStr: string | undefined): string => {
     if (!dateStr) return lang === 'ru' ? 'Неизвестно' : 'Unknown';
     try {
@@ -171,7 +286,7 @@ export function BackupsSettings() {
       if (isNaN(date.getTime())) {
         return lang === 'ru' ? 'Неверная дата' : 'Invalid Date';
       }
-      return date.toLocaleString('ru-RU', {
+      return date.toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
@@ -218,30 +333,61 @@ export function BackupsSettings() {
     <>
       <Card className="p-6">
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h3 className="text-lg font-semibold">
                 {lang === 'ru' ? 'Бэкапы конфигурации' : 'Configuration Backups'}
               </h3>
               <p className="text-sm text-muted-foreground">
                 {lang === 'ru'
-                  ? 'История изменений конфигурации Xray. Раскройте строку для просмотра деталей.'
-                  : 'History of Xray configuration changes. Expand row to view details.'}
+                  ? 'Управление бэкапами конфигурации Xray. Бэкапы создаются автоматически при изменениях.'
+                  : 'Manage Xray configuration backups. Backups are created automatically on changes.'}
               </p>
             </div>
-            <Button size="sm" variant="outline" onClick={loadBackups}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              {lang === 'ru' ? 'Обновить' : 'Refresh'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                size="sm" 
+                onClick={handleCreateBackup}
+                disabled={creating}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {creating 
+                  ? (lang === 'ru' ? 'Создание...' : 'Creating...')
+                  : (lang === 'ru' ? 'Создать бэкап' : 'Create Backup')}
+              </Button>
+              <Button size="sm" variant="outline" onClick={loadBackups}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                {lang === 'ru' ? 'Обновить' : 'Refresh'}
+              </Button>
+            </div>
           </div>
 
-          {backups.length === 0 ? (
-            <div className="text-center py-12">
-              <Archive className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">
-                {lang === 'ru' ? 'Нет бэкапов' : 'No backups found'}
+          {/* Info card */}
+          <Card className="p-3 bg-blue-500/10 border-blue-500/20">
+            <div className="flex items-start gap-2">
+              <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-500">
+                {lang === 'ru'
+                  ? 'Бэкапы создаются автоматически при добавлении/удалении пользователей и изменении настроек Xray.'
+                  : 'Backups are created automatically when adding/removing users and changing Xray settings.'}
               </p>
             </div>
+          </Card>
+
+          {backups.length === 0 ? (
+            <EmptyState
+              icon={Archive}
+              title={lang === 'ru' ? 'Нет бэкапов' : 'No backups found'}
+              description={lang === 'ru' 
+                ? 'Создайте первый бэкап вручную или дождитесь автоматического создания при изменениях'
+                : 'Create your first backup manually or wait for automatic creation on changes'}
+              action={
+                <Button onClick={handleCreateBackup} disabled={creating}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  {lang === 'ru' ? 'Создать бэкап' : 'Create Backup'}
+                </Button>
+              }
+            />
           ) : (
             <div className="border rounded-lg overflow-hidden">
               <Table>
@@ -250,9 +396,8 @@ export function BackupsSettings() {
                     <TableHead className="w-12"></TableHead>
                     <TableHead className="w-[180px]">{lang === 'ru' ? 'Дата' : 'Date'}</TableHead>
                     <TableHead className="min-w-[200px]">{lang === 'ru' ? 'Превью' : 'Preview'}</TableHead>
-                    <TableHead className="w-[100px]">{lang === 'ru' ? 'Тип' : 'Type'}</TableHead>
                     <TableHead className="w-[100px]">{lang === 'ru' ? 'Размер' : 'Size'}</TableHead>
-                    <TableHead className="w-[120px] text-right">
+                    <TableHead className="w-[180px] text-right">
                       {lang === 'ru' ? 'Действия' : 'Actions'}
                     </TableHead>
                   </TableRow>
@@ -315,16 +460,22 @@ export function BackupsSettings() {
                                 </span>
                               )}
                             </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs">
-                                {backup.name.includes('config') ? 'config' : 'backup'}
-                              </Badge>
-                            </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {backup.size ? formatSize(backup.size) : '—'}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRestoreClick(backup.name);
+                                  }}
+                                  title={lang === 'ru' ? 'Восстановить' : 'Restore'}
+                                >
+                                  <RotateCcw className="w-4 h-4" />
+                                </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -347,19 +498,31 @@ export function BackupsSettings() {
                                 >
                                   <Download className="w-4 h-4" />
                                 </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteClick(backup.name);
+                                  }}
+                                  title={lang === 'ru' ? 'Удалить' : 'Delete'}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
                           <CollapsibleContent asChild>
                             <TableRow>
-                              <TableCell colSpan={6} className="p-0 bg-muted/20">
+                              <TableCell colSpan={5} className="p-0 bg-muted/20">
                                 {backup.loadingDetail ? (
                                   <div className="p-8 text-center">
                                     <CardLoadingSpinner />
                                   </div>
                                 ) : detail ? (
                                   <div className="p-6 space-y-6">
-                                    {/* Статистика */}
+                                    {/* Statistics */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                       <Card className="p-4">
                                         <div className="flex items-center gap-3">
@@ -423,94 +586,49 @@ export function BackupsSettings() {
                                       </Card>
                                     </div>
 
-                                    {/* Инбаунды */}
-                                    {detail.inbounds.length > 0 && (
-                                      <div className="space-y-4">
-                                        <h4 className="text-sm font-semibold flex items-center gap-2">
-                                          <Network className="w-4 h-4" />
-                                          {lang === 'ru' ? 'Инбаунды' : 'Inbounds'}
-                                        </h4>
-                                        <div className="grid gap-3 md:grid-cols-2">
-                                          {detail.inbounds.map((inbound, i) => (
-                                            <Card key={i} className="p-4">
-                                              <div className="space-y-3">
-                                                <div className="flex items-center justify-between">
-                                                  <div className="flex items-center gap-2">
-                                                    <Badge variant="outline">
-                                                      {inbound.protocol}
-                                                    </Badge>
-                                                    <span className="text-sm font-medium">
-                                                      {lang === 'ru' ? 'Порт' : 'Port'}: {inbound.port}
-                                                    </span>
-                                                  </div>
-                                                  {inbound.tag && (
-                                                    <Badge variant="secondary" className="text-xs">
-                                                      {inbound.tag}
-                                                    </Badge>
-                                                  )}
-                                                </div>
-                                                {inbound.listen && (
-                                                  <div className="text-xs text-muted-foreground">
-                                                    {lang === 'ru' ? 'Слушает' : 'Listen'}: {inbound.listen}
-                                                  </div>
-                                                )}
-                                                {inbound.users.length > 0 && (
-                                                  <div className="text-xs text-muted-foreground">
-                                                    {lang === 'ru' ? 'Пользователей' : 'Users'}: {inbound.users.length}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            </Card>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Пользователи */}
+                                    {/* Users list */}
                                     {detail.users.length > 0 && (
-                                      <div className="space-y-4">
+                                      <div className="space-y-3">
                                         <h4 className="text-sm font-semibold flex items-center gap-2">
                                           <Users className="w-4 h-4" />
                                           {lang === 'ru' ? 'Пользователи' : 'Users'} ({detail.users.length})
                                         </h4>
-                                        <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                                          {detail.users.map((user, i) => (
-                                            <Card key={i} className="p-3 hover:shadow-md transition-shadow">
-                                              <div className="space-y-2">
-                                                <div className="flex items-start justify-between gap-2">
-                                                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                                      <User className="w-4 h-4 text-primary" />
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                      <div className="font-medium text-sm truncate">
-                                                        {user.alias || user.email.split('@')[0]}
-                                                      </div>
-                                                      <div className="text-xs text-muted-foreground font-mono truncate">
-                                                        {user.email}
-                                                      </div>
-                                                    </div>
+                                        <div className="grid gap-2 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                                          {detail.users.slice(0, 9).map((user, i) => (
+                                            <Card key={i} className="p-3">
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                                  <User className="w-4 h-4 text-primary" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                  <div className="font-medium text-sm truncate">
+                                                    {user.alias || user.email.split('@')[0]}
+                                                  </div>
+                                                  <div className="text-xs text-muted-foreground font-mono truncate">
+                                                    {user.email}
                                                   </div>
                                                 </div>
-                                                {user.flow && (
-                                                  <Badge variant="outline" className="text-xs">
-                                                    {user.flow}
-                                                  </Badge>
-                                                )}
-                                                {user.id && (
-                                                  <div className="text-xs font-mono text-muted-foreground truncate">
-                                                    {user.id.substring(0, 8)}...
-                                                  </div>
-                                                )}
                                               </div>
                                             </Card>
                                           ))}
+                                          {detail.users.length > 9 && (
+                                            <Card className="p-3 flex items-center justify-center text-sm text-muted-foreground">
+                                              +{detail.users.length - 9} {lang === 'ru' ? 'ещё' : 'more'}
+                                            </Card>
+                                          )}
                                         </div>
                                       </div>
                                     )}
 
-                                    {/* Действия */}
+                                    {/* Actions */}
                                     <div className="flex gap-2 pt-4 border-t">
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleRestoreClick(backup.name)}
+                                      >
+                                        <RotateCcw className="w-4 h-4 mr-2" />
+                                        {lang === 'ru' ? 'Восстановить' : 'Restore'}
+                                      </Button>
                                       <Button
                                         size="sm"
                                         variant="outline"
@@ -525,7 +643,7 @@ export function BackupsSettings() {
                                         onClick={() => handleDownload(backup.name)}
                                       >
                                         <Download className="w-4 h-4 mr-2" />
-                                        {lang === 'ru' ? 'Скачать файл' : 'Download File'}
+                                        {lang === 'ru' ? 'Скачать' : 'Download'}
                                       </Button>
                                     </div>
                                   </div>
@@ -545,9 +663,17 @@ export function BackupsSettings() {
               </Table>
             </div>
           )}
+          
+          {/* Total count */}
+          {backups.length > 0 && (
+            <p className="text-xs text-muted-foreground text-right">
+              {lang === 'ru' ? `Всего бэкапов: ${backups.length}` : `Total backups: ${backups.length}`}
+            </p>
+          )}
         </div>
       </Card>
 
+      {/* View JSON Dialog */}
       <Dialog open={viewDialog.open} onOpenChange={(open) => setViewDialog({ ...viewDialog, open })}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
           <DialogHeader>
@@ -566,6 +692,69 @@ export function BackupsSettings() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Restore Confirmation Dialog */}
+      <ConfirmDialog
+        open={restoreDialog.open}
+        onOpenChange={(open) => setRestoreDialog(prev => ({ ...prev, open }))}
+        title={lang === 'ru' ? 'Восстановить бэкап?' : 'Restore backup?'}
+        description={lang === 'ru' 
+          ? 'Текущая конфигурация будет заменена. Перед восстановлением будет создан бэкап текущего состояния.'
+          : 'Current configuration will be replaced. A backup of current state will be created before restore.'}
+        variant="warning"
+        confirmText={lang === 'ru' ? 'Восстановить' : 'Restore'}
+        onConfirm={handleRestoreConfirm}
+        loading={restoreDialog.restoring}
+      >
+        {restoreDialog.loading ? (
+          <div className="flex items-center justify-center py-4">
+            <CardLoadingSpinner />
+          </div>
+        ) : restoreDialog.preview && (
+          <div className="space-y-3">
+            <Card className="p-3 bg-yellow-500/10 border-yellow-500/20">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                  {restoreDialog.preview.warning}
+                </p>
+              </div>
+            </Card>
+            
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <h4 className="font-medium mb-1">{lang === 'ru' ? 'Текущее' : 'Current'}</h4>
+                <p className="text-muted-foreground">
+                  {lang === 'ru' ? 'Пользователей:' : 'Users:'} {restoreDialog.preview.current.users_count}
+                </p>
+              </div>
+              <div>
+                <h4 className="font-medium mb-1">{lang === 'ru' ? 'Из бэкапа' : 'From backup'}</h4>
+                <p className="text-muted-foreground">
+                  {lang === 'ru' ? 'Пользователей:' : 'Users:'} {restoreDialog.preview.backup.users_count}
+                </p>
+                <p className="text-muted-foreground">
+                  {lang === 'ru' ? 'Инбаундов:' : 'Inbounds:'} {restoreDialog.preview.backup.inbounds_count}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </ConfirmDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}
+        title={lang === 'ru' ? 'Удалить бэкап?' : 'Delete backup?'}
+        description={lang === 'ru' 
+          ? `Вы уверены, что хотите удалить бэкап "${deleteDialog.filename}"? Это действие нельзя отменить.`
+          : `Are you sure you want to delete backup "${deleteDialog.filename}"? This action cannot be undone.`}
+        variant="destructive"
+        confirmText={lang === 'ru' ? 'Удалить' : 'Delete'}
+        onConfirm={handleDeleteConfirm}
+        loading={deleteDialog.loading}
+      />
     </>
   );
 }

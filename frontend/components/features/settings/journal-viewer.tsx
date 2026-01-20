@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Pause, Play } from 'lucide-react';
+import { RefreshCw, Pause, Play, Download, Copy } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/utils';
 
@@ -15,6 +16,8 @@ export function JournalViewer({ target = 'ui' }: { target?: 'ui' | 'xray' }) {
   const [logs, setLogs] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [timezone, setTimezone] = useState<string>('');
+  const { lang } = useAppStore();
 
   useEffect(() => {
     loadLogs();
@@ -33,7 +36,10 @@ export function JournalViewer({ target = 'ui' }: { target?: 'ui' | 'xray' }) {
   const loadLogs = async () => {
     try {
       const response = await apiClient.getJournal({ target, limit: lines });
-      setLogs(response.data.journal || 'No logs available');
+      setLogs(response.data.journal || (lang === 'ru' ? 'Нет данных' : 'No logs available'));
+      if (response.data.timezone) {
+        setTimezone(response.data.timezone);
+      }
       setLoading(false);
     } catch (error) {
       toast.error(handleApiError(error));
@@ -42,7 +48,6 @@ export function JournalViewer({ target = 'ui' }: { target?: 'ui' | 'xray' }) {
   };
 
   const parseLogLine = (line: string) => {
-    // Color code log levels
     if (line.includes('ERROR') || line.includes('error')) {
       return 'text-red-500';
     }
@@ -55,30 +60,57 @@ export function JournalViewer({ target = 'ui' }: { target?: 'ui' | 'xray' }) {
     return 'text-foreground';
   };
 
+  const handleCopy = () => {
+    navigator.clipboard.writeText(logs);
+    toast.success(lang === 'ru' ? 'Логи скопированы' : 'Logs copied to clipboard');
+  };
+
+  const handleDownload = () => {
+    const blob = new Blob([logs], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${target}-journal-${new Date().toISOString().slice(0, 10)}.log`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    toast.success(lang === 'ru' ? 'Файл скачан' : 'File downloaded');
+  };
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Journal Logs</CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge variant={autoRefresh ? 'default' : 'outline'}>
-              {autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
-            </Badge>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg">
+              {lang === 'ru' ? 'Журнал логов' : 'Journal Logs'}
+            </CardTitle>
+            {timezone && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {lang === 'ru' ? 'Часовой пояс:' : 'Timezone:'} {timezone}
+              </p>
+            )}
           </div>
+          <Badge variant={autoRefresh ? 'default' : 'outline'}>
+            {autoRefresh 
+              ? (lang === 'ru' ? 'Авто-обновление: вкл' : 'Auto-refresh: on')
+              : (lang === 'ru' ? 'Авто-обновление: выкл' : 'Auto-refresh: off')}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Controls */}
         <div className="flex flex-wrap gap-3">
           <Select value={lines.toString()} onValueChange={(v) => setLines(parseInt(v))}>
-            <SelectTrigger className="w-[120px]">
+            <SelectTrigger className="w-[140px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="50">50 lines</SelectItem>
-              <SelectItem value="100">100 lines</SelectItem>
-              <SelectItem value="200">200 lines</SelectItem>
-              <SelectItem value="500">500 lines</SelectItem>
+              <SelectItem value="50">50 {lang === 'ru' ? 'строк' : 'lines'}</SelectItem>
+              <SelectItem value="100">100 {lang === 'ru' ? 'строк' : 'lines'}</SelectItem>
+              <SelectItem value="200">200 {lang === 'ru' ? 'строк' : 'lines'}</SelectItem>
+              <SelectItem value="500">500 {lang === 'ru' ? 'строк' : 'lines'}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -89,7 +121,7 @@ export function JournalViewer({ target = 'ui' }: { target?: 'ui' | 'xray' }) {
             disabled={loading}
           >
             <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {lang === 'ru' ? 'Обновить' : 'Refresh'}
           </Button>
 
           <Button
@@ -100,14 +132,34 @@ export function JournalViewer({ target = 'ui' }: { target?: 'ui' | 'xray' }) {
             {autoRefresh ? (
               <>
                 <Pause className="w-4 h-4 mr-1" />
-                Pause
+                {lang === 'ru' ? 'Стоп' : 'Pause'}
               </>
             ) : (
               <>
                 <Play className="w-4 h-4 mr-1" />
-                Auto
+                {lang === 'ru' ? 'Авто' : 'Auto'}
               </>
             )}
+          </Button>
+
+          <div className="flex-1" />
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCopy}
+          >
+            <Copy className="w-4 h-4 mr-1" />
+            {lang === 'ru' ? 'Копировать' : 'Copy'}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDownload}
+          >
+            <Download className="w-4 h-4 mr-1" />
+            {lang === 'ru' ? 'Скачать' : 'Download'}
           </Button>
         </div>
 

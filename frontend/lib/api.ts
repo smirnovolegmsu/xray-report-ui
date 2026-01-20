@@ -21,6 +21,12 @@ import type {
   BackupPreview,
   BackupDetail,
   BackupContent,
+  BackupCreateResponse,
+  BackupRestorePreview,
+  BackupRestoreResult,
+  CollectorToggleResponse,
+  CollectorRunResponse,
+  VersionResponse,
 } from '@/types';
 
 // Создаём axios instance
@@ -36,6 +42,9 @@ const api = axios.create({
 export const apiClient = {
   // Ping
   ping: () => api.get<ApiResponse>('/ping'),
+  
+  // Version
+  getVersion: () => api.get<VersionResponse>('/version'),
 
   // Settings
   getSettings: () => api.get<Settings>('/settings'),
@@ -134,7 +143,11 @@ export const apiClient = {
   // Collector
   getCollectorStatus: () => api.get<CollectorStatus>('/collector/status'),
   
-  toggleCollector: () => api.post<ApiResponse>('/collector/toggle'),
+  toggleCollector: (enabled: boolean, script?: string) => 
+    api.post<CollectorToggleResponse>('/collector/toggle', { enabled, script }),
+  
+  runCollector: (includeToday: boolean = false) =>
+    api.post<CollectorRunResponse>('/collector/run', { include_today: includeToday }),
   
   updateCronSchedule: (script: string, schedule: string) =>
     api.post<ApiResponse>('/collector/update-schedule', { script, schedule }),
@@ -156,6 +169,19 @@ export const apiClient = {
       params: { filename },
       responseType: 'blob',
     }),
+  
+  createBackup: () =>
+    api.post<BackupCreateResponse>('/backups/create'),
+  
+  restoreBackup: (filename: string, confirm: boolean = false, restartXray: boolean = true) =>
+    api.post<BackupRestorePreview | BackupRestoreResult>('/backups/restore', {
+      filename,
+      confirm,
+      restart_xray: restartXray,
+    }),
+  
+  deleteBackup: (filename: string) =>
+    api.post<ApiResponse>('/backups/delete', { filename }),
   
   // Live Top
   getLiveTop: (params: {

@@ -13,6 +13,7 @@ import type { DashboardApiResponse } from '@/types';
 interface ChartDataPoint {
   date: string;
   value: number;
+  actualValue: number;
   [key: string]: string | number;
 }
 
@@ -52,14 +53,27 @@ export const TrafficChart = memo(function TrafficChart({ selectedDate, mode, met
         connsData = globalData.daily_conns || [];
       }
       
-      const chartData = dates.map((dateStr: string, index: number) => ({
+      // Calculate raw values
+      const rawValues = dates.map((dateStr: string, index: number) => ({
         date: new Date(dateStr).toLocaleDateString('ru-RU', {
           day: '2-digit',
           month: '2-digit',
         }),
-        value: metric === 'traffic' 
+        rawValue: metric === 'traffic' 
           ? Math.round((trafficData[index] / 1024 / 1024 / 1024) * 100) / 100
           : connsData[index] || 0,
+      }));
+      
+      // Find max value for scaling
+      const maxValue = Math.max(...rawValues.map(d => d.rawValue), 0.01);
+      // Set minimum visible height at 5% of max (so small values are still visible)
+      const minVisibleValue = maxValue * 0.05;
+      
+      // Apply minimum visible value while preserving actual value for labels
+      const chartData = rawValues.map(d => ({
+        date: d.date,
+        value: Math.max(d.rawValue, minVisibleValue),
+        actualValue: d.rawValue, // Preserve actual value for label
       }));
 
       setData(chartData);
@@ -132,10 +146,18 @@ export const TrafficChart = memo(function TrafficChart({ selectedDate, mode, met
           labelSkipWidth={12}
           labelSkipHeight={12}
           label={(d) => {
+            // Use actualValue for label (real data), not display value
+            const actualVal = (d.data as { actualValue?: number }).actualValue ?? Number(d.value);
             if (metric === 'traffic') {
-              return `${Number(d.value).toFixed(1)} GB`;
+              const gb = actualVal;
+              // Show MB for values less than 0.1 GB
+              if (gb < 0.1) {
+                const mb = gb * 1024;
+                return mb < 1 ? `${(mb * 1024).toFixed(0)} KB` : `${mb.toFixed(0)} MB`;
+              }
+              return `${gb.toFixed(1)} GB`;
             }
-            const yValue = Number(d.value);
+            const yValue = actualVal;
             return yValue >= 1000 ? `${(yValue / 1000).toFixed(1)}k` : yValue.toString();
           }}
           labelTextColor="hsl(var(--foreground))"

@@ -445,12 +445,33 @@ def backup_file(path: str, label: str) -> str:
         shutil.copy2(path, dst)
     return dst
 
+def save_xray_stats_before_restart() -> None:
+    """Save Xray statistics before restart to prevent data loss"""
+    try:
+        script_path = "/usr/local/bin/xray_daily_usage.sh"
+        if os.path.exists(script_path):
+            subprocess.run(
+                [script_path],
+                capture_output=True,
+                timeout=30,
+                env={**os.environ, "LABEL_DATE": dt.datetime.now().strftime("%Y-%m-%d")}
+            )
+    except Exception as e:
+        # Log but don't fail - stats saving shouldn't block restart
+        print(f"Warning: Failed to save stats before restart: {e}")
+
 def systemctl_restart(service: str) -> Tuple[bool, str]:
     allowed = {SERVICE_UI, SERVICE_XRAY_DEFAULT, "xray", SERVICE_NEXTJS}
     s = load_settings()
-    allowed.add(s["xray"].get("service_name", SERVICE_XRAY_DEFAULT))
+    xray_service = s["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
+    allowed.add(xray_service)
     if service not in allowed:
         return False, f"service_not_allowed: {service}"
+    
+    # IMPORTANT: Save Xray statistics BEFORE restart to prevent data loss
+    if service in {SERVICE_XRAY_DEFAULT, "xray", xray_service}:
+        save_xray_stats_before_restart()
+    
     try:
         cp = subprocess.run(["systemctl", "restart", service], capture_output=True, text=True, timeout=30)
         if cp.returncode != 0:
@@ -1036,6 +1057,21 @@ def users_test_page():
 @app.get("/api/ping")
 def api_ping():
     return ok({"ts": now_utc_iso()})
+
+# Application version
+APP_VERSION = "2.1.0"
+
+@app.get("/api/version")
+def api_version():
+    """Get application version and build info"""
+    return ok({
+        "version": APP_VERSION,
+        "name": "Xray Report UI",
+        "components": {
+            "backend": APP_VERSION,
+            "api": "v1",
+        }
+    })
 
 @app.get("/api/ports/status")
 def api_ports_status():
@@ -2090,34 +2126,66 @@ def api_events_stats():
         if e.get("severity") in ["ERROR", "WARN"]
     ][:10]
     
-    # Timeline data (hourly buckets)
+    # Timeline data - optimize for long periods
     timeline = []
-    for i in range(hours):
-        bucket_start = cutoff + dt.timedelta(hours=i)
-        bucket_end = bucket_start + dt.timedelta(hours=1)
-        
-        bucket_events = []
-        for e in filtered_events:
-            try:
-                ts_str = e.get("ts", "")
-                if ts_str:
-                    # Parse ISO format with Z suffix
-                    if ts_str.endswith("Z"):
-                        ts = dt.datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ")
-                    else:
-                        ts = dt.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-                    
-                    if bucket_start <= ts < bucket_end:
-                        bucket_events.append(e)
-            except Exception:
-                pass
-        
-        timeline.append({
-            "timestamp": int(bucket_start.timestamp() * 1000),
-            "count": len(bucket_events),
-            "errors": sum(1 for e in bucket_events if e.get("severity") == "ERROR"),
-            "warnings": sum(1 for e in bucket_events if e.get("severity") == "WARN")
-        })
+    
+    # For periods > 7 days, aggregate by days instead of hours
+    if hours > 168:  # > 7 days
+        days = hours // 24
+        for i in range(days):
+            bucket_start = cutoff + dt.timedelta(days=i)
+            bucket_end = bucket_start + dt.timedelta(days=1)
+            
+            bucket_events = []
+            for e in filtered_events:
+                try:
+                    ts_str = e.get("ts", "")
+                    if ts_str:
+                        # Parse ISO format with Z suffix
+                        if ts_str.endswith("Z"):
+                            ts = dt.datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ")
+                        else:
+                            ts = dt.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        
+                        if bucket_start <= ts < bucket_end:
+                            bucket_events.append(e)
+                except Exception:
+                    pass
+            
+            timeline.append({
+                "timestamp": int(bucket_start.timestamp() * 1000),
+                "count": len(bucket_events),
+                "errors": sum(1 for e in bucket_events if e.get("severity") == "ERROR"),
+                "warnings": sum(1 for e in bucket_events if e.get("severity") == "WARN")
+            })
+    else:
+        # Hourly buckets for shorter periods
+        for i in range(hours):
+            bucket_start = cutoff + dt.timedelta(hours=i)
+            bucket_end = bucket_start + dt.timedelta(hours=1)
+            
+            bucket_events = []
+            for e in filtered_events:
+                try:
+                    ts_str = e.get("ts", "")
+                    if ts_str:
+                        # Parse ISO format with Z suffix
+                        if ts_str.endswith("Z"):
+                            ts = dt.datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ")
+                        else:
+                            ts = dt.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        
+                        if bucket_start <= ts < bucket_end:
+                            bucket_events.append(e)
+                except Exception:
+                    pass
+            
+            timeline.append({
+                "timestamp": int(bucket_start.timestamp() * 1000),
+                "count": len(bucket_events),
+                "errors": sum(1 for e in bucket_events if e.get("severity") == "ERROR"),
+                "warnings": sum(1 for e in bucket_events if e.get("severity") == "WARN")
+            })
     
     return ok({
         "total": total,
@@ -2199,8 +2267,9 @@ def _check_cron_job_status(cron_file: str, schedule: str, command: str) -> Dict[
     return status
 
 def _parse_cron_log(script_name: str, usage_dir: str) -> Dict[str, Any]:
-    """Parse cron.log to get statistics for a script"""
-    log_path = os.path.join(usage_dir, "cron.log")
+    """Parse cron.log and file system to get statistics for a script"""
+    import re
+    
     stats = {
         "runs_count": 0,
         "last_run": None,
@@ -2208,52 +2277,101 @@ def _parse_cron_log(script_name: str, usage_dir: str) -> Dict[str, Any]:
         "last_error": None,
         "errors_count": 0,
         "created_files": [],
-        "files_count": 0
+        "files_count": 0,
+        "total_size_bytes": 0,
+        "date_range": {"oldest": None, "newest": None},
+        "log_entries": []  # Last few log entries for this script
     }
     
-    if not os.path.exists(log_path):
-        return stats
-    
-    try:
-        with open(log_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        # Parse last 2000 lines (to avoid loading huge files)
-        for line in reversed(lines[-2000:]):
-            if script_name in line:
-                stats["runs_count"] += 1
-                if stats["last_run"] is None:
-                    # Try to extract timestamp
-                    import re
-                    ts_match = re.search(r'(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})', line)
-                    if ts_match:
-                        stats["last_run"] = ts_match.group(1)
-                
-                # Check for errors
-                if any(err in line.lower() for err in ['error', 'failed', 'exception', 'traceback']):
-                    stats["errors_count"] += 1
-                    if stats["last_error"] is None:
-                        stats["last_error"] = line.strip()[:200]
-                elif any(succ in line.lower() for succ in ['success', 'done', 'complete', 'wrote']):
-                    if stats["last_success"] is None:
-                        stats["last_success"] = line.strip()[:200]
-    except Exception as e:
-        pass
-    
-    # Find files created by this script
+    # Determine file pattern based on script name
     if "usage" in script_name:
         pattern = "usage_*.csv"
+        file_prefix = "usage_"
     elif "conns" in script_name:
         pattern = "conns_*.csv"
+        file_prefix = "conns_"
     elif "report" in script_name:
         pattern = "report_*.csv"
+        file_prefix = "report_"
     else:
         pattern = None
+        file_prefix = None
     
+    # Analyze files first (more reliable than log parsing)
     if pattern:
-        files = sorted(glob.glob(os.path.join(usage_dir, pattern)), reverse=True)
-        stats["created_files"] = [os.path.basename(f) for f in files[:10]]  # Last 10 files
+        files = sorted(glob.glob(os.path.join(usage_dir, pattern)))
         stats["files_count"] = len(files)
+        
+        if files:
+            # Calculate total size
+            total_size = 0
+            for f in files:
+                try:
+                    total_size += os.path.getsize(f)
+                except:
+                    pass
+            stats["total_size_bytes"] = total_size
+            
+            # Get file list (last 10)
+            stats["created_files"] = [os.path.basename(f) for f in files[-10:]][::-1]
+            
+            # Extract dates from filenames
+            dates = []
+            for f in files:
+                basename = os.path.basename(f)
+                # Extract date from filename like usage_2026-01-19.csv
+                date_match = re.search(r'(\d{4}-\d{2}-\d{2})', basename)
+                if date_match:
+                    dates.append(date_match.group(1))
+            
+            if dates:
+                dates.sort()
+                stats["date_range"]["oldest"] = dates[0]
+                stats["date_range"]["newest"] = dates[-1]
+            
+            # Get last modification time as proxy for last run
+            newest_file = files[-1]
+            try:
+                mtime = os.path.getmtime(newest_file)
+                stats["last_run"] = dt.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                stats["last_run_error"] = str(e)
+            
+            # Each file = one successful run (approximately)
+            stats["runs_count"] = len(files)
+    
+    # Parse cron.log for additional info (errors, recent entries)
+    log_path = os.path.join(usage_dir, "cron.log")
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+            
+            # Find lines related to this script's files
+            relevant_lines = []
+            for line in lines[-500:]:  # Last 500 lines
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                # Check if line mentions files created by this script
+                if file_prefix and file_prefix in line:
+                    relevant_lines.append(line)
+                    
+                    # Check for errors
+                    if any(err in line.lower() for err in ['error', 'failed', 'exception', 'traceback', 'no such file']):
+                        stats["errors_count"] += 1
+                        if stats["last_error"] is None:
+                            stats["last_error"] = line[:200]
+                    elif 'wrote' in line.lower():
+                        if stats["last_success"] is None:
+                            stats["last_success"] = line[:200]
+            
+            # Keep last 5 relevant log entries
+            stats["log_entries"] = relevant_lines[-5:][::-1]
+            
+        except Exception as e:
+            pass
     
     return stats
 
@@ -2432,18 +2550,233 @@ def api_collector_status():
 
 @app.post("/api/collector/toggle")
 def api_collector_toggle():
+    """Toggle collector cron jobs on/off by commenting/uncommenting lines in cron file"""
     if not request.is_json:
         return fail("json_required")
     j = request.get_json(silent=True) or {}
     enabled = bool(j.get("enabled"))
+    job_script = j.get("script")  # Optional: toggle specific job
     
+    cron_file = "/etc/cron.d/xray-usage"
+    
+    # Update settings
     with LOCK:
         s = load_settings()
         s["collector"]["enabled"] = enabled
         save_settings(s)
     
-    append_event({"type": "COLLECTOR", "severity": "INFO", "action": "toggle", "enabled": enabled})
-    return ok({"enabled": enabled})
+    # If cron file doesn't exist, just update settings
+    if not os.path.exists(cron_file):
+        append_event({"type": "COLLECTOR", "severity": "INFO", "action": "toggle", "enabled": enabled, "message": "Settings updated (no cron file)"})
+        return ok({"enabled": enabled, "cron_modified": False, "message": "Settings updated, but cron file not found"})
+    
+    try:
+        # Read current cron file
+        with open(cron_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        new_lines = []
+        modified_count = 0
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            # Skip empty lines and shell/path declarations
+            if not stripped or stripped.startswith('SHELL=') or stripped.startswith('PATH=') or stripped.startswith('MAILTO='):
+                new_lines.append(line)
+                continue
+            
+            # Check if this is a cron job line (has schedule pattern)
+            is_commented = stripped.startswith('#')
+            job_line = stripped.lstrip('#').strip()
+            
+            # Check if it looks like a cron job (starts with schedule or is a job we care about)
+            parts = job_line.split()
+            if len(parts) >= 6:
+                # This looks like a cron job
+                # If job_script specified, only toggle that specific job
+                if job_script and job_script not in line:
+                    new_lines.append(line)
+                    continue
+                
+                if enabled:
+                    # Enable: uncomment the line
+                    if is_commented:
+                        # Remove leading # and preserve indentation
+                        new_line = line.replace('#', '', 1)
+                        new_lines.append(new_line)
+                        modified_count += 1
+                    else:
+                        new_lines.append(line)
+                else:
+                    # Disable: comment the line
+                    if not is_commented:
+                        # Add # at the beginning, preserve the rest
+                        leading_space = len(line) - len(line.lstrip())
+                        new_line = line[:leading_space] + '#' + line[leading_space:]
+                        new_lines.append(new_line)
+                        modified_count += 1
+                    else:
+                        new_lines.append(line)
+            else:
+                new_lines.append(line)
+        
+        # Write updated cron file
+        if modified_count > 0:
+            with open(cron_file, 'w', encoding='utf-8') as f:
+                f.writelines(new_lines)
+        
+        append_event({
+            "type": "COLLECTOR", 
+            "severity": "INFO", 
+            "action": "toggle", 
+            "enabled": enabled,
+            "jobs_modified": modified_count
+        })
+        
+        return ok({
+            "enabled": enabled, 
+            "cron_modified": modified_count > 0,
+            "jobs_modified": modified_count,
+            "message": f"{'Enabled' if enabled else 'Disabled'} {modified_count} cron job(s)"
+        })
+        
+    except PermissionError:
+        return fail("Permission denied: cannot modify cron file. Run with sudo or fix permissions.", code=403)
+    except Exception as e:
+        return fail(f"Error modifying cron: {str(e)}", code=500)
+
+@app.post("/api/collector/run")
+def api_collector_run():
+    """Manually trigger ALL collector scripts to run now
+    
+    Optional JSON body:
+    - include_today: bool - if true, collect data for today (incomplete day) instead of yesterday
+    """
+    j = request.get_json(silent=True) or {}
+    include_today = bool(j.get("include_today", False))
+    
+    s = load_settings()
+    usage_dir = s["collector"].get("usage_dir", USAGE_DIR)
+    
+    # Find ALL collector scripts from cron
+    cron_info = _find_collector_cron()
+    
+    scripts_to_run = []
+    
+    if cron_info.get("all_jobs"):
+        for job in cron_info["all_jobs"]:
+            cmd = job.get("command", "")
+            # Extract script path
+            for part in cmd.split():
+                if part.endswith('.sh') or part.endswith('.py'):
+                    if os.path.exists(part) and part not in scripts_to_run:
+                        scripts_to_run.append(part)
+                        break
+    
+    if not scripts_to_run:
+        # Try common locations
+        common_scripts = [
+            "/opt/xray-report-ui/scripts/collect-usage.sh",
+            "/usr/local/bin/xray-usage-collect.sh",
+            "/opt/xray-usage/collect.sh",
+        ]
+        for script in common_scripts:
+            if os.path.exists(script):
+                scripts_to_run.append(script)
+                break
+    
+    if not scripts_to_run:
+        return fail("Collector scripts not found. Check cron configuration.", code=404)
+    
+    try:
+        # Run ALL scripts sequentially
+        append_event({
+            "type": "COLLECTOR",
+            "severity": "INFO",
+            "action": "manual_run_started",
+            "message": f"Manual collector run started: {len(scripts_to_run)} scripts"
+        })
+        
+        all_outputs = []
+        all_success = True
+        failed_scripts = []
+        
+        # Set environment for date override
+        env = os.environ.copy()
+        if include_today:
+            today = dt.datetime.now().strftime("%Y-%m-%d")
+            env["LABEL_DATE"] = today
+            all_outputs.append(f"[INFO] Collecting data for TODAY: {today} (incomplete day)\n")
+        else:
+            yesterday = (dt.datetime.now() - dt.timedelta(days=1)).strftime("%Y-%m-%d")
+            all_outputs.append(f"[INFO] Collecting data for yesterday: {yesterday}\n")
+        
+        for script_to_run in scripts_to_run:
+            script_name = os.path.basename(script_to_run)
+            all_outputs.append(f"=== Running {script_name} ===")
+            
+            try:
+                cp = subprocess.run(
+                    [script_to_run],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,  # 2 minutes timeout per script
+                    cwd=os.path.dirname(script_to_run) or "/tmp",
+                    env=env
+                )
+                
+                output = (cp.stdout or "") + (cp.stderr or "")
+                all_outputs.append(output if output.strip() else "(no output)")
+                
+                if cp.returncode != 0:
+                    all_success = False
+                    failed_scripts.append(script_name)
+                    all_outputs.append(f"[FAILED] Exit code: {cp.returncode}")
+                else:
+                    all_outputs.append(f"[OK] Completed successfully")
+                    
+            except subprocess.TimeoutExpired:
+                all_success = False
+                failed_scripts.append(script_name)
+                all_outputs.append(f"[TIMEOUT] Script timed out after 120s")
+            except Exception as e:
+                all_success = False
+                failed_scripts.append(script_name)
+                all_outputs.append(f"[ERROR] {str(e)}")
+            
+            all_outputs.append("")  # Empty line between scripts
+        
+        combined_output = "\n".join(all_outputs)
+        
+        append_event({
+            "type": "COLLECTOR",
+            "severity": "INFO" if all_success else "WARNING",
+            "action": "manual_run_completed",
+            "result": "success" if all_success else "partial",
+            "scripts_run": len(scripts_to_run),
+            "scripts_failed": len(failed_scripts),
+            "message": f"Completed {len(scripts_to_run)} scripts, {len(failed_scripts)} failed"
+        })
+        
+        if all_success:
+            message = f"Все {len(scripts_to_run)} скрипта успешно выполнены"
+        elif failed_scripts:
+            message = f"Выполнено {len(scripts_to_run) - len(failed_scripts)}/{len(scripts_to_run)} скриптов. Ошибки: {', '.join(failed_scripts)}"
+        else:
+            message = "Collector run completed"
+        
+        return ok({
+            "success": all_success,
+            "scripts_run": len(scripts_to_run),
+            "scripts_failed": failed_scripts,
+            "return_code": 0 if all_success else 1,
+            "output": combined_output[:4000] if combined_output else "No output",
+            "message": message
+        })
+        
+    except Exception as e:
+        return fail(f"Error running collector: {str(e)}", code=500)
 
 @app.post("/api/collector/update-schedule")
 def api_collector_update_schedule():
@@ -3157,6 +3490,191 @@ def api_backups_download():
     
     return send_file(filepath, as_attachment=True, download_name=filename)
 
+@app.post("/api/backups/create")
+def api_backups_create():
+    """Create a manual backup of current Xray configuration"""
+    try:
+        settings = load_settings()
+        config_path = settings["xray"].get("config_path", XRAY_CFG)
+        
+        if not os.path.exists(config_path):
+            return fail("Xray config file not found", code=404)
+        
+        # Create backup with "manual" label
+        backup_path = backup_file(config_path, "manual_backup")
+        backup_name = os.path.basename(backup_path)
+        
+        # Get file info
+        st = os.stat(backup_path)
+        
+        append_event({
+            "type": "SYSTEM",
+            "severity": "INFO",
+            "action": "backup_created",
+            "message": f"Manual backup created: {backup_name}",
+            "details": backup_name
+        })
+        
+        return ok({
+            "backup": {
+                "name": backup_name,
+                "size": st.st_size,
+                "mtime": dt.datetime.utcfromtimestamp(st.st_mtime).isoformat() + "Z",
+            },
+            "message": "Backup created successfully"
+        })
+    except Exception as e:
+        return fail(f"Error creating backup: {str(e)}", code=500)
+
+@app.post("/api/backups/restore")
+def api_backups_restore():
+    """Restore Xray configuration from a backup file"""
+    if not request.is_json:
+        return fail("json_required")
+    
+    j = request.get_json(silent=True) or {}
+    filename = (j.get("filename") or "").strip()
+    confirm = bool(j.get("confirm", False))
+    restart_xray = bool(j.get("restart_xray", True))
+    
+    if not filename:
+        return fail("filename parameter required")
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return fail("Invalid filename")
+    
+    backup_path = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(backup_path) or not os.path.isfile(backup_path):
+        return fail("Backup not found", code=404)
+    
+    try:
+        # Load backup content
+        backup_cfg = read_json(backup_path, None)
+        if not backup_cfg:
+            return fail("Invalid backup file (not valid JSON)")
+        
+        settings = load_settings()
+        config_path = settings["xray"].get("config_path", XRAY_CFG)
+        
+        # If not confirmed, return preview of what will change
+        if not confirm:
+            # Load current config for comparison
+            current_cfg, err = load_xray_config(config_path)
+            if err:
+                current_cfg = {}
+            
+            # Count differences
+            current_users = len(get_xray_clients(current_cfg) if current_cfg else [])
+            backup_users = 0
+            backup_inbounds = backup_cfg.get("inbounds", [])
+            for ib in backup_inbounds:
+                if ib.get("protocol") in ["vless", "vmess", "trojan"]:
+                    backup_users += len((ib.get("settings") or {}).get("clients") or [])
+            
+            return ok({
+                "preview": True,
+                "current": {
+                    "users_count": current_users,
+                    "config_exists": current_cfg is not None,
+                },
+                "backup": {
+                    "users_count": backup_users,
+                    "inbounds_count": len(backup_inbounds),
+                },
+                "warning": "This will replace current Xray configuration. A backup of current config will be created before restore."
+            })
+        
+        # Confirmed - proceed with restore
+        
+        # First, backup current config
+        if os.path.exists(config_path):
+            pre_restore_backup = backup_file(config_path, "pre_restore")
+        else:
+            pre_restore_backup = None
+        
+        # Write backup content to config
+        save_xray_config(backup_cfg, config_path)
+        
+        # Clear relevant caches
+        clear_cache("users")
+        clear_cache("dashboard")
+        
+        # Optionally restart Xray
+        restart_result = None
+        if restart_xray:
+            srv = settings["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
+            ok_r, msg = systemctl_restart(srv)
+            restart_result = {"ok": ok_r, "message": msg}
+            
+            if not ok_r:
+                # Rollback on failure
+                if pre_restore_backup and os.path.exists(pre_restore_backup):
+                    shutil.copy2(pre_restore_backup, config_path)
+                    systemctl_restart(srv)
+                    append_event({
+                        "type": "SYSTEM",
+                        "severity": "ERROR",
+                        "action": "backup_restore_failed",
+                        "message": f"Restore failed, rolled back: {msg}",
+                        "details": filename
+                    })
+                    return fail(f"Restore failed (rolled back): {msg}")
+        
+        append_event({
+            "type": "SYSTEM",
+            "severity": "WARN",
+            "action": "backup_restored",
+            "message": f"Configuration restored from backup: {filename}",
+            "details": filename
+        })
+        
+        return ok({
+            "restored": True,
+            "backup_name": filename,
+            "pre_restore_backup": os.path.basename(pre_restore_backup) if pre_restore_backup else None,
+            "restart_result": restart_result,
+            "message": "Configuration restored successfully"
+        })
+        
+    except Exception as e:
+        return fail(f"Error restoring backup: {str(e)}", code=500)
+
+@app.post("/api/backups/delete")
+def api_backups_delete():
+    """Delete a backup file"""
+    if not request.is_json:
+        return fail("json_required")
+    
+    j = request.get_json(silent=True) or {}
+    filename = (j.get("filename") or "").strip()
+    
+    if not filename:
+        return fail("filename parameter required")
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return fail("Invalid filename")
+    
+    filepath = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        return fail("Backup not found", code=404)
+    
+    try:
+        os.remove(filepath)
+        
+        append_event({
+            "type": "SYSTEM",
+            "severity": "INFO",
+            "action": "backup_deleted",
+            "message": f"Backup deleted: {filename}",
+            "details": filename
+        })
+        
+        return ok({"deleted": True, "filename": filename})
+    except Exception as e:
+        return fail(f"Error deleting backup: {str(e)}", code=500)
+
 # --- Live SSE (legacy) ---
 
 @app.get("/api/live")
@@ -3649,13 +4167,16 @@ import atexit
 import signal
 
 def shutdown_handler():
-    """Log shutdown event"""
+    """Log shutdown event and save Xray statistics"""
     try:
+        # Save Xray statistics before shutdown (in case of server reboot)
+        save_xray_stats_before_restart()
+        
         append_event({
             "type": "SYSTEM",
             "severity": "INFO",
             "action": "shutdown",
-            "message": "xray-report-ui shutting down"
+            "message": "xray-report-ui shutting down (stats saved)"
         })
     except Exception:
         pass
