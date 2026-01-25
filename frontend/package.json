@@ -5,11 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "dev:turbo": "next dev --turbo",
-    "build": "next build --webpack",
-    "build:fast": "SKIP_ENV_VALIDATION=true SKIP_TYPE_CHECK=true SKIP_LINT=true next build --webpack",
-    "build:webpack": "next build --webpack",
-    "build:turbo": "USE_TURBOPACK=true next build --turbo",
+    "build": "next build --webpack && npm run postbuild",
+    "build:fast": "SKIP_ENV_VALIDATION=true SKIP_TYPE_CHECK=true SKIP_LINT=true next build --webpack && npm run postbuild",
+    "build:webpack": "next build --webpack && npm run postbuild",
+    "build:turbo": "USE_TURBOPACK=true next build --turbo && npm run postbuild",
     "build:analyze": "ANALYZE=true next build --webpack",
+    "postbuild": "cp -r .next/static .next/standalone/.next/ 2>/dev/null || true",
     "start": "next start",
     "lint": "eslint",
     "type-check": "tsc --noEmit"
