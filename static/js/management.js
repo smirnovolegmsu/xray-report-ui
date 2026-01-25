@@ -1,4 +1,24 @@
 // ==================== MANAGEMENT (История) ====================
+
+// Helper for HTML escaping (XSS prevention)
+function escapeHtmlManagement(text) {
+  if (text == null) return '';
+  const div = document.createElement('div');
+  div.textContent = String(text);
+  return div.innerHTML;
+}
+
+// Escape for HTML attributes
+function escapeAttrManagement(text) {
+  if (text == null) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 async function loadManagement() {
   try {
     let date = state.date;
@@ -260,7 +280,7 @@ function renderKPICards(summary, topDomains, unit) {
   if (el7) {
     if (top3TrafficData.length > 0) {
       const domainsText = top3TrafficData.map(d => {
-        const domain = d.domain || '—';
+        const domain = escapeHtmlManagement(d.domain || '—');
         const traffic = ((d.trafficBytes || 0) / base).toFixed(2);
         return `${domain} (${traffic} ${unitLabel})`;
       }).join(' | ');
@@ -277,7 +297,7 @@ function renderKPICards(summary, topDomains, unit) {
   if (el8) {
     if (top3ConnsData.length > 0) {
       const domainsText = top3ConnsData.map(d => {
-        const domain = d.domain || '—';
+        const domain = escapeHtmlManagement(d.domain || '—');
         const conns = (d.conns || 0).toLocaleString('ru-RU');
         return `${domain} (${conns})`;
       }).join(' | ');
@@ -1680,7 +1700,7 @@ function renderTopDomainsTables(topDomains, unit) {
   if (trafficTbody) {
     const trafficRows = (topDomains.traffic || []).slice(0, 7).map(d => `
       <tr>
-        <td>${d.domain || '—'}</td>
+        <td>${escapeHtmlManagement(d.domain || '—')}</td>
         <td>${((d.trafficBytes || 0) / base).toFixed(2)} ${unitLabel}</td>
         <td>${(d.sharePct || 0).toFixed(2)}%</td>
       </tr>
@@ -1693,7 +1713,7 @@ function renderTopDomainsTables(topDomains, unit) {
   if (connsTbody) {
     const connsRows = (topDomains.conns || []).slice(0, 7).map(d => `
       <tr>
-        <td>${d.domain || '—'}</td>
+        <td>${escapeHtmlManagement(d.domain || '—')}</td>
         <td>${(d.conns || 0).toLocaleString('ru-RU')}</td>
         <td>${(d.sharePct || 0).toFixed(2)}%</td>
       </tr>
@@ -1776,7 +1796,7 @@ function renderUserFilters(users, selectedUsers) {
     <div class="filter-chip ${allSelected ? 'active' : ''}" data-user="all">Все</div>
     ${users.map(u => {
       const isSelected = selectedUsers.includes(u.userId);
-      return `<div class="filter-chip ${isSelected ? 'active' : ''}" data-user="${u.userId}">${u.displayName || u.userId}</div>`;
+      return `<div class="filter-chip ${isSelected ? 'active' : ''}" data-user="${escapeAttrManagement(u.userId)}">${escapeHtmlManagement(u.displayName || u.userId)}</div>`;
     }).join('')}
   `;
   container.innerHTML = html;
@@ -2163,7 +2183,7 @@ function renderUsersComparisonChartRecharts(users, metric, unit) {
   g.selectAll('.bar').on('mouseover', function(event, d) {
     tooltip.transition().style('opacity', 1);
     const val = metric === 'traffic' ? `${d.value.toFixed(2)} ${unitLabel}` : `${d.value.toLocaleString('ru-RU')} connections`;
-    tooltip.html(`${d.user}: ${val}`).style('left', (event.pageX + 10) + 'px').style('top', (event.pageY - 10) + 'px');
+    tooltip.html(`${escapeHtmlManagement(d.user)}: ${val}`).style('left', (event.pageX + 10) + 'px').style('top', (event.pageY - 10) + 'px');
   }).on('mouseout', function() { tooltip.transition().style('opacity', 0); });
 }
 
@@ -2942,7 +2962,7 @@ function renderUsersHistogramsRecharts(users, unit) {
     g.selectAll('.bar')
       .on('mouseover', function(event, d) {
         tooltip.transition().style('opacity', 1);
-        tooltip.html(`${d.user}: ${d.value.toFixed(2)} ${unitLabel}`)
+        tooltip.html(`${escapeHtmlManagement(d.user)}: ${d.value.toFixed(2)} ${unitLabel}`)
           .style('left', (event.pageX + 10) + 'px')
           .style('top', (event.pageY - 10) + 'px');
       })
@@ -3038,7 +3058,7 @@ function renderUsersHistogramsRecharts(users, unit) {
     g.selectAll('.bar')
       .on('mouseover', function(event, d) {
         tooltip.transition().style('opacity', 1);
-        tooltip.html(`${d.user}: ${d.value.toLocaleString('ru-RU')} connections`)
+        tooltip.html(`${escapeHtmlManagement(d.user)}: ${d.value.toLocaleString('ru-RU')} connections`)
           .style('left', (event.pageX + 10) + 'px')
           .style('top', (event.pageY - 10) + 'px');
       })
@@ -3551,8 +3571,8 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
       <div class="card">
         <div class="card-hd">
           <div class="user-title-row">
-            <h3>${u.displayName || u.userId}</h3>
-            <span class="status-dot ${statusClass}" title="${statusText}"></span>
+            <h3>${escapeHtmlManagement(u.displayName || u.userId)}</h3>
+            <span class="status-dot ${statusClass}" title="${escapeAttrManagement(statusText)}"></span>
           </div>
           <div class="metrics-circular">
             <div class="metric-circular">
@@ -3590,9 +3610,9 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
         </div>
         <div class="card-bd">
           <div style="height:60px;margin-bottom:10px;">
-            <div id="userChart_${u.userId}" style="width:100%;height:100%;"></div>
+            <div id="userChart_${escapeAttrManagement(u.userId)}" style="width:100%;height:100%;"></div>
           </div>
-          <div class="user-table-traffic" data-user-id="${u.userId}">
+          <div class="user-table-traffic" data-user-id="${escapeAttrManagement(u.userId)}">
             <div class="domains-section">
               <div class="domains-section-title">TOP DOMAINS</div>
               ${topTraffic.length > 0 ? topTraffic.map(d => {
@@ -3603,17 +3623,17 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
                   <span class="domain-bullet">•</span>
                   <span class="domain-gb">${domainGb} ${unitLabel}</span>
                   <span class="domain-bullet">•</span>
-                  <span class="domain-name">${d.domain}</span>
+                  <span class="domain-name">${escapeHtmlManagement(d.domain)}</span>
                 </div>
               `;
               }).join('') : '<div style="color: var(--muted); font-size: 11px; text-align: center;">Нет данных</div>'}
             </div>
           </div>
-          <div class="user-table-conns" data-user-id="${u.userId}" style="display:none;">
+          <div class="user-table-conns" data-user-id="${escapeAttrManagement(u.userId)}" style="display:none;">
             <div class="domains-section">
               <div class="domains-section-title">TOP DOMAINS</div>
               ${(topConns && topConns.length > 0) ? topConns.map(d => {
-                const domain = d.domain || '—';
+                const domain = escapeHtmlManagement(d.domain || '—');
                 const pct = typeof d === 'object' ? (d.sharePct || 0) : 0;
                 const connsCount = typeof d === 'object' ? (d.conns || 0) : 0;
                 return `
