@@ -58,15 +58,20 @@ export const TrafficChart = memo(function TrafficChart({ selectedDate, mode, met
       }
       
       // Calculate raw values
-      const rawValues = dates.map((dateStr: string, index: number) => ({
-        date: new Date(dateStr).toLocaleDateString('ru-RU', {
-          day: '2-digit',
-          month: '2-digit',
-        }),
-        rawValue: metric === 'traffic'
-          ? Math.round(((trafficData[index] || 0) / 1024 / 1024 / 1024) * 100) / 100
-          : connsData[index] || 0,
-      }));
+      const rawValues = dates
+        .filter((dateStr: string) => dateStr && !isNaN(new Date(dateStr).getTime())) // Filter invalid dates
+        .map((dateStr: string, index: number) => {
+          const parsedDate = new Date(dateStr);
+          return {
+            date: parsedDate.toLocaleDateString('ru-RU', {
+              day: '2-digit',
+              month: '2-digit',
+            }),
+            rawValue: metric === 'traffic'
+              ? Math.round(((trafficData[index] || 0) / 1024 / 1024 / 1024) * 100) / 100
+              : connsData[index] || 0,
+          };
+        });
 
       // Find max value for scaling (handle empty arrays)
       const maxValue = rawValues.length > 0

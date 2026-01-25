@@ -53,11 +53,13 @@ export const TopDomains = memo(function TopDomains({ selectedDate, mode }: TopDo
       const topDomainsTraffic = globalData.top_domains_traffic || [];
       const topDomainsConns = globalData.top_domains_conns || [];
       
-      const domainsList = topDomainsTraffic.map((item: any) => ({
-        domain: item.domain,
-        traffic_bytes: item.value || 0,
-        connections: topDomainsConns.find((d: any) => d.domain === item.domain)?.value || 0,
-      }));
+      const domainsList = topDomainsTraffic
+        .filter((item: any) => item && item.domain) // Filter out invalid entries
+        .map((item: any) => ({
+          domain: item.domain,
+          traffic_bytes: item.value || 0,
+          connections: topDomainsConns.find((d: any) => d?.domain === item.domain)?.value || 0,
+        }));
       
       setDomains(domainsList);
     } catch (error) {

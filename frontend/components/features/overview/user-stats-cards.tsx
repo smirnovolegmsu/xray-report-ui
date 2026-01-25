@@ -90,22 +90,29 @@ export function UserStatsCards() {
       const data = response.data as DashboardApiResponse;
 
       const usersData = data?.users || {};
-      const usersList = Object.keys(usersData).map(email => {
-        const userData = usersData[email];
-        return {
-          uuid: userData.uuid || email,
-          email: userData.email || email,
-          alias: userData.alias || '',
-          anomaly: userData.anomaly || false,
-          sum7_traffic_bytes: userData.sum7_traffic_bytes || 0,
-          sum7_conns: userData.sum7_conns || 0,
-          sum_prev7_traffic_bytes: userData.sum_prev7_traffic_bytes || 0,
-          sum_prev7_conns: userData.sum_prev7_conns || 0,
-          daily_traffic_bytes: userData.daily_traffic_bytes || [],
-          daily_conns: userData.daily_conns || [],
-          top_domains_traffic: userData.top_domains_traffic || [],
-        };
-      });
+      const usersList = Object.keys(usersData)
+        .filter(email => email && usersData[email]) // Filter out invalid entries
+        .map(email => {
+          const userData = usersData[email];
+          // Safety check - skip if userData is undefined
+          if (!userData) {
+            return null;
+          }
+          return {
+            uuid: userData.uuid || email,
+            email: userData.email || email,
+            alias: userData.alias || '',
+            anomaly: userData.anomaly || false,
+            sum7_traffic_bytes: userData.sum7_traffic_bytes || 0,
+            sum7_conns: userData.sum7_conns || 0,
+            sum_prev7_traffic_bytes: userData.sum_prev7_traffic_bytes || 0,
+            sum_prev7_conns: userData.sum_prev7_conns || 0,
+            daily_traffic_bytes: userData.daily_traffic_bytes || [],
+            daily_conns: userData.daily_conns || [],
+            top_domains_traffic: userData.top_domains_traffic || [],
+          };
+        })
+        .filter((user): user is UserStatsCard => user !== null);
       
       usersList.sort((a, b) => b.sum7_traffic_bytes - a.sum7_traffic_bytes);
       setUsers(usersList);
@@ -140,9 +147,18 @@ export function UserStatsCards() {
   }, []);
 
   const getChartData = useCallback((user: UserStatsCard) => {
+    // Ensure we have at least 7 data points for consistent chart display
+    const trafficData = user.daily_traffic_bytes || [];
+    // If empty, return minimal data to prevent chart rendering issues
+    if (trafficData.length === 0) {
+      return [{
+        id: 'traffic',
+        data: Array.from({ length: 7 }, (_, i) => ({ x: i + 1, y: 0 })),
+      }];
+    }
     return [{
       id: 'traffic',
-      data: user.daily_traffic_bytes.map((bytes, index) => ({
+      data: trafficData.map((bytes, index) => ({
         x: index + 1,
         y: bytes / 1024 / 1024 / 1024,
       })),
