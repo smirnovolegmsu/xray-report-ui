@@ -94,14 +94,17 @@ function renderUsers(users, statsMap = {}) {
       statusHtml = '<span style="color: var(--muted);">⚪ Офлайн</span>';
     }
     
-    const safeEmail = escapeAttr(u.email);
-    const safeAlias = escapeAttr(alias);
+    // For HTML attributes (data-*), use escapeAttr
+    const safeEmailAttr = escapeAttr(u.email);
+    // For JavaScript strings inside onclick, use escapeJsString
+    const safeEmailJs = escapeJsString(u.email);
+    const safeAliasJs = escapeJsString(alias);
     return `
     <tr>
       <td style="font-size: 12px;">
-        <span class="user-name" data-email="${safeEmail}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+        <span class="user-name" data-email="${safeEmailAttr}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
           <strong>${escapeHtml(displayName)}</strong>
-          <span style="opacity: 0.5; font-size: 10px; cursor: pointer;" onclick="event.stopPropagation(); editUserAlias('${safeEmail}', '${safeAlias}')" title="Редактировать alias">✏️</span>
+          <span style="opacity: 0.5; font-size: 10px; cursor: pointer;" onclick="event.stopPropagation(); editUserAlias('${safeEmailJs}', '${safeAliasJs}')" title="Редактировать alias">✏️</span>
         </span>
       </td>
       <td class="mono" style="font-size: 10px; max-width: 200px; word-break: break-all;">${escapeHtml(u.uuid)}</td>
@@ -111,9 +114,9 @@ function renderUsers(users, statsMap = {}) {
       <td style="font-size: 11px;">${statusHtml}</td>
       <td>
         <div class="flex gap-4" style="flex-wrap: nowrap;">
-          <button class="btn" onclick="copyUserLink('${safeEmail}')" title="Скопировать VLESS ссылку" style="padding: 4px 8px; font-size: 11px;">🔗</button>
-          <button class="btn" onclick="kickUser('${safeEmail}')" title="Отключить пользователя" style="padding: 4px 8px; font-size: 11px;">🔄</button>
-          <button class="btn danger" onclick="deleteUser('${safeEmail}')" title="Удалить пользователя" style="padding: 4px 8px; font-size: 11px;">🗑️</button>
+          <button class="btn" onclick="copyUserLink('${safeEmailJs}')" title="Скопировать VLESS ссылку" style="padding: 4px 8px; font-size: 11px;">🔗</button>
+          <button class="btn" onclick="kickUser('${safeEmailJs}')" title="Отключить пользователя" style="padding: 4px 8px; font-size: 11px;">🔄</button>
+          <button class="btn danger" onclick="deleteUser('${safeEmailJs}')" title="Удалить пользователя" style="padding: 4px 8px; font-size: 11px;">🗑️</button>
         </div>
       </td>
     </tr>
@@ -191,6 +194,20 @@ function escapeAttr(text) {
     .replace(/'/g, '&#39;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function escapeJsString(text) {
+  // Escape for use inside JavaScript string literals in HTML onclick attributes
+  // This handles the double-encoding context (HTML attribute containing JS code)
+  if (text == null) return '';
+  return String(text)
+    .replace(/\\/g, '\\\\')  // escape backslashes first
+    .replace(/'/g, "\\'")     // escape single quotes for JS
+    .replace(/"/g, '\\"')     // escape double quotes for JS
+    .replace(/\n/g, '\\n')    // escape newlines
+    .replace(/\r/g, '\\r')    // escape carriage returns
+    .replace(/</g, '\\x3c')   // escape < to prevent </script> injection
+    .replace(/>/g, '\\x3e');  // escape > for safety
 }
 
 async function addUser() {
