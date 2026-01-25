@@ -5,9 +5,13 @@ Centralized configuration and settings management for xray-report-ui
 """
 import os
 import json
+import threading
 from typing import Any, Dict
 
 from backend.core.helpers import atomic_write_json, read_json
+
+# Thread lock for global variables
+_config_lock = threading.Lock()
 
 # Service names
 SERVICE_UI = "xray-report-ui"
@@ -90,19 +94,20 @@ DEFAULT_SETTINGS = {
 def ensure_dirs() -> None:
     """Ensure data directories exist"""
     global BACKUPS_DIR
-    # Убеждаемся, что BACKUPS_DIR установлен
-    if BACKUPS_DIR is None:
-        load_settings()
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if BACKUPS_DIR:
-        os.makedirs(BACKUPS_DIR, exist_ok=True)
+    with _config_lock:
+        # Убеждаемся, что BACKUPS_DIR установлен
+        if BACKUPS_DIR is None:
+            _load_settings_unlocked()
+        os.makedirs(DATA_DIR, exist_ok=True)
+        if BACKUPS_DIR:
+            os.makedirs(BACKUPS_DIR, exist_ok=True)
 
 
-def load_settings() -> Dict[str, Any]:
-    """Load settings from file, merge with defaults, update global paths"""
+def _load_settings_unlocked() -> Dict[str, Any]:
+    """Internal: Load settings without lock (caller must hold _config_lock)"""
     global DATA_DIR, BACKUPS_DIR, SETTINGS_PATH, EVENTS_PATH, USAGE_DIR, ACCESS_LOG
     global LIVE_STATE_PATH, LIVE_STATE_OFFSET_PATH, XRAY_CFG
-    
+
     # Initialize paths from defaults first
     DATA_DIR = DATA_DIR_DEFAULT
     BACKUPS_DIR = os.path.join(DATA_DIR, "backups")
@@ -113,27 +118,27 @@ def load_settings() -> Dict[str, Any]:
     USAGE_DIR = USAGE_DIR_DEFAULT
     ACCESS_LOG = ACCESS_LOG_DEFAULT
     XRAY_CFG = XRAY_CFG_DEFAULT
-    
+
     # Ensure data dir exists before reading settings
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(BACKUPS_DIR, exist_ok=True)
-    
+
     s = read_json(SETTINGS_PATH, {})
     if not isinstance(s, dict) or not s:
         s = json.loads(json.dumps(DEFAULT_SETTINGS))
         atomic_write_json(SETTINGS_PATH, s)
-    
+
     merged = json.loads(json.dumps(DEFAULT_SETTINGS))
-    
+
     def deep_merge(dst, src):
         for k, v in src.items():
             if isinstance(v, dict) and isinstance(dst.get(k), dict):
                 deep_merge(dst[k], v)
             else:
                 dst[k] = v
-    
+
     deep_merge(merged, s)
-    
+
     # Update global paths from settings if present
     if "paths" in merged:
         paths = merged["paths"]
@@ -148,20 +153,33 @@ def load_settings() -> Dict[str, Any]:
             USAGE_DIR = paths["usage_dir"]
         if "access_log" in paths:
             ACCESS_LOG = paths["access_log"]
-    
+
     # Update Xray config path from settings
     if "xray" in merged and "config_path" in merged["xray"]:
         XRAY_CFG = merged["xray"]["config_path"]
-    
+
     # Update collector usage_dir from settings
     if "collector" in merged and "usage_dir" in merged["collector"]:
         USAGE_DIR = merged["collector"]["usage_dir"]
-    
-    ensure_dirs()  # Ensure dirs exist after path updates
+
     return merged
 
 
+def load_settings() -> Dict[str, Any]:
+    """Load settings from file, merge with defaults, update global paths (thread-safe)"""
+    with _config_lock:
+        result = _load_settings_unlocked()
+        # Ensure dirs exist after path updates (without recursive lock)
+        os.makedirs(DATA_DIR, exist_ok=True)
+        if BACKUPS_DIR:
+            os.makedirs(BACKUPS_DIR, exist_ok=True)
+        return result
+
+
 def save_settings(s: Dict[str, Any]) -> None:
-    """Save settings to file"""
-    ensure_dirs()
-    atomic_write_json(SETTINGS_PATH, s)
+    """Save settings to file (thread-safe)"""
+    with _config_lock:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        if BACKUPS_DIR:
+            os.makedirs(BACKUPS_DIR, exist_ok=True)
+        atomic_write_json(SETTINGS_PATH, s)

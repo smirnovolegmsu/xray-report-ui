@@ -164,8 +164,24 @@ def run_pytest_tests(test_path: Optional[str] = None, verbose: bool = False) -> 
         # Если передан только имя файла, добавляем путь
         if not test_path.startswith("tests/"):
             test_path = f"tests/{test_path}"
-        full_path = os.path.join("/opt/xray-report-ui/backend", test_path)
-        if not os.path.exists(full_path):
+
+        # Security: prevent path traversal attacks
+        backend_dir = "/opt/xray-report-ui/backend"
+        full_path = os.path.join(backend_dir, test_path)
+        real_backend_dir = os.path.realpath(backend_dir)
+        real_full_path = os.path.realpath(full_path)
+
+        if not real_full_path.startswith(real_backend_dir + os.sep):
+            return {
+                "ok": False,
+                "success": False,
+                "error": "Access denied: path traversal attempt",
+                "return_code": 1,
+                "summary": {"passed": 0, "failed": 0, "errors": 0, "total": 0},
+                "tests": []
+            }
+
+        if not os.path.exists(real_full_path):
             return {
                 "ok": False,
                 "success": False,

@@ -31,8 +31,8 @@ def atomic_write_text(path: str, text: str) -> None:
         try:
             if os.path.exists(tmp):
                 os.remove(tmp)
-        except Exception:
-            pass
+        except OSError:
+            pass  # Ignore cleanup errors
 
 
 def atomic_write_json(path: str, obj: Any) -> None:
@@ -45,7 +45,7 @@ def read_json(path: str, default: Any) -> Any:
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
         return default
 
 
@@ -65,6 +65,6 @@ def parse_date_from_filename(path: str) -> Optional[dt.date]:
         m = re.search(r'(\d{4})-(\d{2})-(\d{2})', basename)
         if m:
             return dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-    except Exception:
-        pass
+    except (ValueError, AttributeError):
+        pass  # Invalid date format
     return None
