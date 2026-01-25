@@ -2793,7 +2793,7 @@ function renderKPICards(summary, topDomains, unit) {
   if (el7) {
     if (top3TrafficData.length > 0) {
       const domainsText = top3TrafficData.map(d => {
-        const domain = d.domain || '—';
+        const domain = escapeHtml(d.domain || '—');
         const traffic = ((d.trafficBytes || 0) / base).toFixed(2);
         return `${domain} (${traffic} ${unitLabel})`;
       }).join(' | ');
@@ -2803,14 +2803,14 @@ function renderKPICards(summary, topDomains, unit) {
     }
   }
   renderBubble($('#kpiTopDomainsTrafficBubble'), deltaTotal7dTraffic);
-  
+
   // Top domains conns (top-3) - display with conns data
   const top3ConnsData = (topDomains.conns || []).slice(0, 3);
   const el8 = $('#kpiTopDomainsConnsList');
   if (el8) {
     if (top3ConnsData.length > 0) {
       const domainsText = top3ConnsData.map(d => {
-        const domain = d.domain || '—';
+        const domain = escapeHtml(d.domain || '—');
         const conns = (d.conns || 0).toLocaleString('ru-RU');
         return `${domain} (${conns})`;
       }).join(' | ');
@@ -4213,20 +4213,20 @@ function renderTopDomainsTables(topDomains, unit) {
   if (trafficTbody) {
     const trafficRows = (topDomains.traffic || []).slice(0, 7).map(d => `
       <tr>
-        <td>${d.domain || '—'}</td>
+        <td>${escapeHtml(d.domain || '—')}</td>
         <td>${((d.trafficBytes || 0) / base).toFixed(2)} ${unitLabel}</td>
         <td>${(d.sharePct || 0).toFixed(2)}%</td>
       </tr>
     `).join('') || '<tr><td colspan="3">Нет данных</td></tr>';
     trafficTbody.innerHTML = trafficRows;
   }
-  
+
   // Conns table - ограничено до top-7
   const connsTbody = $('#tblTopConns tbody');
   if (connsTbody) {
     const connsRows = (topDomains.conns || []).slice(0, 7).map(d => `
       <tr>
-        <td>${d.domain || '—'}</td>
+        <td>${escapeHtml(d.domain || '—')}</td>
         <td>${(d.conns || 0).toLocaleString('ru-RU')}</td>
         <td>${(d.sharePct || 0).toFixed(2)}%</td>
       </tr>
@@ -6143,7 +6143,7 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
                   <span class="domain-bullet">•</span>
                   <span class="domain-gb">${domainGb} ${unitLabel}</span>
                   <span class="domain-bullet">•</span>
-                  <span class="domain-name">${d.domain}</span>
+                  <span class="domain-name">${escapeHtml(d.domain)}</span>
                 </div>
               `;
               }).join('') : '<div style="color: var(--muted); font-size: 11px; text-align: center;">Нет данных</div>'}
@@ -6153,7 +6153,7 @@ function renderUserCards(users, userDetails, mode, unit, miniMetric) {
             <div class="domains-section">
               <div class="domains-section-title">TOP DOMAINS</div>
               ${(topConns && topConns.length > 0) ? topConns.map(d => {
-                const domain = d.domain || '—';
+                const domain = escapeHtml(d.domain || '—');
                 const pct = typeof d === 'object' ? (d.sharePct || 0) : 0;
                 const connsCount = typeof d === 'object' ? (d.conns || 0) : 0;
                 return `
@@ -8207,7 +8207,7 @@ function renderDashboard(data) {
       <div style="margin-top:8px;font-size:12px;">
         ${topDomainsTraffic.map((d, idx) => `
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">${idx + 1}. ${d.domain}</span>
+            <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">${idx + 1}. ${escapeHtml(d.domain)}</span>
             <span style="color:var(--text);font-weight:600;white-space:nowrap;">${fmtBytes(d.value)}</span>
           </div>
         `).join('')}
@@ -8220,7 +8220,7 @@ function renderDashboard(data) {
       <div style="margin-top:8px;font-size:12px;">
         ${topDomainsConns.map((d, idx) => `
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">${idx + 1}. ${d.domain}</span>
+            <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">${idx + 1}. ${escapeHtml(d.domain)}</span>
             <span style="color:var(--text);font-weight:600;white-space:nowrap;">${d.value.toLocaleString()}</span>
           </div>
         `).join('')}
