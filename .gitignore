@@ -37,3 +37,18 @@ archive/
 # Системные файлы Linux
 *.pid
 *.lock
+
+# Frontend build artifacts
+frontend/.next/
+frontend/node_modules/
+frontend/.swc/
+frontend/tsconfig.tsbuildinfo
+frontend/.env*.local
+
+# Backend cache and test artifacts
+backend/__pycache__/
+backend/.pytest_cache/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+backend/**/*.pyd
