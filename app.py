@@ -2606,26 +2606,26 @@ def _parse_access_log_recent(minutes: int = 5) -> Dict[str, Any]:
         # Read last 1000 lines efficiently (without loading entire file)
         lines = _tail_file(ACCESS_LOG, 1000)
         for line in lines:
-                m = TS_RE.search(line)
-                if not m:
+            m = TS_RE.search(line)
+            if not m:
+                continue
+            try:
+                ts = dt.datetime(
+                    int(m.group("y")), int(m.group("m")), int(m.group("d")),
+                    int(m.group("h")), int(m.group("mi")), int(m.group("s"))
+                ).timestamp()
+                if ts < cutoff_ts:
                     continue
-                try:
-                    ts = dt.datetime(
-                        int(m.group("y")), int(m.group("m")), int(m.group("d")),
-                        int(m.group("h")), int(m.group("mi")), int(m.group("s"))
-                    ).timestamp()
-                    if ts < cutoff_ts:
-                        continue
-                except:
-                    continue
-                
-                # Extract user/email
-                em = EMAIL_RE1.search(line) or EMAIL_RE2.search(line)
-                if em:
-                    email = (em.group("email") or "").strip()
-                    if email:
-                        users.add(email)
-                        conns += 1
+            except (ValueError, TypeError):
+                continue
+
+            # Extract user/email
+            em = EMAIL_RE1.search(line) or EMAIL_RE2.search(line)
+            if em:
+                email = (em.group("email") or "").strip()
+                if email:
+                    users.add(email)
+                    conns += 1
     except Exception:
         pass
     
