@@ -96,10 +96,10 @@ def set_cached(key: str, value: Any) -> None:
         _cache_store[key] = (value, time.time())
         # Clean old entries only if cache is really large (increased limit)
         # Allow more entries to improve performance
-        if len(_cache_store) > 500:  # Increased from 100 to 500
+        if len(_cache_store) > 200:  # Optimized for 3.8GB RAM server
             # Remove oldest 10% of entries (less aggressive cleanup)
             items = sorted(_cache_store.items(), key=lambda x: x[1][1])
-            remove_count = max(50, len(items) // 10)  # Remove at least 50 or 10%
+            remove_count = max(20, len(items) // 10)  # Remove at least 20 or 10%
             for k, _ in items[:remove_count]:
                 del _cache_store[k]
 
