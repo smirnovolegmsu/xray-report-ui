@@ -1,13 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import Script from "next/script";
 import { Providers } from "@/components/providers";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-inter",
-});
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -36,7 +30,7 @@ const cryptoPolyfillScript = `
 (function() {
   'use strict';
   if (typeof window === 'undefined') return;
-  
+
   function generateUUID() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
       var r = Math.random() * 16 | 0;
@@ -44,7 +38,7 @@ const cryptoPolyfillScript = `
       return v.toString(16);
     });
   }
-  
+
   if (!window.crypto) window.crypto = {};
   if (!window.crypto.randomUUID || typeof window.crypto.randomUUID !== 'function') {
     try {
@@ -58,7 +52,7 @@ const cryptoPolyfillScript = `
       try { window.crypto.randomUUID = generateUUID; } catch(e2) {}
     }
   }
-  
+
   if (typeof globalThis !== 'undefined') {
     if (!globalThis.crypto) globalThis.crypto = {};
     if (!globalThis.crypto.randomUUID || typeof globalThis.crypto.randomUUID !== 'function') {
@@ -84,7 +78,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
+      <body className="font-sans antialiased" suppressHydrationWarning>
         {/* Load crypto polyfill FIRST with beforeInteractive strategy */}
         <Script
           id="crypto-polyfill-inline"
