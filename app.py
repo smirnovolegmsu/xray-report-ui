@@ -994,7 +994,7 @@ def load_usage_dashboard(date_str: str, mode: str = "daily", window_days: int = 
     
     try:
         report_date = dt.date.fromisoformat(date_str)
-    except:
+    except (ValueError, TypeError):
         report_date = dt.datetime.utcnow().date()
     
     window_days = max(7, min(31, int(window_days)))
@@ -1756,10 +1756,10 @@ def api_events():
                     if ln:
                         try:
                             events.append(json.loads(ln))
-                        except:
-                            pass
-        except:
-            pass
+                        except json.JSONDecodeError:
+                            pass  # Skip malformed JSON lines
+        except (OSError, IOError):
+            pass  # File not found or read error
     
     # Reverse for newest first
     events = list(reversed(events))
@@ -2284,8 +2284,8 @@ def api_system_status():
                     if ln:
                         try:
                             events.append(json.loads(ln))
-                        except:
-                            pass
+                        except json.JSONDecodeError:
+                            pass  # Skip malformed JSON lines
         # Reverse for newest first
         events = list(reversed(events))
         

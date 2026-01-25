@@ -463,6 +463,7 @@ body {
 .nav-pill-warn { border-color: var(--bad); }
 .nav-pill-warn:hover {
   border-color: var(--bad);
+  background: rgba(248, 81, 73, 0.1); /* fallback for browsers without color-mix */
   background: color-mix(in srgb, var(--bad) var(--tint-light), transparent);
   color: var(--bad);
 }
@@ -698,12 +699,14 @@ body {
 .kpi-bubble.up {
   color: var(--ok);
   border-color: var(--ok);
+  background: rgba(63, 185, 80, 0.15); /* fallback */
   background: color-mix(in srgb, var(--ok) var(--tint-medium), transparent);
 }
 
 .kpi-bubble.down {
   color: var(--bad);
   border-color: var(--bad);
+  background: rgba(248, 81, 73, 0.15); /* fallback */
   background: color-mix(in srgb, var(--bad) var(--tint-medium), transparent);
 }
 
@@ -813,7 +816,8 @@ tr:hover td {
 
 /* Background modifiers */
 .chartbox-transparent { background: transparent; }
-.chartbox-accent { 
+.chartbox-accent {
+  background: rgba(88, 166, 255, 0.1); /* fallback */
   background: color-mix(in srgb, var(--accent) var(--tint-light), transparent);
   border-color: var(--accent);
 }
