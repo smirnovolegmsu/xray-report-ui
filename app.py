@@ -95,6 +95,15 @@ def read_json(path: str, default: Any) -> Any:
     except Exception:
         return default
 
+def safe_int(value: Optional[str], default: int) -> int:
+    """Safely parse integer from string, returning default on failure"""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
 def append_event(ev: Dict[str, Any]) -> None:
     ensure_dirs()
     ev = dict(ev)
@@ -863,11 +872,16 @@ def index():
 
 @app.get("/static/<path:filename>")
 def serve_static(filename):
-    """Serve static files (CSS, JS)"""
+    """Serve static files (CSS, JS) with path traversal protection"""
     static_dir = "/opt/xray-report-ui/static"
     file_path = os.path.join(static_dir, filename)
-    if os.path.exists(file_path) and os.path.isfile(file_path):
-        return send_file(file_path)
+    # Security: prevent path traversal attacks
+    real_static_dir = os.path.realpath(static_dir)
+    real_file_path = os.path.realpath(file_path)
+    if not real_file_path.startswith(real_static_dir + os.sep):
+        return Response("Access denied", status=403, mimetype="text/plain")
+    if os.path.exists(real_file_path) and os.path.isfile(real_file_path):
+        return send_file(real_file_path)
     return Response("File not found", status=404, mimetype="text/plain")
 
 @app.get("/users_test")
@@ -911,7 +925,7 @@ def api_settings_set():
 @app.get("/api/dashboard")
 def api_dashboard():
     """Legacy endpoint - kept for backward compatibility"""
-    days = int(request.args.get("days") or "7")
+    days = safe_int(request.args.get("days"), 7)
     user = request.args.get("user", "").strip() or None
     data = load_dashboard_data(days=days, user_filter=user)
     return jsonify(data)
@@ -1396,7 +1410,7 @@ def api_usage_dashboard():
     if mode not in ["daily", "cumulative"]:
         mode = "daily"
     
-    window_days = int(request.args.get("windowDays") or "7")
+    window_days = safe_int(request.args.get("windowDays"), 7)
     
     try:
         data = load_usage_dashboard(date_str, mode, window_days)
@@ -1730,7 +1744,7 @@ def api_users_update_alias():
 
 @app.get("/api/events")
 def api_events():
-    limit = int(request.args.get("limit") or "100")
+    limit = safe_int(request.args.get("limit"), 100)
     text_filter = request.args.get("text", "").strip().lower()
     
     events = []
@@ -2424,7 +2438,7 @@ def get_system_timezone() -> str:
 def api_system_journal():
     """Get journal logs for UI or Xray service"""
     target = request.args.get("target", "xray").strip().lower()
-    limit = int(request.args.get("limit") or "200")
+    limit = safe_int(request.args.get("limit"), 200)
     limit = max(10, min(1000, limit))
     
     if target == "ui":
@@ -2491,7 +2505,7 @@ def api_backups_list():
 @app.get("/api/live")
 def api_live():
     """Legacy SSE endpoint for dashboard updates"""
-    days = int(request.args.get("days") or "7")
+    days = safe_int(request.args.get("days"), 7)
     settings = load_settings()
     push_sec = int(settings["ui"].get("live_push_sec", 5))
     
@@ -2543,22 +2557,55 @@ def _try_stats_api() -> Tuple[bool, Dict[str, Any]]:
     except Exception:
         return False, {}
 
+def _tail_file(filepath: str, n_lines: int = 1000) -> List[str]:
+    """Read last N lines from file efficiently without loading entire file into memory"""
+    try:
+        with open(filepath, "rb") as f:
+            # Seek to end
+            f.seek(0, 2)
+            file_size = f.tell()
+            if file_size == 0:
+                return []
+
+            # Read in chunks from end
+            chunk_size = 8192
+            lines = []
+            remaining = file_size
+            buffer = b""
+
+            while remaining > 0 and len(lines) < n_lines + 1:
+                read_size = min(chunk_size, remaining)
+                remaining -= read_size
+                f.seek(remaining)
+                chunk = f.read(read_size)
+                buffer = chunk + buffer
+                lines = buffer.split(b"\n")
+
+            # Decode and return last n_lines
+            result = []
+            for line in lines[-n_lines:]:
+                try:
+                    result.append(line.decode("utf-8", errors="replace"))
+                except Exception:
+                    continue
+            return result
+    except Exception:
+        return []
+
 def _parse_access_log_recent(minutes: int = 5) -> Dict[str, Any]:
     """Parse access.log for recent activity (fallback)"""
     if not os.path.exists(ACCESS_LOG):
         return {"users": set(), "conns": 0, "traffic": 0}
-    
+
     cutoff_ts = time.time() - (minutes * 60)
     users = set()
     conns = 0
     traffic = 0
-    
+
     try:
-        # Try to read from end of file (last N lines)
-        with open(ACCESS_LOG, "r", encoding="utf-8", errors="replace") as f:
-            # Read last 1000 lines (heuristic)
-            lines = f.readlines()[-1000:]
-            for line in lines:
+        # Read last 1000 lines efficiently (without loading entire file)
+        lines = _tail_file(ACCESS_LOG, 1000)
+        for line in lines:
                 m = TS_RE.search(line)
                 if not m:
                     continue
@@ -2697,8 +2744,8 @@ def api_live_series():
     if metric not in ["traffic", "conns", "online_users"]:
         metric = "conns"
     
-    period = int(request.args.get("period") or "3600")  # 60m default
-    gran = int(request.args.get("gran") or "300")  # 5m default
+    period = safe_int(request.args.get("period"), 3600)  # 60m default
+    gran = safe_int(request.args.get("gran"), 300)  # 5m default
     scope = request.args.get("scope", "global").strip()
     
     # Validate
@@ -2763,10 +2810,10 @@ def api_live_top():
     if metric not in ["traffic", "conns", "online_users"]:
         metric = "conns"
     
-    period = int(request.args.get("period") or "3600")
+    period = safe_int(request.args.get("period"), 3600)
     if period not in [3600, 21600, 86400]:
         period = 3600
-    limit = int(request.args.get("limit") or "10")
+    limit = safe_int(request.args.get("limit"), 10)
     limit = max(1, min(50, limit))
     
     # Aggregate from buffer

@@ -1,4 +1,23 @@
 // ==================== STATE & LOCALSTORAGE ====================
+
+// Safe JSON parse helper
+function safeJsonParse(str, defaultValue) {
+  if (!str) return defaultValue;
+  try {
+    return JSON.parse(str);
+  } catch (e) {
+    console.warn('Failed to parse JSON from localStorage:', e);
+    return defaultValue;
+  }
+}
+
+// Safe parseInt helper
+function safeParseInt(str, defaultValue) {
+  if (!str) return defaultValue;
+  const parsed = parseInt(str, 10);
+  return isNaN(parsed) ? defaultValue : parsed;
+}
+
 const state = {
   settings: null,
   users: [],
@@ -8,12 +27,12 @@ const state = {
   chartLibrary: localStorage.getItem('ui.chartLibrary') || 'amcharts', // 'amcharts', 'apexcharts', 'observable', 'highcharts', 'vegalite', 'recharts'
   mode: localStorage.getItem('usage.mode') || 'daily',
   date: localStorage.getItem('usage.date') || '',
-  selectedUsers: JSON.parse(localStorage.getItem('users.selected') || '[]'),
+  selectedUsers: safeJsonParse(localStorage.getItem('users.selected'), []),
   mainMetric: localStorage.getItem('users.mainMetric') || 'traffic',
   miniMetric: localStorage.getItem('users.miniMetric') || 'traffic',
   overviewMetric: localStorage.getItem('overview.metric') || 'traffic', // 'traffic' | 'conns' - единый фильтр для страницы "Обзор"
-  livePeriod: parseInt(localStorage.getItem('live.period') || '3600'),
-  liveGran: parseInt(localStorage.getItem('live.gran') || '300'),
+  livePeriod: safeParseInt(localStorage.getItem('live.period'), 3600),
+  liveGran: safeParseInt(localStorage.getItem('live.gran'), 300),
   liveMetric: localStorage.getItem('live.metric') || 'conns',
   liveScope: localStorage.getItem('live.scope') || 'global',
   livePaused: localStorage.getItem('live.paused') === 'true',

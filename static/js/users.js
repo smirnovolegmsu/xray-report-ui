@@ -94,24 +94,26 @@ function renderUsers(users, statsMap = {}) {
       statusHtml = '<span style="color: var(--muted);">⚪ Офлайн</span>';
     }
     
+    const safeEmail = escapeAttr(u.email);
+    const safeAlias = escapeAttr(alias);
     return `
     <tr>
       <td style="font-size: 12px;">
-        <span class="user-name" data-email="${u.email}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+        <span class="user-name" data-email="${safeEmail}" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
           <strong>${escapeHtml(displayName)}</strong>
-          <span style="opacity: 0.5; font-size: 10px; cursor: pointer;" onclick="event.stopPropagation(); editUserAlias('${u.email}', '${escapeHtml(alias)}')" title="Редактировать alias">✏️</span>
+          <span style="opacity: 0.5; font-size: 10px; cursor: pointer;" onclick="event.stopPropagation(); editUserAlias('${safeEmail}', '${safeAlias}')" title="Редактировать alias">✏️</span>
         </span>
       </td>
-      <td class="mono" style="font-size: 10px; max-width: 200px; word-break: break-all;">${u.uuid}</td>
+      <td class="mono" style="font-size: 10px; max-width: 200px; word-break: break-all;">${escapeHtml(u.uuid)}</td>
       <td style="font-size: 11px; max-width: 180px; min-width: 150px;">${top3Html}</td>
       <td style="text-align: center; font-size: 12px; font-weight: 500;">${daysUsedHtml}</td>
       <td style="font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace;">${fmtBytes(totalTraffic)}</td>
       <td style="font-size: 11px;">${statusHtml}</td>
       <td>
         <div class="flex gap-4" style="flex-wrap: nowrap;">
-          <button class="btn" onclick="copyUserLink('${u.email}')" title="Скопировать VLESS ссылку" style="padding: 4px 8px; font-size: 11px;">🔗</button>
-          <button class="btn" onclick="kickUser('${u.email}')" title="Отключить пользователя" style="padding: 4px 8px; font-size: 11px;">🔄</button>
-          <button class="btn danger" onclick="deleteUser('${u.email}')" title="Удалить пользователя" style="padding: 4px 8px; font-size: 11px;">🗑️</button>
+          <button class="btn" onclick="copyUserLink('${safeEmail}')" title="Скопировать VLESS ссылку" style="padding: 4px 8px; font-size: 11px;">🔗</button>
+          <button class="btn" onclick="kickUser('${safeEmail}')" title="Отключить пользователя" style="padding: 4px 8px; font-size: 11px;">🔄</button>
+          <button class="btn danger" onclick="deleteUser('${safeEmail}')" title="Удалить пользователя" style="padding: 4px 8px; font-size: 11px;">🗑️</button>
         </div>
       </td>
     </tr>
@@ -178,6 +180,17 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function escapeAttr(text) {
+  // Escape for use in HTML attributes (handles quotes and special chars)
+  if (text == null) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 async function addUser() {

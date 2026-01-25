@@ -2,6 +2,14 @@
 let onlinePollInterval = null;
 let onlineLoading = false;
 
+// Helper for XSS prevention
+function escapeHtmlOnline(text) {
+  if (text == null) return '';
+  const div = document.createElement('div');
+  div.textContent = String(text);
+  return div.innerHTML;
+}
+
 /**
  * Запускает polling для online данных (только если вкладка online активна)
  */
@@ -685,19 +693,21 @@ function renderOnlineChartRecharts(metric, series, meta) {
   const bgColor = isDark ? '#161b22' : '#ffffff';
   const gridColor = isDark ? '#303639' : '#d0d7de';
   const color = metric === 'traffic' ? '#58a6ff' : '#3fb950';
-  
+
+  // Clean up old content and tooltips to prevent memory leaks
   el.innerHTML = '';
-  
+  d3.selectAll('.d3-chart-tooltip').remove();
+
   const data = series.map(s => ({
     time: new Date(s.ts),
     timeLabel: new Date(s.ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
     value: s.value || 0
   }));
-  
+
   const margin = { top: 20, right: 20, bottom: 40, left: 60 };
   const width = el.clientWidth - margin.left - margin.right;
   const height = (el.clientHeight || 300) - margin.top - margin.bottom;
-  
+
   const svg = d3.select(el)
     .append('svg')
     .attr('width', width + margin.left + margin.right)
@@ -767,9 +777,9 @@ function renderOnlineChartRecharts(metric, series, meta) {
     .call(d3.axisLeft(y))
     .attr('color', textColor);
   
-  // Tooltip
+  // Tooltip (with unique class for cleanup)
   const tooltip = d3.select('body').append('div')
-    .attr('class', 'tooltip')
+    .attr('class', 'd3-chart-tooltip')
     .style('opacity', 0)
     .style('position', 'absolute')
     .style('background', bgColor)
@@ -844,7 +854,7 @@ function renderOnlineTop(dashboardData, onlineUsers) {
   
   const html = userList.length > 0 ? userList.map(r => `
     <tr>
-      <td>${r.displayName || r.userId}</td>
+      <td>${escapeHtmlOnline(r.displayName || r.userId)}</td>
       <td>${r.isOnline ? '<span style="color: var(--ok);">🟢 Онлайн</span>' : '<span style="color: var(--muted);">⚪ Офлайн</span>'}</td>
       <td>${fmtBytes(r.traffic || 0)}</td>
       <td>${(r.conns || 0).toLocaleString('ru-RU')}</td>
