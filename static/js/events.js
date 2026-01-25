@@ -1,4 +1,13 @@
 // ==================== EVENTS ====================
+
+// Helper for HTML escaping
+function escapeHtmlEvents(text) {
+  if (text == null) return '';
+  const div = document.createElement('div');
+  div.textContent = String(text);
+  return div.innerHTML;
+}
+
 async function loadEvents() {
   try {
     const filter = $('#eventsFilter').value.trim();
@@ -23,32 +32,32 @@ function renderEvents(events) {
     
     if (type === 'USER') {
       if (action.includes('add')) {
-        interpretation = `Добавлен пользователь: ${e.email || e.userId || '—'}`;
+        interpretation = `Добавлен пользователь: ${escapeHtmlEvents(e.email || e.userId || '—')}`;
         icon = '➕';
       } else if (action.includes('delete')) {
-        interpretation = `Удалён пользователь: ${e.email || e.userId || '—'}`;
+        interpretation = `Удалён пользователь: ${escapeHtmlEvents(e.email || e.userId || '—')}`;
         icon = '🗑️';
       } else if (action.includes('kick')) {
-        interpretation = `Пользователь отключён (UUID изменён): ${e.email || e.userId || '—'}`;
+        interpretation = `Пользователь отключён (UUID изменён): ${escapeHtmlEvents(e.email || e.userId || '—')}`;
         icon = '🔄';
       } else {
-        interpretation = `Действие с пользователем: ${action}`;
+        interpretation = `Действие с пользователем: ${escapeHtmlEvents(action)}`;
       }
     } else if (type === 'SYSTEM') {
       if (action.includes('restart')) {
-        interpretation = `Перезапуск сервиса: ${e.target || '—'}`;
+        interpretation = `Перезапуск сервиса: ${escapeHtmlEvents(e.target || '—')}`;
         icon = '⚡';
       } else {
-        interpretation = `Системное действие: ${action}`;
+        interpretation = `Системное действие: ${escapeHtmlEvents(action)}`;
       }
     } else if (type === 'SETTINGS') {
-      interpretation = `Изменены настройки: ${action}`;
+      interpretation = `Изменены настройки: ${escapeHtmlEvents(action)}`;
       icon = '⚙️';
     } else if (type === 'XRAY') {
-      interpretation = `Действие с Xray: ${action}`;
+      interpretation = `Действие с Xray: ${escapeHtmlEvents(action)}`;
       icon = '🔧';
     } else {
-      interpretation = `${type}: ${action}`;
+      interpretation = `${escapeHtmlEvents(type)}: ${escapeHtmlEvents(action)}`;
     }
     
     return { interpretation, icon, severity };
@@ -61,9 +70,9 @@ function renderEvents(events) {
     return `
       <tr>
         <td class="mono" style="font-size:11px;">${fmtDate(e.ts)}</td>
-        <td><span class="badge ${severityClass}">${e.type || '—'}</span></td>
+        <td><span class="badge ${severityClass}">${escapeHtmlEvents(e.type || '—')}</span></td>
         <td>${icon} ${interpretation}</td>
-        <td class="muted" style="font-size:11px;">${e.action || '—'}</td>
+        <td class="muted" style="font-size:11px;">${escapeHtmlEvents(e.action || '—')}</td>
       </tr>
     `;
   }).join('') || '<tr><td colspan="4" class="muted">Нет событий</td></tr>';

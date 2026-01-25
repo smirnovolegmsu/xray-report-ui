@@ -1,4 +1,18 @@
 // ==================== SETTINGS ====================
+
+// Helper for escaping JS strings in onclick attributes
+function escapeJsStringSettings(text) {
+  if (text == null) return '';
+  return String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/</g, '\\x3c')
+    .replace(/>/g, '\\x3e');
+}
+
 async function loadSettings() {
   try {
     // Ensure settings subpane is visible
@@ -63,7 +77,7 @@ async function loadSettings() {
                   <div style="font-size: 9px; color: var(--muted); margin-bottom: 2px;">Расписание:</div>
                   <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
                     <code style="font-size: 10px; font-family: ui-monospace; background: var(--bg); padding: 2px 5px; border-radius: 3px;">${escapeHtml(job.schedule || '—')}</code>
-                    <button class="btn" style="padding: 2px 6px; font-size: 9px; line-height: 1.2;" onclick="editCronSchedule('${escapeHtml(job.script || '')}', '${escapeHtml(job.schedule || '')}')">✏️</button>
+                    <button class="btn" style="padding: 2px 6px; font-size: 9px; line-height: 1.2;" onclick="editCronSchedule('${escapeJsStringSettings(job.script || '')}', '${escapeJsStringSettings(job.schedule || '')}')">✏️</button>
                   </div>
                 </div>
                 
