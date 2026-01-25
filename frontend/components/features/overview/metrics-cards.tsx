@@ -50,15 +50,12 @@ export const MetricsCards = memo(function MetricsCards({ selectedDate, mode }: M
       const globalData = data.global || {};
       const usersData = data.users || {};
 
-      // API returns 14 days of data, we need to split into current (last 7) and previous (first 7)
-      const allDailyTraffic = globalData.daily_traffic_bytes || [];
-      const allDailyConns = globalData.daily_conns || [];
-
-      // Take last 7 days for current period, first 7 for previous period
-      const dailyTraffic = allDailyTraffic.slice(-7);
-      const prevDailyTraffic = allDailyTraffic.slice(0, 7);
-      const dailyConns = allDailyConns.slice(-7);
-      const prevDailyConns = allDailyConns.slice(0, 7);
+      // Current 7 days data
+      const dailyTraffic = globalData.daily_traffic_bytes || [];
+      const dailyConns = globalData.daily_conns || [];
+      // Previous 7 days data (separate fields from API)
+      const prevDailyTraffic = globalData.prev_daily_traffic_bytes || [];
+      const prevDailyConns = globalData.prev_daily_conns || [];
 
       const traffic_total = dailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
       const traffic_prev = prevDailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
