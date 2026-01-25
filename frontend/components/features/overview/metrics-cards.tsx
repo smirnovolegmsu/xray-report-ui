@@ -49,12 +49,14 @@ export const MetricsCards = memo(function MetricsCards({ selectedDate, mode }: M
       
       const globalData = data.global || {};
       const usersData = data.users || {};
-      
+
+      // Current 7 days data
       const dailyTraffic = globalData.daily_traffic_bytes || [];
-      const prevDailyTraffic = globalData.prev_daily_traffic_bytes || [];
       const dailyConns = globalData.daily_conns || [];
+      // Previous 7 days data (separate fields from API)
+      const prevDailyTraffic = globalData.prev_daily_traffic_bytes || [];
       const prevDailyConns = globalData.prev_daily_conns || [];
-      
+
       const traffic_total = dailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
       const traffic_prev = prevDailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
       const connections_total = dailyConns.reduce((sum: number, val: number) => sum + val, 0);

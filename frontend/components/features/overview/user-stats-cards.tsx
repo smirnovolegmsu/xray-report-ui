@@ -147,8 +147,10 @@ export function UserStatsCards() {
   }, []);
 
   const getChartData = useCallback((user: UserStatsCard) => {
-    // Ensure we have at least 7 data points for consistent chart display
-    const trafficData = user.daily_traffic_bytes || [];
+    // Get all traffic data and take only the last 7 days
+    const allTrafficData = user.daily_traffic_bytes || [];
+    const trafficData = allTrafficData.slice(-7);
+
     // If empty, return minimal data to prevent chart rendering issues
     if (trafficData.length === 0) {
       return [{
@@ -156,9 +158,15 @@ export function UserStatsCards() {
         data: Array.from({ length: 7 }, (_, i) => ({ x: i + 1, y: 0 })),
       }];
     }
+
+    // Pad with zeros at the beginning if we have less than 7 days
+    const paddedData = trafficData.length < 7
+      ? [...Array(7 - trafficData.length).fill(0), ...trafficData]
+      : trafficData;
+
     return [{
       id: 'traffic',
-      data: trafficData.map((bytes, index) => ({
+      data: paddedData.map((bytes, index) => ({
         x: index + 1,
         y: bytes / 1024 / 1024 / 1024,
       })),

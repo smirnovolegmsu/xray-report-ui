@@ -44,19 +44,24 @@ export const TrafficChart = memo(function TrafficChart({ selectedDate, mode, met
       }
       
       const globalData = apiData.global || {};
-      const dates = apiData.meta?.days || [];
-      
-      let trafficData: number[];
-      let connsData: number[];
-      
+      const allDates = apiData.meta?.days || [];
+
+      let allTrafficData: number[];
+      let allConnsData: number[];
+
       if (mode === 'cumulative') {
-        trafficData = globalData.cumulative_traffic_bytes || [];
-        connsData = globalData.cumulative_conns || [];
+        allTrafficData = globalData.cumulative_traffic_bytes || [];
+        allConnsData = globalData.cumulative_conns || [];
       } else {
-        trafficData = globalData.daily_traffic_bytes || [];
-        connsData = globalData.daily_conns || [];
+        allTrafficData = globalData.daily_traffic_bytes || [];
+        allConnsData = globalData.daily_conns || [];
       }
-      
+
+      // Take only the last 7 days for display
+      const dates = allDates.slice(-7);
+      const trafficData = allTrafficData.slice(-7);
+      const connsData = allConnsData.slice(-7);
+
       // Calculate raw values
       const rawValues = dates
         .filter((dateStr: string) => dateStr && !isNaN(new Date(dateStr).getTime())) // Filter invalid dates
