@@ -1,13 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import Script from "next/script";
 import { Providers } from "@/components/providers";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-inter",
-});
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -84,7 +78,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         {/* Load crypto polyfill FIRST with beforeInteractive strategy */}
         <Script
           id="crypto-polyfill-inline"
