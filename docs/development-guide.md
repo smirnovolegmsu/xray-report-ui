@@ -1,400 +1,152 @@
 # Руководство по разработке
 
-**Дата:** 2026-01-25  
-**Объединено из:** project-structure.md, migration.md, architecture.md
+**Дата:** 2026-01-25
 
 ---
 
-## 📋 Содержание
+## Структура проекта
 
-1. [Структура проекта](#структура-проекта)
-2. [Архитектура системы](#архитектура-системы)
-3. [Миграция на новую структуру](#миграция-на-новую-структуру)
+**Xray Report UI** — веб-панель управления VPN сервером на базе Xray-core.
 
----
-
-# Структура проекта
-
-## Обзор проекта
-
-**Xray Report UI** — это веб-панель управления VPN сервером на базе Xray-core. Проект состоит из двух основных компонентов:
+**Компоненты:**
 - **Backend (Flask API)** — Python сервер на порту 8787
 - **Frontend (Next.js)** — React приложение на порту 3000
 
 ---
 
-## 📁 Структура корневой директории
+## Структура директорий
 
-### 🔧 Основные Python файлы (Backend)
+### Backend
 
-#### `app.py`
-**Назначение:** Главный файл Flask приложения, точка входа для Backend сервера.
-
-**Что делает:**
+**`app.py`** — главный Flask файл, точка входа:
 - Инициализирует Flask приложение
-- Регистрирует все API Blueprints (маршруты)
-- Запускает фоновые потоки для:
-  - Обновления live buffer (каждую минуту)
-  - Проверки здоровья сервисов (каждые 60 секунд)
-- Обрабатывает ошибки и логирует их как события
-- Управляет жизненным циклом приложения (startup/shutdown)
+- Регистрирует все API Blueprints
+- Запускает фоновые потоки (live buffer, health checks)
+- Обрабатывает ошибки
 
-**Важно:** При запуске в production используется Gunicorn, который вызывает этот файл.
+**`backend/core/`** — общие модули:
+- `api.py` — API утилиты (ok/fail, валидация)
+- `cache.py` — кэширование данных
+- `config.py` — конфигурация
+- `errors.py` — обработка ошибок
+- `helpers.py` — вспомогательные функции
+- `logging.py` — логирование
+- `system.py` — системные функции
+- `xray.py` — работа с Xray конфигурацией
 
----
-
-#### Backend модули (`backend/core/`)
-
-- **`api.py`** - Общие API утилиты (ok/fail, валидация)
-- **`cache.py`** - Кэширование данных
-- **`config.py`** - Конфигурация приложения
-- **`errors.py`** - Обработка ошибок
-- **`helpers.py`** - Вспомогательные функции
-- **`logging.py`** - Настройка логирования
-- **`system.py`** - Системные функции
-- **`xray.py`** - Работа с Xray конфигурацией
-
----
-
-#### Backend features (`backend/features/`)
-
-**Структура модуля:**
+**`backend/features/<module>/`** — функциональные модули:
 ```
-backend/features/<module>/
 ├── api/v1/endpoints.py    # API endpoints
 ├── services/              # Бизнес-логика
 └── repositories/          # Работа с данными
 ```
 
-**Модули:**
-- `overview/` - Дашборд и статистика
-- `users/` - Управление пользователями
-- `live/` - Онлайн мониторинг
-- `events/` - События системы
-- `header/` - Системные ресурсы
-- `settings/` - Настройки системы
+**Модули:** `overview/`, `users/`, `live/`, `events/`, `header/`, `settings/`
 
----
+### Frontend
 
-### 📂 Frontend структура (`frontend/`)
+**`frontend/app/`** — Next.js App Router страницы:
+- `page.tsx` — главная страница
+- `users/page.tsx`, `live/page.tsx`, `events/page.tsx`
+- `settings/` — страницы настроек
 
-#### `frontend/app/` — Next.js App Router страницы
-- `app/page.tsx` — главная страница (Dashboard/Overview)
-- `app/layout.tsx` — корневой layout
-- `app/users/page.tsx` — страница управления пользователями
-- `app/live/page.tsx` — страница live мониторинга
-- `app/events/page.tsx` — страница событий
-- `app/settings/` — страницы настроек
+**`frontend/components/`** — React компоненты:
+- `layout/` — макет (sidebar, header)
+- `features/` — функциональные компоненты по модулям
 
-#### `frontend/components/` — React компоненты
-
-**`components/layout/`** — компоненты макета:
-- `main-layout.tsx` — основной layout с sidebar и header
-- `sidebar.tsx` — боковое меню навигации
-- `header.tsx` — верхний заголовок
-
-**`components/features/`** — функциональные компоненты:
-- `overview/` — компоненты главной страницы
-- `users/` — компоненты управления пользователями
-- `live/` — компоненты live мониторинга
-- `events/` — компоненты событий
-- `settings/` — компоненты настроек
-
-#### `frontend/lib/` — Утилиты и константы
+**`frontend/lib/`** — утилиты:
 - `api/` — API клиенты
-- `constants/` — Константы (API endpoints, UI)
-- `hooks/` — Custom hooks
+- `constants/` — константы
+- `hooks/` — custom hooks
 
 ---
 
-## 🔄 Поток данных в системе
+## Архитектура
+
+### Поток данных
 
 ```
-Пользователь (браузер)
-    ↓
-Frontend (Next.js, порт 3000)
-    ↓ /api/*
-Backend (Flask API, порт 8787)
-    ↓
-Модули (xray.py, users.py, events.py, etc.)
-    ↓
-Файловая система:
-    - /usr/local/etc/xray/config.json (конфиг Xray)
-    - /var/log/xray/access.log (access log)
-    - /var/log/xray/usage/*.csv (статистика)
-    - /opt/xray-report-ui/data/* (данные приложения)
-    ↓
-Xray-core (VPN сервер)
+Пользователь → Frontend (Next.js:3000) → /api/* → Backend (Flask:8787) 
+→ Модули → Файловая система → Xray-core
 ```
 
----
+### Слои Backend
 
-# Архитектура системы
+1. **API Layer** — HTTP обработка, валидация, формирование ответов
+2. **Service Layer** — бизнес-логика, обработка данных
+3. **Repository Layer** — работа с данными, чтение/запись файлов
+4. **Core Layer** — общие утилиты, кэширование, системные операции
 
-## Принципы организации
+### Слои Frontend
 
-### 1. Три основные части проекта
-
-```
-Frontend (что видит пользователь) = frontend/ (Next.js)
-Backend (логика на сервере)        = app.py + backend/ (Flask)
-Данные (не в Git)                  = data/ + venv/
-```
-
----
-
-## Слои архитектуры
-
-### Backend слои:
-
-1. **API Layer** (`backend/features/*/api/v1/endpoints.py`)
-   - HTTP обработка запросов
-   - Валидация входных данных
-   - Формирование ответов
-
-2. **Service Layer** (`backend/features/*/services/`)
-   - Бизнес-логика
-   - Обработка данных
-   - Координация между репозиториями
-
-3. **Repository Layer** (`backend/features/*/repositories/`)
-   - Работа с данными
-   - Чтение/запись файлов
-   - Парсинг CSV/JSON
-
-4. **Core Layer** (`backend/core/`)
-   - Общие утилиты
-   - Кэширование
-   - Системные операции
+1. **Pages Layer** — страницы Next.js, маршрутизация
+2. **Components Layer** — переиспользуемые компоненты, UI компоненты
+3. **Features Layer** — feature-модули (изолированные)
+4. **API Layer** — API клиенты, типизация
 
 ---
 
-### Frontend слои:
+## Миграция на новую структуру
 
-1. **Pages Layer** (`frontend/app/`)
-   - Страницы Next.js
-   - Маршрутизация
+### Изменения в импортах
 
-2. **Components Layer** (`frontend/components/`)
-   - Переиспользуемые компоненты
-   - UI компоненты
-
-3. **Features Layer** (`frontend/features/`)
-   - Feature-модули (изолированные)
-   - Бизнес-компоненты
-
-4. **API Layer** (`frontend/lib/api/`)
-   - API клиенты
-   - Типизация запросов/ответов
-
----
-
-## Взаимодействие компонентов
-
-### Frontend → Backend
-
-```
-React Component
-    ↓
-API Client (frontend/lib/api/*.ts)
-    ↓
-HTTP Request (/api/*)
-    ↓
-Next.js Rewrite (proxy)
-    ↓
-Flask Endpoint (backend/features/*/api/v1/endpoints.py)
-    ↓
-Service (backend/features/*/services/)
-    ↓
-Repository (backend/features/*/repositories/)
-    ↓
-File System / Xray Config
-```
-
----
-
-# Миграция на новую структуру
-
-## Обзор
-
-Проект был реорганизован с новой структурой. Это руководство поможет вам мигрировать существующий код и использовать новые возможности.
-
----
-
-## Изменения в импортах
-
-### Старые импорты → Новые импорты
-
-#### Конфигурация
+**Конфигурация:**
 ```python
-# Старое
-from config import APP_PORT, SERVICE_XRAY_DEFAULT
-from settings import load_settings, XRAY_CFG
-
-# Новое
-from backend.core.config import (
-    APP_PORT,
-    SERVICE_XRAY_DEFAULT,
-    load_settings,
-    XRAY_CFG,
-)
+# Старое: from config import APP_PORT
+# Новое: from backend.core.config import APP_PORT
 ```
 
-#### Утилиты
+**Утилиты:**
 ```python
-# Старое
-from utils import now_utc_iso, atomic_write_json
-from cache import get_cached, set_cached
-
-# Новое
-from backend.core.helpers import now_utc_iso, atomic_write_json
-from backend.core.cache import get_cached, set_cached
+# Старое: from utils import now_utc_iso
+# Новое: from backend.core.helpers import now_utc_iso
 ```
 
-#### Xray
+**Xray:**
 ```python
-# Старое
-from xray import get_xray_clients, load_xray_config
-
-# Новое
-from backend.core.xray import (
-    get_xray_clients,
-    load_xray_config,
-)
-```
-
----
-
-## Структура модуля
-
-### Backend модуль:
-
-```
-backend/features/<module>/
-├── __init__.py
-├── api/
-│   ├── __init__.py
-│   └── v1/
-│       ├── __init__.py
-│       └── endpoints.py    # API endpoints
-├── services/
-│   └── <module>_service.py # Бизнес-логика
-└── repositories/
-    └── <module>_repository.py # Работа с данными
-```
-
-### Frontend модуль:
-
-```
-frontend/features/<module>/
-├── components/             # Компоненты модуля
-├── hooks/                  # Custom hooks
-└── types.ts               # TypeScript типы
+# Старое: from xray import get_xray_clients
+# Новое: from backend.core.xray import get_xray_clients
 ```
 
 ---
 
 ## Добавление нового модуля
 
-### 1. Backend модуль
+### Backend модуль
 
-1. Создать структуру:
-```bash
-mkdir -p backend/features/newmodule/{api/v1,services,repositories}
-```
+1. Создать структуру: `mkdir -p backend/features/newmodule/{api/v1,services,repositories}`
+2. Создать endpoints в `api/v1/endpoints.py`
+3. Зарегистрировать в `app.py`: `app.register_blueprint(newmodule_bp)`
 
-2. Создать endpoints:
-```python
-# backend/features/newmodule/api/v1/endpoints.py
-from flask import Blueprint
-from backend.core.api import ok, fail
+### Frontend модуль
 
-bp = Blueprint('newmodule', __name__, url_prefix='/api/newmodule')
-
-@bp.get('/list')
-def get_list():
-    return ok({'items': []})
-```
-
-3. Зарегистрировать в `app.py`:
-```python
-from backend.features.newmodule.api.v1.endpoints import bp as newmodule_bp
-app.register_blueprint(newmodule_bp)
-```
-
----
-
-### 2. Frontend модуль
-
-1. Создать структуру:
-```bash
-mkdir -p frontend/features/newmodule/{components,hooks}
-```
-
-2. Создать API клиент:
-```typescript
-// frontend/lib/api/newmodule.ts
-import { apiClient } from './client';
-
-export const newmoduleApi = {
-  getList: () => apiClient.get('/newmodule/list'),
-};
-```
-
-3. Создать компоненты:
-```typescript
-// frontend/features/newmodule/components/newmodule-list.tsx
-'use client';
-import { newmoduleApi } from '@/lib/api/newmodule';
-
-export function NewModuleList() {
-  // ...
-}
-```
+1. Создать структуру: `mkdir -p frontend/features/newmodule/{components,hooks}`
+2. Создать API клиент в `lib/api/newmodule.ts`
+3. Создать компоненты в `features/newmodule/components/`
 
 ---
 
 ## Best Practices
 
-### Backend:
+### Backend
+- Endpoints только маршрутизация и валидация
+- Services содержат бизнес-логику
+- Repositories работают с данными
+- Использовать `backend.core.*` для общих модулей
+- Обработка ошибок через `backend.core.errors`
 
-1. **Разделение ответственности:**
-   - Endpoints только маршрутизация и валидация
-   - Services содержат бизнес-логику
-   - Repositories работают с данными
-
-2. **Использование общих модулей:**
-   - `backend.core.api` для ответов
-   - `backend.core.cache` для кэширования
-   - `backend.core.helpers` для утилит
-
-3. **Обработка ошибок:**
-   - Использовать кастомные исключения из `backend.core.errors`
-   - Логировать через `backend.core.logging`
-
-### Frontend:
-
-1. **Компоненты:**
-   - Разделять на UI компоненты и бизнес-компоненты
-   - Использовать TypeScript для типизации
-   - Избегать hydration errors (проверять `typeof window`)
-
-2. **API клиенты:**
-   - Централизованные в `frontend/lib/api/`
-   - Типизированные запросы/ответы
-   - Обработка ошибок
-
-3. **State Management:**
-   - SWR для server state
-   - Zustand для client state
-   - Избегать prop drilling
+### Frontend
+- Разделять UI компоненты и бизнес-компоненты
+- Использовать TypeScript для типизации
+- Избегать hydration errors (проверять `typeof window`)
+- Централизованные API клиенты в `lib/api/`
+- SWR для server state, Zustand для client state
 
 ---
 
 ## Тестирование
 
-### Backend тесты:
-
+**Backend:**
 ```python
 # backend/tests/test_newmodule.py
 import pytest
@@ -405,8 +157,7 @@ def test_get_items():
     assert result is not None
 ```
 
-### Frontend тесты:
-
+**Frontend:**
 ```typescript
 // frontend/__tests__/newmodule.test.tsx
 import { render } from '@testing-library/react';
@@ -414,7 +165,6 @@ import { NewModuleList } from '@/features/newmodule/components/newmodule-list';
 
 test('renders list', () => {
   const { getByText } = render(<NewModuleList />);
-  // ...
 });
 ```
 
@@ -422,28 +172,16 @@ test('renders list', () => {
 
 ## Отладка
 
-### Backend:
-
+**Backend:**
 ```bash
-# Логи
 journalctl -u xray-report-ui -f
-
-# Запуск вручную
-cd /opt/xray-report-ui
-source venv/bin/activate
-python app.py
+cd /opt/xray-report-ui && source venv/bin/activate && python app.py
 ```
 
-### Frontend:
-
+**Frontend:**
 ```bash
-# Dev режим
-cd frontend
-npm run dev
-
-# Production build
-npm run build
-npm start
+cd frontend && npm run dev  # Dev режим
+cd frontend && npm run build && npm start  # Production
 ```
 
 ---
