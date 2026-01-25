@@ -244,7 +244,7 @@ async function copyUserLink(email) {
 async function deleteUser(email) {
   const confirmed = await modal(
     '⚠️ ВНИМАНИЕ: Необратимое действие',
-    `Вы уверены, что хотите удалить пользователя "${email}"?<br><br><strong style="color: var(--bad);">Это действие нельзя отменить.</strong><br>UUID будет удалён из конфигурации безвозвратно.`,
+    `Вы уверены, что хотите удалить пользователя "${escapeHtml(email)}"?<br><br><strong style="color: var(--bad);">Это действие нельзя отменить.</strong><br>UUID будет удалён из конфигурации безвозвратно.`,
     '',
     'Отмена',
     'Удалить навсегда'
@@ -272,7 +272,7 @@ async function deleteUser(email) {
 async function kickUser(email) {
   const confirmed = await modal(
     'Отключить пользователя',
-    `Вы уверены, что хотите отключить пользователя "${email}"?<br><br>Текущие подключения будут разорваны, но пользователь сможет подключиться снова по той же ссылке (UUID будет изменён, но ссылка останется валидной).`,
+    `Вы уверены, что хотите отключить пользователя "${escapeHtml(email)}"?<br><br>Текущие подключения будут разорваны, но пользователь сможет подключиться снова по той же ссылке (UUID будет изменён, но ссылка останется валидной).`,
     '',
     'Отмена',
     'Кикнуть'
@@ -299,8 +299,8 @@ async function kickUser(email) {
 async function editUserAlias(email, currentAlias) {
   const alias = await modal(
     'Редактировать Alias',
-    `Введите alias для пользователя "${email}":`,
-    `<input type="text" id="userAliasInput" placeholder="Введите alias (или оставьте пустым)" value="${escapeHtml(currentAlias)}" style="width:100%;">`,
+    `Введите alias для пользователя "${escapeHtml(email)}":`,
+    `<input type="text" id="userAliasInput" placeholder="Введите alias (или оставьте пустым)" value="${escapeAttr(currentAlias || '')}" style="width:100%;">`,
     'Отмена',
     'Сохранить',
     false
