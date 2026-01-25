@@ -244,6 +244,8 @@ DEFAULT_SETTINGS = {
         "fp": "chrome",
         "flow": "xtls-rprx-vision",
         "reality_pbk": "",
+        "stats_api_enabled": True,
+        "stats_api_address": "127.0.0.1:10085",
     },
     "collector": {
         "usage_dir": USAGE_DIR,
@@ -3732,16 +3734,81 @@ EMAIL_RE1 = re.compile(r"(?:email|user)[:=]\s*(?P<email>[A-Za-z0-9_\-\.]+)")
 EMAIL_RE2 = re.compile(r"\s(?P<email>user_\d{2})\s*$")
 
 def _try_stats_api() -> Tuple[bool, Dict[str, Any]]:
-    """Try to connect to Xray Stats API (Режим 1: Read-only)"""
+    """Try to connect to Xray Stats API (Режим 1: Read-only)
+
+    Returns tuple of (success, data) where data contains:
+    - users: dict of {email: {"uplink": bytes, "downlink": bytes}}
+    - total_uplink: total upload bytes
+    - total_downlink: total download bytes
+    """
+    import subprocess
+
+    settings = load_settings()
+    if not settings["xray"].get("stats_api_enabled", True):
+        return False, {}
+
+    api_address = settings["xray"].get("stats_api_address", "127.0.0.1:10085")
+
     try:
-        # Try common Stats API endpoints
-        # Xray Stats API обычно на localhost:10085 или через API tag
-        import urllib.request
-        import urllib.error
-        
-        # Попытка подключиться к Stats API
-        # Обычно это GET запрос к /stats или через API tag
-        # Пока заглушка - нужно знать точный endpoint
+        # Use xray api command to query stats
+        # This queries all user stats via gRPC
+        result = subprocess.run(
+            ["xray", "api", "statsquery", "-s", api_address],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        if result.returncode != 0:
+            return False, {}
+
+        output = result.stdout.strip()
+        if not output:
+            return False, {}
+
+        # Parse xray stats output
+        # Format: stat { name: "user>>>email>>>traffic>>>uplink" value: 12345 }
+        users: Dict[str, Dict[str, int]] = {}
+        total_uplink = 0
+        total_downlink = 0
+
+        # Parse each stat entry
+        stat_pattern = re.compile(
+            r'name:\s*"([^"]+)"\s+value:\s*(\d+)',
+            re.MULTILINE
+        )
+
+        for match in stat_pattern.finditer(output):
+            name = match.group(1)
+            value = int(match.group(2))
+
+            # Parse user traffic stats: user>>>email>>>traffic>>>uplink/downlink
+            parts = name.split(">>>")
+            if len(parts) >= 4 and parts[0] == "user" and parts[2] == "traffic":
+                email = parts[1]
+                direction = parts[3]  # "uplink" or "downlink"
+
+                if email not in users:
+                    users[email] = {"uplink": 0, "downlink": 0}
+
+                if direction == "uplink":
+                    users[email]["uplink"] = value
+                    total_uplink += value
+                elif direction == "downlink":
+                    users[email]["downlink"] = value
+                    total_downlink += value
+
+        # Return parsed stats
+        return True, {
+            "users": users,
+            "total_uplink": total_uplink,
+            "total_downlink": total_downlink,
+        }
+
+    except subprocess.TimeoutExpired:
+        return False, {}
+    except FileNotFoundError:
+        # xray command not found
         return False, {}
     except Exception:
         return False, {}
@@ -3829,7 +3896,61 @@ def _update_live_buffer():
     if stats_ok:
         live_source = "stats"
         live_traffic_available = True
-        # TODO: Parse stats data and update buffer
+
+        now_ts = time.time()
+        now_min = int(now_ts // 60) * 60  # Round to minute
+
+        # Extract active users (those with any traffic)
+        users_data = stats_data.get("users", {})
+        active_users = [
+            email for email, traffic in users_data.items()
+            if traffic.get("uplink", 0) > 0 or traffic.get("downlink", 0) > 0
+        ]
+
+        total_traffic = stats_data.get("total_uplink", 0) + stats_data.get("total_downlink", 0)
+
+        with live_buffer_lock:
+            # Initialize buffer keys if needed
+            if "online_users" not in live_buffer:
+                live_buffer["online_users"] = []
+            if "conns" not in live_buffer:
+                live_buffer["conns"] = []
+            if "traffic" not in live_buffer:
+                live_buffer["traffic"] = []
+
+            # Add current minute point
+            live_buffer["online_users"].append({
+                "ts": now_min,
+                "value": len(active_users),
+                "users": active_users,
+            })
+            live_buffer["conns"].append({
+                "ts": now_min,
+                "value": len(active_users),  # Each active user is a connection
+            })
+            live_buffer["traffic"].append({
+                "ts": now_min,
+                "value": total_traffic,
+                "uplink": stats_data.get("total_uplink", 0),
+                "downlink": stats_data.get("total_downlink", 0),
+            })
+
+            # Keep only last LIVE_BUFFER_SIZE points
+            for metric in live_buffer:
+                if len(live_buffer[metric]) > LIVE_BUFFER_SIZE:
+                    live_buffer[metric] = live_buffer[metric][-LIVE_BUFFER_SIZE:]
+
+            # Save to file (дамп)
+            try:
+                atomic_write_json(LIVE_STATE_PATH, {
+                    "buffer": live_buffer,
+                    "source": live_source,
+                    "trafficAvailable": live_traffic_available,
+                    "updatedAt": now_utc_iso(),
+                })
+            except Exception:
+                pass
+
         return
     
     # Fallback to access.log
