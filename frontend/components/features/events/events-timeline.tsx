@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { apiClient } from '@/lib/api';
-import { handleApiError } from '@/lib/utils';
+import { handleApiError, devLog } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAppStore } from '@/lib/store';
 import type { EventsTimelinePoint } from '@/types';
@@ -45,8 +45,8 @@ export function EventsTimeline({
       // axios оборачивает это в response.data, так что response.data = { ok: true, timeline: [...] }
       const timelineData = response.data?.timeline || [];
       
-      // Debug logging - всегда показываем для диагностики
-      console.log('[EventsTimeline] Loading timeline:', {
+      // Debug logging - only in development
+      devLog.log('[EventsTimeline] Loading timeline:', {
         hours,
         responseStatus: response.status,
         responseDataKeys: Object.keys(response.data || {}),
@@ -56,16 +56,16 @@ export function EventsTimeline({
         firstPoint: timelineData[0],
         lastPoint: timelineData[timelineData.length - 1]
       });
-      
+
       if (timelineData.length === 0) {
-        console.warn('[EventsTimeline] No timeline data received!');
+        devLog.warn('[EventsTimeline] No timeline data received!');
       }
       
       setTimeline(timelineData);
       setLoading(false);
     } catch (error) {
       const errorMessage = handleApiError(error);
-      console.error('[EventsTimeline] Failed to load timeline:', error, errorMessage);
+      devLog.error('[EventsTimeline] Failed to load timeline:', error, errorMessage);
       if (loading) {
         toast.error(lang === 'ru' 
           ? `Ошибка загрузки графика: ${errorMessage}` 

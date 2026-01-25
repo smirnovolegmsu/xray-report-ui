@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
-import { handleApiError } from '@/lib/utils';
+import { handleApiError, devLog } from '@/lib/utils';
 import type { Event, EventType, EventSeverity } from '@/types';
 import { EventIcon } from './event-icon';
 import { ServiceIcon } from './service-icon';
@@ -75,7 +75,7 @@ export function EventsTable({
         );
       }
       setLoading(false);
-      console.error('Failed to load events:', error);
+      devLog.error('Failed to load events:', error);
     }
   };
 

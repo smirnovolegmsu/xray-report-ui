@@ -2097,9 +2097,9 @@ def api_events_stats():
                     if ln:
                         try:
                             events.append(json.loads(ln))
-                        except:
+                        except (json.JSONDecodeError, ValueError):
                             pass
-        except:
+        except OSError:
             pass
     
     # Filter by time range
@@ -2238,11 +2238,11 @@ def _check_cron_job_status(cron_file: str, schedule: str, command: str) -> Dict[
         try:
             cp = subprocess.run(["systemctl", "is-active", "cron"], capture_output=True, text=True, timeout=5)
             cron_service_active = (cp.stdout or "").strip() == "active"
-        except:
+        except (subprocess.SubprocessError, OSError, subprocess.TimeoutExpired):
             try:
                 cp = subprocess.run(["systemctl", "is-active", "crond"], capture_output=True, text=True, timeout=5)
                 cron_service_active = (cp.stdout or "").strip() == "active"
-            except:
+            except (subprocess.SubprocessError, OSError, subprocess.TimeoutExpired):
                 cron_service_active = True  # Assume active if we can't check
         
         if not cron_service_active:
@@ -2322,7 +2322,7 @@ def _parse_cron_log(script_name: str, usage_dir: str) -> Dict[str, Any]:
             for f in files:
                 try:
                     total_size += os.path.getsize(f)
-                except:
+                except OSError:
                     pass
             stats["total_size_bytes"] = total_size
             
@@ -3234,12 +3234,12 @@ def get_system_timezone() -> str:
                                 sign = offset[0]
                                 hours = int(offset[1:3])
                                 return f"{tz} (UTC{sign}{hours})"
-                    except:
+                    except (ValueError, IndexError):
                         pass
                     return tz
-    except:
+    except (subprocess.SubprocessError, OSError, subprocess.TimeoutExpired):
         pass
-    
+
     # Fallback: try date +%Z
     try:
         cp = subprocess.run(
@@ -3259,18 +3259,18 @@ def get_system_timezone() -> str:
                             sign = offset[0]
                             hours = int(offset[1:3])
                             return f"{tz} (UTC{sign}{hours})"
-                except:
+                except (subprocess.SubprocessError, OSError, ValueError, IndexError):
                     pass
                 return tz
-    except:
+    except (subprocess.SubprocessError, OSError, subprocess.TimeoutExpired):
         pass
-    
+
     # Last fallback: use Python
     try:
         offset = dt.datetime.now().astimezone().utcoffset()
         hours = int(offset.total_seconds() / 3600)
         return f"UTC{hours:+d}"
-    except:
+    except (AttributeError, TypeError):
         return "UTC"
 
 @app.get("/api/system/journal")
@@ -3335,7 +3335,7 @@ def api_backups_list():
                 "size": st.st_size,
                 "mtime": dt.datetime.utcfromtimestamp(st.st_mtime).isoformat() + "Z",
             })
-        except:
+        except OSError:
             pass
     return ok({"backups": items})
 

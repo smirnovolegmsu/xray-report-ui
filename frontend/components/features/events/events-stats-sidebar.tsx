@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { apiClient } from '@/lib/api';
-import { handleApiError } from '@/lib/utils';
+import { handleApiError, devLog } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAppStore } from '@/lib/store';
 import type { EventsStats as EventsStatsType } from '@/types';
@@ -50,7 +50,7 @@ export function EventsStatsSidebar({ hours = 24 }: EventsStatsSidebarProps) {
         );
       }
       setLoading(false);
-      console.error('Failed to load stats:', error);
+      devLog.error('Failed to load stats:', error);
     }
   };
 
