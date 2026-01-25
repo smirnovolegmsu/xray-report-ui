@@ -83,9 +83,13 @@ export function UserStatsCards() {
     try {
       setLoading(true);
       const response = await apiClient.getDashboard({ days: 14 });
+
+      if (!response?.data) {
+        throw new Error('Empty response from server');
+      }
       const data = response.data as DashboardApiResponse;
-      
-      const usersData = data.users || {};
+
+      const usersData = data?.users || {};
       const usersList = Object.keys(usersData).map(email => {
         const userData = usersData[email];
         return {

@@ -83,7 +83,7 @@ export const LiveCharts = memo(function LiveCharts({ scope, metric, period, gran
         scope,
       });
 
-      if (response.data.series) {
+      if (response?.data?.series) {
         // Format data for both line and bar charts
         const formatted = response.data.series.map((point: any) => {
           const timestamp = new Date(point.ts);

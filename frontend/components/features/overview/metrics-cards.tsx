@@ -37,9 +37,13 @@ export const MetricsCards = memo(function MetricsCards({ selectedDate, mode }: M
     try {
       setLoading(true);
       const response = await apiClient.getDashboard({ days: 14 });
+
+      if (!response?.data) {
+        throw new Error('Empty response from server');
+      }
       const data = response.data as DashboardApiResponse;
-      
-      if (!data.ok) {
+
+      if (!data?.ok) {
         throw new Error(data.error || 'Failed to load dashboard data');
       }
       

@@ -25,7 +25,7 @@ export const LiveNow = memo(function LiveNow() {
   const loadUsers = useCallback(async () => {
     try {
       const response = await apiClient.getUsers();
-      setUsers(response.data.users || []);
+      setUsers(response?.data?.users || []);
     } catch (error) {
       devLog.error('Failed to load users:', error);
     }
@@ -52,13 +52,14 @@ export const LiveNow = memo(function LiveNow() {
         gran: '300',
         scope: 'global',
       });
-      if (response.data.series && response.data.series.length > 0) {
+      if (response?.data?.series && response.data.series.length > 0) {
         const series = response.data.series;
         const latest = series[series.length - 1]?.value || 0;
         const previous = series[series.length - 2]?.value || 0;
-        const max = Math.max(...series.map((s: any) => s.value || 0));
-        const min = Math.min(...series.map((s: any) => s.value || 0));
-        const avg = series.reduce((sum: number, s: any) => sum + (s.value || 0), 0) / series.length;
+        const values = series.map((s: any) => s.value || 0);
+        const max = values.length > 0 ? Math.max(...values) : 0;
+        const min = values.length > 0 ? Math.min(...values) : 0;
+        const avg = values.length > 0 ? values.reduce((sum: number, v: number) => sum + v, 0) / values.length : 0;
         
         setHourStats({
           current: latest,

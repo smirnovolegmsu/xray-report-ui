@@ -37,12 +37,16 @@ export const TopDomains = memo(function TopDomains({ selectedDate, mode }: TopDo
   const loadDomains = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       const response = await apiClient.getDashboard({ days: 14 });
+
+      if (!response?.data) {
+        throw new Error('Empty response from server');
+      }
       const data = response.data as DashboardApiResponse;
-      
-      if (!data.ok) {
-        throw new Error(data.error || 'Failed to load data');
+
+      if (!data?.ok) {
+        throw new Error(data?.error || 'Failed to load data');
       }
       
       const globalData = data.global || {};

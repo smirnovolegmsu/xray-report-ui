@@ -99,7 +99,7 @@ export function BackupsSettings() {
     try {
       setLoading(true);
       const response = await apiClient.getBackups();
-      const backupsData = response.data.backups || [];
+      const backupsData = response?.data?.backups || [];
       setBackups(backupsData.map(b => ({ 
         ...b, 
         preview: undefined, 
@@ -182,7 +182,7 @@ export function BackupsSettings() {
       const response = await apiClient.getBackupContent(filename);
       setViewDialog({
         open: true,
-        content: response.data.content,
+        content: response?.data?.content || '',
         filename,
       });
     } catch (error) {
@@ -194,10 +194,11 @@ export function BackupsSettings() {
     try {
       setCreating(true);
       const response = await apiClient.createBackup();
+      const backupName = response?.data?.backup?.name || 'backup';
       toast.success(
-        lang === 'ru' 
-          ? `Бэкап создан: ${response.data.backup.name}` 
-          : `Backup created: ${response.data.backup.name}`
+        lang === 'ru'
+          ? `Бэкап создан: ${backupName}`
+          : `Backup created: ${backupName}`
       );
       loadBackups();
     } catch (error) {
@@ -218,7 +219,7 @@ export function BackupsSettings() {
 
     try {
       const response = await apiClient.restoreBackup(filename, false);
-      if ('preview' in response.data) {
+      if (response?.data && 'preview' in response.data) {
         setRestoreDialog(prev => ({
           ...prev,
           preview: response.data as BackupRestorePreview,
@@ -236,10 +237,10 @@ export function BackupsSettings() {
 
     try {
       const response = await apiClient.restoreBackup(restoreDialog.filename, true, true);
-      if ('restored' in response.data && response.data.restored) {
+      if (response?.data && 'restored' in response.data && response.data.restored) {
         toast.success(
-          lang === 'ru' 
-            ? 'Конфигурация успешно восстановлена' 
+          lang === 'ru'
+            ? 'Конфигурация успешно восстановлена'
             : 'Configuration restored successfully'
         );
         setRestoreDialog(prev => ({ ...prev, open: false }));

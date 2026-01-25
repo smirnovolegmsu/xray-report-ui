@@ -31,12 +31,16 @@ export const TrafficChart = memo(function TrafficChart({ selectedDate, mode, met
   const loadChartData = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       const response = await apiClient.getDashboard({ days: 14 });
+
+      if (!response?.data) {
+        throw new Error('Empty response from server');
+      }
       const apiData = response.data as DashboardApiResponse;
-      
-      if (!apiData.ok) {
-        throw new Error(apiData.error || 'Failed to load data');
+
+      if (!apiData?.ok) {
+        throw new Error(apiData?.error || 'Failed to load data');
       }
       
       const globalData = apiData.global || {};
@@ -59,13 +63,15 @@ export const TrafficChart = memo(function TrafficChart({ selectedDate, mode, met
           day: '2-digit',
           month: '2-digit',
         }),
-        rawValue: metric === 'traffic' 
-          ? Math.round((trafficData[index] / 1024 / 1024 / 1024) * 100) / 100
+        rawValue: metric === 'traffic'
+          ? Math.round(((trafficData[index] || 0) / 1024 / 1024 / 1024) * 100) / 100
           : connsData[index] || 0,
       }));
-      
-      // Find max value for scaling
-      const maxValue = Math.max(...rawValues.map(d => d.rawValue), 0.01);
+
+      // Find max value for scaling (handle empty arrays)
+      const maxValue = rawValues.length > 0
+        ? Math.max(...rawValues.map(d => d.rawValue), 0.01)
+        : 0.01;
       // Set minimum visible height at 5% of max (so small values are still visible)
       const minVisibleValue = maxValue * 0.05;
       

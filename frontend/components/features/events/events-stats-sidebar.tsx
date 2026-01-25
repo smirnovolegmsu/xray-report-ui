@@ -37,7 +37,9 @@ export function EventsStatsSidebar({ hours = 24 }: EventsStatsSidebarProps) {
   const loadStats = async () => {
     try {
       const response = await apiClient.getEventsStats(hours);
-      setStats(response.data as EventsStatsType);
+      if (response?.data) {
+        setStats(response.data as EventsStatsType);
+      }
       setLoading(false);
     } catch (error) {
       const errorMessage = handleApiError(error);

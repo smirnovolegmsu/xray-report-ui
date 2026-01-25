@@ -631,12 +631,12 @@ def load_usage_data(days: int = 7) -> Dict[str, Any]:
             if total_idx is not None and total_idx < len(r):
                 try:
                     b = int(r[total_idx])
-                except:
+                except (ValueError, TypeError):
                     b = 0
             elif up_idx is not None and down_idx is not None:
                 try:
                     b = int(r[up_idx]) + int(r[down_idx])
-                except:
+                except (ValueError, TypeError):
                     b = 0
             else:
                 b = 0
@@ -670,7 +670,7 @@ def _read_csv_dict(path: str) -> List[Dict[str, str]]:
         try:
             mtime = os.path.getmtime(path)
             cache_key = f"{cache_key}_{mtime}"
-        except:
+        except OSError:
             pass
         
         cached = get_cached(cache_key, ttl=300.0)  # 5 minutes for CSV cache
@@ -734,7 +734,7 @@ def _looks_like_ip(s: str) -> bool:
         return False
     try:
         return all(0 <= int(p) <= 255 for p in parts)
-    except:
+    except (ValueError, TypeError):
         return False
 
 def _dst_to_domain(dst: str, domains_map: Dict[str, str]) -> str:
@@ -813,12 +813,12 @@ def load_dashboard_data(days: int = 7, user_filter: str = None) -> Dict[str, Any
             # Get total_bytes
             try:
                 b = int(float(row.get("total_bytes") or row.get("bytes") or 0))
-            except:
+            except (ValueError, TypeError):
                 try:
                     up = int(float(row.get("uplink_bytes") or row.get("up_bytes") or 0))
                     down = int(float(row.get("downlink_bytes") or row.get("down_bytes") or 0))
                     b = up + down
-                except:
+                except (ValueError, TypeError):
                     b = 0
             u_bytes_all.setdefault(user, [0] * len(date_keys))[i] += b
             g_bytes_all[i] += b
@@ -835,7 +835,7 @@ def load_dashboard_data(days: int = 7, user_filter: str = None) -> Dict[str, Any
             all_users.add(user)
             try:
                 c = int(float(row.get("conn_count") or row.get("conns") or 0))
-            except:
+            except (ValueError, TypeError):
                 c = 0
             u_conns_all.setdefault(user, [0] * len(date_keys))[i] += c
             g_conns_all[i] += c
@@ -849,7 +849,7 @@ def load_dashboard_data(days: int = 7, user_filter: str = None) -> Dict[str, Any
             try:
                 idx = date_keys.index(k)
                 result.append(arr_all[idx] if idx < len(arr_all) else 0)
-            except:
+            except ValueError:
                 result.append(0)
         return result
     
@@ -892,12 +892,12 @@ def load_dashboard_data(days: int = 7, user_filter: str = None) -> Dict[str, Any
                 dom = _dst_to_domain(dst, domains_map)
                 try:
                     v = int(float(row.get("traffic_bytes") or 0))
-                except:
+                except (ValueError, TypeError):
                     v = 0
                 per_t_last.setdefault(user, {})
                 per_t_last[user][dom] = per_t_last[user].get(dom, 0) + v
                 glob_t_last[dom] = glob_t_last.get(dom, 0) + v
-        
+
         # conns_*.csv: connections by domain (already read, but need domain mapping)
         cpath = os.path.join(usage_dir, f"conns_{date_key}.csv")
         if os.path.exists(cpath):
@@ -909,7 +909,7 @@ def load_dashboard_data(days: int = 7, user_filter: str = None) -> Dict[str, Any
                 dom = _dst_to_domain(dst, domains_map)
                 try:
                     v = int(float(row.get("conn_count") or 0))
-                except:
+                except (ValueError, TypeError):
                     v = 0
                 per_c_last.setdefault(user, {})
                 per_c_last[user][dom] = per_c_last[user].get(dom, 0) + v
@@ -1110,11 +1110,11 @@ def api_ports_status():
         try:
             result = sock.connect_ex(('127.0.0.1', port))
             is_open_local = (result == 0)
-        except:
+        except OSError:
             pass
         finally:
             sock.close()
-        
+
         # Check 0.0.0.0 (public)
         sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock2.settimeout(1)
@@ -1122,7 +1122,7 @@ def api_ports_status():
         try:
             result = sock2.connect_ex(('0.0.0.0', port))
             is_open_public = (result == 0)
-        except:
+        except OSError:
             pass
         finally:
             sock2.close()
@@ -1319,12 +1319,12 @@ def load_usage_dashboard(date_str: str, mode: str = "daily", window_days: int = 
                 all_users.add(user)
                 try:
                     b = int(float(row.get("total_bytes") or row.get("bytes") or 0))
-                except:
+                except (ValueError, TypeError):
                     try:
                         up = int(float(row.get("uplink_bytes") or row.get("up_bytes") or 0))
                         down = int(float(row.get("downlink_bytes") or row.get("down_bytes") or 0))
                         b = up + down
-                    except:
+                    except (ValueError, TypeError):
                         b = 0
                 g_traffic_all[date_key] = g_traffic_all.get(date_key, 0) + b
                 u_traffic_all.setdefault(user, {})[date_key] = u_traffic_all.get(user, {}).get(date_key, 0) + b
@@ -1348,7 +1348,7 @@ def load_usage_dashboard(date_str: str, mode: str = "daily", window_days: int = 
                 try:
                     # Try multiple possible field names for connection count
                     c = int(float(row.get("conn_count") or row.get("conns") or row.get("count") or 0))
-                except:
+                except (ValueError, TypeError):
                     c = 0
                 # Add to totals (date_key is guaranteed to exist from initialization above)
                 g_conns_all[date_key] = g_conns_all[date_key] + c
@@ -1416,13 +1416,13 @@ def load_usage_dashboard(date_str: str, mode: str = "daily", window_days: int = 
                             b = int(float(row.get("total_bytes") or row.get("bytes") or 0))
                             if b > 0:
                                 users_with_traffic.add(user)
-                        except:
+                        except (ValueError, TypeError):
                             try:
                                 up = int(float(row.get("uplink_bytes") or row.get("up_bytes") or 0))
                                 down = int(float(row.get("downlink_bytes") or row.get("down_bytes") or 0))
                                 if up + down > 0:
                                     users_with_traffic.add(user)
-                            except:
+                            except (ValueError, TypeError):
                                 pass
                     
                     # Estimate: each user with traffic had at least 1 connection
@@ -1461,7 +1461,7 @@ def load_usage_dashboard(date_str: str, mode: str = "daily", window_days: int = 
                     dom = _dst_to_domain(dst, domains_map)
                     try:
                         v = int(float(row.get("traffic_bytes") or 0))
-                    except:
+                    except (ValueError, TypeError):
                         v = 0
                     domain_traffic[dom] = domain_traffic.get(dom, 0) + v
                     u_domain_traffic.setdefault(user, {})[dom] = u_domain_traffic.get(user, {}).get(dom, 0) + v
@@ -1746,12 +1746,12 @@ def _calculate_user_alltime_stats() -> Dict[str, Dict[str, Any]]:
             # Sum traffic
             try:
                 b = int(float(row.get("total_bytes") or row.get("bytes") or 0))
-            except:
+            except (ValueError, TypeError):
                 try:
                     up = int(float(row.get("uplink_bytes") or row.get("up_bytes") or 0))
                     down = int(float(row.get("downlink_bytes") or row.get("down_bytes") or 0))
                     b = up + down
-                except:
+                except (ValueError, TypeError):
                     b = 0
             
             if b > 0:
@@ -1782,9 +1782,9 @@ def _calculate_user_alltime_stats() -> Dict[str, Dict[str, Any]]:
             
             try:
                 v = int(float(row.get("traffic_bytes") or 0))
-            except:
+            except (ValueError, TypeError):
                 v = 0
-            
+
             if v > 0:
                 user_domain_traffic.setdefault(user, {})[domain] = user_domain_traffic.get(user, {}).get(domain, 0) + v
     

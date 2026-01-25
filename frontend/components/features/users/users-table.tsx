@@ -52,13 +52,13 @@ export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersT
     try {
       setLoading(true);
       const response = await apiClient.getUsers();
-      setUsers(response.data.users || []);
-      
+      setUsers(response?.data?.users || []);
+
       // Load stats for all users
       try {
         const statsResponse = await apiClient.getUserStats();
         const statsMap = new Map<string, UserStats>();
-        if (statsResponse.data.users) {
+        if (statsResponse?.data?.users) {
           statsResponse.data.users.forEach((stat: UserStats) => {
             statsMap.set(stat.email, stat);
           });

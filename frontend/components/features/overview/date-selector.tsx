@@ -31,7 +31,7 @@ export function DateSelector({ selectedDate, onDateChange }: DateSelectorProps) 
     try {
       setLoading(true);
       const response = await apiClient.getUsageDates();
-      const datesList = (response.data as DatesApiResponse).dates || [];
+      const datesList = (response?.data as DatesApiResponse)?.dates || [];
       setDates(datesList);
       
       if (!selectedDate && datesList.length > 0) {
