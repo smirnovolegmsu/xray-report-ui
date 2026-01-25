@@ -1,48 +1,172 @@
+# ============================================
 # Python
+# ============================================
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
 venv/
 env/
-.Python
+ENV/
+env.bak/
+venv.bak/
 
+# ============================================
 # Данные приложения (НЕ добавлять в Git)
+# ============================================
 data/
+*.backup
+*.dump
 
-# IDE
+# ============================================
+# IDE и редакторы
+# ============================================
 .cursor/
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
 
-# Логи
-*.log
-logs/
-
-# Временные файлы
+# ============================================
+# Временные и системные файлы
+# ============================================
 *.tmp
-.DS_Store
-Thumbs.db
-
-# Legacy (если остались)
-static/
-templates/
-_archive_legacy/
-
-# Системные
+*.temp
+*.log
 *.pid
-*.lock
-*.backup
+*.seed
+*.pid.lock
 
-# Next.js
+# OS-специфичные файлы
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ============================================
+# История разработки и бэкапы
+# ============================================
+*_back_up*/
+history/
+state/
+archive/
+
+# Legacy archive - можно добавить в Git для истории
+# _archive_legacy/
+
+# ============================================
+# Frontend (Next.js, React, TypeScript)
+# ============================================
+# Build output
 frontend/.next/
-frontend/node_modules/
-frontend/.env*.local
+frontend/out/
+frontend/build/
+frontend/dist/
 
-# Build
-build/
-dist/
-out/
+# Dependencies
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+
+# Testing
+frontend/coverage/
+frontend/.nyc_output/
+
+# Production
+frontend/.next/standalone/
+frontend/.next/static/
+
+# Misc
+frontend/.swc/
+frontend/.turbo/
+frontend/.vercel/
+frontend/.env*.local
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Debug
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+
+# TypeScript
+frontend/*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+
+# Source maps (если не в .next/)
+frontend/**/*.map
+!frontend/**/*.d.ts.map
+
+# ============================================
+# Backend (Python)
+# ============================================
+# Python cache (рекурсивно для всего backend/)
+backend/**/__pycache__/
+backend/**/*.py[cod]
+backend/**/*$py.class
+
+# Test artifacts
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+backend/.tox/
+backend/.cache
+backend/coverage.xml
+backend/*.cover
+backend/.hypothesis/
+
+# mypy
+backend/.mypy_cache/
+backend/.dmypy.json
+backend/dmypy.json
+
+# Pyre type checker
+backend/.pyre/
+
+# ============================================
+# Локальные конфигурации
+# ============================================
+.env
+.env.local
+.env.*.local
+*.local
+
+# ============================================
+# Локки и блокировки
+# ============================================
+*.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
