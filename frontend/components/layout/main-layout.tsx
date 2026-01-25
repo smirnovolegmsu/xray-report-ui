@@ -6,9 +6,15 @@ import { Sidebar } from './sidebar';
 import { useAppStore } from '@/lib/store';
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const { lang } = useAppStore();
+
+  // Prevent hydration mismatch by waiting for client mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     // Проверяем, что код выполняется только на клиенте
@@ -79,6 +85,19 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const closeSidebar = useCallback(() => {
     setSidebarOpen(false);
   }, []);
+
+  // During SSR and initial hydration, render a consistent layout
+  if (!mounted) {
+    return (
+      <div className="flex h-screen overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 overflow-auto p-3 bg-background">
+            {children}
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden">

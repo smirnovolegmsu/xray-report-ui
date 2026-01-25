@@ -84,7 +84,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         {/* Load crypto polyfill FIRST with beforeInteractive strategy */}
         <Script
           id="crypto-polyfill-inline"
