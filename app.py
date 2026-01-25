@@ -20,7 +20,9 @@ import tempfile
 import threading
 import time
 import uuid as uuid_lib
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
+import csv as csv_module
 
 from flask import Flask, Response, jsonify, request, send_file
 
@@ -52,10 +54,88 @@ LIVE_STATE_OFFSET_PATH = os.path.join(DATA_DIR, "usage_state.json")
 
 SERVICE_UI = "xray-report-ui"
 SERVICE_XRAY_DEFAULT = "xray"
+SERVICE_NEXTJS = "xray-nextjs-ui"
+NEXTJS_PORT = 3000
+# Use environment variable or default to localhost
+NEXTJS_URL = os.environ.get("NEXTJS_URL", f"http://127.0.0.1:{NEXTJS_PORT}")
 
 LOCK = threading.Lock()
 
 app = Flask(__name__)
+
+# ====================
+# Performance Optimization: Caching
+# ====================
+
+# Cache for dashboard and usage data
+# Оптимизировано для сервера с 3.8GB RAM
+_cache_store: Dict[str, Tuple[Any, float]] = {}
+_cache_lock = threading.Lock()
+CACHE_TTL = {
+    "dashboard": 60.0,  # 60 секунд - баланс между свежестью и CPU
+    "usage": 60.0,      # 60 секунд
+    "live": 5.0,        # 5 секунд для live данных
+    "users": 120.0,     # 2 минуты - пользователи редко меняются
+    "user_stats": 300.0, # 5 минут - тяжёлый расчёт
+}
+
+def get_cached(key: str, ttl: float = 60.0) -> Optional[Any]:
+    """Get value from cache if not expired"""
+    with _cache_lock:
+        if key in _cache_store:
+            value, timestamp = _cache_store[key]
+            if time.time() - timestamp < ttl:
+                return value
+            else:
+                del _cache_store[key]
+    return None
+
+def set_cached(key: str, value: Any) -> None:
+    """Store value in cache"""
+    with _cache_lock:
+        _cache_store[key] = (value, time.time())
+        # Clean old entries only if cache is really large (increased limit)
+        # Allow more entries to improve performance
+        if len(_cache_store) > 500:  # Increased from 100 to 500
+            # Remove oldest 10% of entries (less aggressive cleanup)
+            items = sorted(_cache_store.items(), key=lambda x: x[1][1])
+            remove_count = max(50, len(items) // 10)  # Remove at least 50 or 10%
+            for k, _ in items[:remove_count]:
+                del _cache_store[k]
+
+def clear_cache(pattern: str = None) -> None:
+    """Clear cache entries matching pattern (or all if None)"""
+    with _cache_lock:
+        if pattern:
+            keys_to_delete = [k for k in _cache_store.keys() if pattern in k]
+            for k in keys_to_delete:
+                del _cache_store[k]
+        else:
+            _cache_store.clear()
+
+# Global error handler to log exceptions as events
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Log all unhandled exceptions as APP_ERROR events"""
+    try:
+        import traceback
+        error_type = type(e).__name__
+        error_msg = str(e)
+        trace = traceback.format_exc()
+        
+        append_event({
+            "type": "APP_ERROR",
+            "severity": "ERROR",
+            "action": "exception",
+            "error": error_type,
+            "message": f"{error_type}: {error_msg}",
+            "details": trace[:500]  # Limit trace length
+        })
+    except Exception:
+        pass
+    
+    # Re-raise the exception to be handled by Flask
+    raise e
 
 # ---------------------------
 # Utilities
@@ -374,12 +454,33 @@ def backup_file(path: str, label: str) -> str:
         shutil.copy2(path, dst)
     return dst
 
+def save_xray_stats_before_restart() -> None:
+    """Save Xray statistics before restart to prevent data loss"""
+    try:
+        script_path = "/usr/local/bin/xray_daily_usage.sh"
+        if os.path.exists(script_path):
+            subprocess.run(
+                [script_path],
+                capture_output=True,
+                timeout=30,
+                env={**os.environ, "LABEL_DATE": dt.datetime.now().strftime("%Y-%m-%d")}
+            )
+    except Exception as e:
+        # Log but don't fail - stats saving shouldn't block restart
+        print(f"Warning: Failed to save stats before restart: {e}")
+
 def systemctl_restart(service: str) -> Tuple[bool, str]:
-    allowed = {SERVICE_UI, SERVICE_XRAY_DEFAULT, "xray"}
+    allowed = {SERVICE_UI, SERVICE_XRAY_DEFAULT, "xray", SERVICE_NEXTJS}
     s = load_settings()
-    allowed.add(s["xray"].get("service_name", SERVICE_XRAY_DEFAULT))
+    xray_service = s["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
+    allowed.add(xray_service)
     if service not in allowed:
         return False, f"service_not_allowed: {service}"
+    
+    # IMPORTANT: Save Xray statistics BEFORE restart to prevent data loss
+    if service in {SERVICE_XRAY_DEFAULT, "xray", xray_service}:
+        save_xray_stats_before_restart()
+    
     try:
         cp = subprocess.run(["systemctl", "restart", service], capture_output=True, text=True, timeout=30)
         if cp.returncode != 0:
@@ -395,6 +496,56 @@ def systemctl_is_active(service: str) -> Tuple[bool, str]:
         return (s == "active"), s or "unknown"
     except Exception as e:
         return False, str(e)
+
+def check_nextjs_status() -> Dict[str, Any]:
+    """Check Next.js dev server status"""
+    try:
+        import urllib.request
+        import socket
+        
+        # Check if port is listening
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result = sock.connect_ex(('127.0.0.1', NEXTJS_PORT))
+        sock.close()
+        
+        if result != 0:
+            return {
+                "active": False,
+                "state": "inactive",
+                "port": NEXTJS_PORT,
+                "url": NEXTJS_URL,
+                "error": "Port not listening"
+            }
+        
+        # Try to make HTTP request
+        try:
+            req = urllib.request.Request(f"http://127.0.0.1:{NEXTJS_PORT}/", method='HEAD')
+            with urllib.request.urlopen(req, timeout=3) as response:
+                status_code = response.status
+                return {
+                    "active": True,
+                    "state": "active",
+                    "port": NEXTJS_PORT,
+                    "url": NEXTJS_URL,
+                    "status_code": status_code,
+                }
+        except Exception as e:
+            return {
+                "active": False,
+                "state": "error",
+                "port": NEXTJS_PORT,
+                "url": NEXTJS_URL,
+                "error": str(e)
+            }
+    except Exception as e:
+        return {
+            "active": False,
+            "state": "error",
+            "port": NEXTJS_PORT,
+            "url": NEXTJS_URL,
+            "error": str(e)
+        }
 
 # ---------------------------
 # CSV metrics loader (FIXED for real format)
@@ -512,18 +663,43 @@ def load_usage_data(days: int = 7) -> Dict[str, Any]:
     return result
 
 def _read_csv_dict(path: str) -> List[Dict[str, str]]:
-    """Read CSV and return list of dicts"""
+    """Read CSV and return list of dicts - optimized with streaming"""
     try:
-        header, rows, err = _read_csv(path)
-        if err or not header:
-            return []
+        # Check cache first (cache by file path + mtime)
+        cache_key = f"csv_dict_{path}"
+        try:
+            mtime = os.path.getmtime(path)
+            cache_key = f"{cache_key}_{mtime}"
+        except:
+            pass
+        
+        cached = get_cached(cache_key, ttl=300.0)  # 5 minutes for CSV cache
+        if cached is not None:
+            return cached
+        
+        # Use csv module for better performance
         result = []
-        for row in rows:
-            d = {}
-            for i, h in enumerate(header):
-                if i < len(row):
-                    d[h] = row[i]
-            result.append(d)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                reader = csv_module.DictReader(f)
+                for row in reader:
+                    # Normalize keys to lowercase and strip
+                    normalized = {k.strip().lower(): v.strip() if v else "" for k, v in row.items()}
+                    result.append(normalized)
+        except Exception:
+            # Fallback to old method
+            header, rows, err = _read_csv(path)
+            if err or not header:
+                return []
+            for row in rows:
+                d = {}
+                for i, h in enumerate(header):
+                    if i < len(row):
+                        d[h] = row[i]
+                result.append(d)
+        
+        # Cache result
+        set_cached(cache_key, result)
         return result
     except Exception:
         return []
@@ -896,6 +1072,84 @@ def users_test_page():
 def api_ping():
     return ok({"ts": now_utc_iso()})
 
+# Application version
+APP_VERSION = "2.1.0"
+
+@app.get("/api/version")
+def api_version():
+    """Get application version and build info"""
+    return ok({
+        "version": APP_VERSION,
+        "name": "Xray Report UI",
+        "components": {
+            "backend": APP_VERSION,
+            "api": "v1",
+        }
+    })
+
+@app.get("/api/ports/status")
+def api_ports_status():
+    """Get status of running ports and services"""
+    import socket
+    
+    ports_info = []
+    
+    # Define expected ports
+    expected_ports = [
+        {"port": 8787, "name": "Flask Backend", "type": "backend"},
+        {"port": 3000, "name": "Next.js Dev", "type": "frontend"},
+    ]
+    
+    for port_config in expected_ports:
+        port = port_config["port"]
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        
+        # Check localhost
+        is_open_local = False
+        try:
+            result = sock.connect_ex(('127.0.0.1', port))
+            is_open_local = (result == 0)
+        except:
+            pass
+        finally:
+            sock.close()
+        
+        # Check 0.0.0.0 (public)
+        sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock2.settimeout(1)
+        is_open_public = False
+        try:
+            result = sock2.connect_ex(('0.0.0.0', port))
+            is_open_public = (result == 0)
+        except:
+            pass
+        finally:
+            sock2.close()
+        
+        if is_open_local or is_open_public:
+            ports_info.append({
+                "port": port,
+                "name": port_config["name"],
+                "type": port_config["type"],
+                "status": "running",
+                "host": "0.0.0.0" if is_open_public else "127.0.0.1"
+            })
+    
+    # Get current app info
+    current_port = APP_PORT
+    current_host = APP_HOST
+    
+    return ok({
+        "ports": ports_info,
+        "current": {
+            "port": current_port,
+            "host": current_host,
+            "url": f"http://{current_host}:{current_port}"
+        },
+        "timestamp": now_utc_iso()
+    })
+
 # --- Settings ---
 
 @app.get("/api/settings")
@@ -927,7 +1181,19 @@ def api_dashboard():
     """Legacy endpoint - kept for backward compatibility"""
     days = safe_int(request.args.get("days"), 7)
     user = request.args.get("user", "").strip() or None
+    
+    # Check cache
+    cache_key = f"dashboard_{days}_{user or 'all'}"
+    cached_data = get_cached(cache_key, ttl=CACHE_TTL["dashboard"])
+    if cached_data is not None:
+        return jsonify(cached_data)
+    
+    # Load data
     data = load_dashboard_data(days=days, user_filter=user)
+    
+    # Cache result
+    set_cached(cache_key, data)
+    
     return jsonify(data)
 
 # --- Usage (History) endpoints ---
@@ -1412,8 +1678,18 @@ def api_usage_dashboard():
     
     window_days = safe_int(request.args.get("windowDays"), 7)
     
+    # Check cache
+    cache_key = f"usage_dashboard_{date_str}_{mode}_{window_days}"
+    cached_data = get_cached(cache_key, ttl=CACHE_TTL["usage"])
+    if cached_data is not None:
+        return jsonify(cached_data)
+    
     try:
         data = load_usage_dashboard(date_str, mode, window_days)
+        
+        # Cache result
+        set_cached(cache_key, data)
+        
         return jsonify(data)
     except Exception as e:
         import traceback
@@ -1422,6 +1698,12 @@ def api_usage_dashboard():
 
 def _calculate_user_alltime_stats() -> Dict[str, Dict[str, Any]]:
     """Calculate all-time statistics for all users from CSV files"""
+    # Check cache first (тяжёлая операция - кешируем на 5 минут)
+    cache_key = "user_alltime_stats"
+    cached = get_cached(cache_key, ttl=CACHE_TTL.get("user_stats", 300.0))
+    if cached is not None:
+        return cached
+    
     settings = load_settings()
     usage_dir = settings["collector"].get("usage_dir", USAGE_DIR)
     
@@ -1527,12 +1809,24 @@ def _calculate_user_alltime_stats() -> Dict[str, Dict[str, Any]]:
                 "sharePct": share_pct
             })
         
+        # Calculate first and last seen dates
+        first_seen_at = None
+        last_seen_at = None
+        if days_set:
+            sorted_days = sorted(days_set)
+            first_seen_at = sorted_days[0] + "T00:00:00Z"
+            last_seen_at = sorted_days[-1] + "T23:59:59Z"
+        
         user_stats[user] = {
             "daysUsed": len(days_set),
             "totalTrafficBytes": total_bytes,
-            "top3Domains": top3_list
+            "top3Domains": top3_list,
+            "firstSeenAt": first_seen_at,
+            "lastSeenAt": last_seen_at
         }
     
+    # Cache result
+    set_cached(cache_key, user_stats)
     return user_stats
 
 @app.get("/api/users")
@@ -1647,21 +1941,33 @@ def api_users_kick():
 
 @app.get("/api/users/link")
 def api_users_link():
+    # Support both email and uuid parameters
     email = request.args.get("email", "").strip()
-    if not email:
-        return fail("email_required")
+    uuid = request.args.get("uuid", "").strip()
+    
+    if not email and not uuid:
+        return fail("email_or_uuid_required")
     
     clients = get_xray_clients()
-    user = next((c for c in clients if c.get("email") == email), None)
+    
+    # Find user by email or uuid
+    if uuid:
+        user = next((c for c in clients if c.get("id") == uuid), None)
+    else:
+        user = next((c for c in clients if c.get("email") == email), None)
+    
     if not user:
         return fail("user_not_found")
     
-    result = build_vless_link(user["id"], email)
+    user_email = user.get("email", "unknown")
+    user_uuid = user.get("id")
+    
+    result = build_vless_link(user_uuid, user_email)
     if not result.get("ok"):
-        append_event({"type": "LINK", "severity": "ERROR", "action": "build_failed", "email": email, "error": result.get("error")})
+        append_event({"type": "CONNECTION", "severity": "ERROR", "action": "build_failed", "email": user_email, "error": result.get("error")})
         return fail(result.get("error", "Link build failed"))
     
-    append_event({"type": "LINK", "severity": "INFO", "action": "built", "email": email})
+    append_event({"type": "CONNECTION", "severity": "INFO", "action": "built", "email": user_email})
     return ok({"link": result["link"]})
 
 @app.get("/api/users/stats")
@@ -1684,7 +1990,9 @@ def api_users_stats():
             user_stat = alltime_stats.get(email, {
                 "daysUsed": 0,
                 "totalTrafficBytes": 0,
-                "top3Domains": []
+                "top3Domains": [],
+                "firstSeenAt": None,
+                "lastSeenAt": None
             })
             
             users_stats.append({
@@ -1693,6 +2001,8 @@ def api_users_stats():
                 "daysUsed": user_stat["daysUsed"],
                 "totalTrafficBytes": user_stat["totalTrafficBytes"],
                 "top3Domains": user_stat["top3Domains"],
+                "firstSeenAt": user_stat.get("firstSeenAt"),
+                "lastSeenAt": user_stat.get("lastSeenAt"),
                 "isOnline": email in online_users_set
             })
         
@@ -1773,6 +2083,134 @@ def api_events():
     
     return ok({"events": events})
 
+@app.get("/api/events/stats")
+def api_events_stats():
+    """Get statistics about events for dashboard"""
+    hours = int(request.args.get("hours") or "24")
+    
+    events = []
+    if os.path.exists(EVENTS_PATH):
+        try:
+            with open(EVENTS_PATH, "r", encoding="utf-8") as f:
+                for ln in f:
+                    ln = ln.strip()
+                    if ln:
+                        try:
+                            events.append(json.loads(ln))
+                        except:
+                            pass
+        except:
+            pass
+    
+    # Filter by time range
+    now = dt.datetime.utcnow()
+    cutoff = now - dt.timedelta(hours=hours)
+    
+    filtered_events = []
+    for e in events:
+        try:
+            ts_str = e.get("ts", "")
+            if ts_str:
+                # Parse ISO format with Z suffix
+                if ts_str.endswith("Z"):
+                    ts = dt.datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ")
+                else:
+                    ts = dt.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                
+                if ts >= cutoff:
+                    filtered_events.append(e)
+        except Exception:
+            pass
+    
+    # Calculate statistics
+    total = len(filtered_events)
+    errors = sum(1 for e in filtered_events if e.get("severity") == "ERROR")
+    warnings = sum(1 for e in filtered_events if e.get("severity") == "WARN")
+    info = sum(1 for e in filtered_events if e.get("severity") == "INFO")
+    
+    # Count by type
+    by_type = {}
+    for e in filtered_events:
+        event_type = e.get("type", "UNKNOWN")
+        by_type[event_type] = by_type.get(event_type, 0) + 1
+    
+    # Recent critical events (last 10 errors or warnings)
+    recent_critical = [
+        e for e in reversed(filtered_events)
+        if e.get("severity") in ["ERROR", "WARN"]
+    ][:10]
+    
+    # Timeline data - optimize for long periods
+    timeline = []
+    
+    # For periods > 7 days, aggregate by days instead of hours
+    if hours > 168:  # > 7 days
+        days = hours // 24
+        for i in range(days):
+            bucket_start = cutoff + dt.timedelta(days=i)
+            bucket_end = bucket_start + dt.timedelta(days=1)
+            
+            bucket_events = []
+            for e in filtered_events:
+                try:
+                    ts_str = e.get("ts", "")
+                    if ts_str:
+                        # Parse ISO format with Z suffix
+                        if ts_str.endswith("Z"):
+                            ts = dt.datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ")
+                        else:
+                            ts = dt.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        
+                        if bucket_start <= ts < bucket_end:
+                            bucket_events.append(e)
+                except Exception:
+                    pass
+            
+            timeline.append({
+                "timestamp": int(bucket_start.timestamp() * 1000),
+                "count": len(bucket_events),
+                "errors": sum(1 for e in bucket_events if e.get("severity") == "ERROR"),
+                "warnings": sum(1 for e in bucket_events if e.get("severity") == "WARN")
+            })
+    else:
+        # Hourly buckets for shorter periods
+        for i in range(hours):
+            bucket_start = cutoff + dt.timedelta(hours=i)
+            bucket_end = bucket_start + dt.timedelta(hours=1)
+            
+            bucket_events = []
+            for e in filtered_events:
+                try:
+                    ts_str = e.get("ts", "")
+                    if ts_str:
+                        # Parse ISO format with Z suffix
+                        if ts_str.endswith("Z"):
+                            ts = dt.datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ")
+                        else:
+                            ts = dt.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        
+                        if bucket_start <= ts < bucket_end:
+                            bucket_events.append(e)
+                except Exception:
+                    pass
+            
+            timeline.append({
+                "timestamp": int(bucket_start.timestamp() * 1000),
+                "count": len(bucket_events),
+                "errors": sum(1 for e in bucket_events if e.get("severity") == "ERROR"),
+                "warnings": sum(1 for e in bucket_events if e.get("severity") == "WARN")
+            })
+    
+    return ok({
+        "total": total,
+        "errors": errors,
+        "warnings": warnings,
+        "info": info,
+        "byType": by_type,
+        "recentCritical": recent_critical,
+        "timeline": timeline
+    })
+
 # --- Collector ---
 
 def _get_script_description(script_name: str) -> str:
@@ -1843,8 +2281,9 @@ def _check_cron_job_status(cron_file: str, schedule: str, command: str) -> Dict[
     return status
 
 def _parse_cron_log(script_name: str, usage_dir: str) -> Dict[str, Any]:
-    """Parse cron.log to get statistics for a script"""
-    log_path = os.path.join(usage_dir, "cron.log")
+    """Parse cron.log and file system to get statistics for a script"""
+    import re
+    
     stats = {
         "runs_count": 0,
         "last_run": None,
@@ -1852,52 +2291,101 @@ def _parse_cron_log(script_name: str, usage_dir: str) -> Dict[str, Any]:
         "last_error": None,
         "errors_count": 0,
         "created_files": [],
-        "files_count": 0
+        "files_count": 0,
+        "total_size_bytes": 0,
+        "date_range": {"oldest": None, "newest": None},
+        "log_entries": []  # Last few log entries for this script
     }
     
-    if not os.path.exists(log_path):
-        return stats
-    
-    try:
-        with open(log_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        # Parse last 2000 lines (to avoid loading huge files)
-        for line in reversed(lines[-2000:]):
-            if script_name in line:
-                stats["runs_count"] += 1
-                if stats["last_run"] is None:
-                    # Try to extract timestamp
-                    import re
-                    ts_match = re.search(r'(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})', line)
-                    if ts_match:
-                        stats["last_run"] = ts_match.group(1)
-                
-                # Check for errors
-                if any(err in line.lower() for err in ['error', 'failed', 'exception', 'traceback']):
-                    stats["errors_count"] += 1
-                    if stats["last_error"] is None:
-                        stats["last_error"] = line.strip()[:200]
-                elif any(succ in line.lower() for succ in ['success', 'done', 'complete', 'wrote']):
-                    if stats["last_success"] is None:
-                        stats["last_success"] = line.strip()[:200]
-    except Exception as e:
-        pass
-    
-    # Find files created by this script
+    # Determine file pattern based on script name
     if "usage" in script_name:
         pattern = "usage_*.csv"
+        file_prefix = "usage_"
     elif "conns" in script_name:
         pattern = "conns_*.csv"
+        file_prefix = "conns_"
     elif "report" in script_name:
         pattern = "report_*.csv"
+        file_prefix = "report_"
     else:
         pattern = None
+        file_prefix = None
     
+    # Analyze files first (more reliable than log parsing)
     if pattern:
-        files = sorted(glob.glob(os.path.join(usage_dir, pattern)), reverse=True)
-        stats["created_files"] = [os.path.basename(f) for f in files[:10]]  # Last 10 files
+        files = sorted(glob.glob(os.path.join(usage_dir, pattern)))
         stats["files_count"] = len(files)
+        
+        if files:
+            # Calculate total size
+            total_size = 0
+            for f in files:
+                try:
+                    total_size += os.path.getsize(f)
+                except:
+                    pass
+            stats["total_size_bytes"] = total_size
+            
+            # Get file list (last 10)
+            stats["created_files"] = [os.path.basename(f) for f in files[-10:]][::-1]
+            
+            # Extract dates from filenames
+            dates = []
+            for f in files:
+                basename = os.path.basename(f)
+                # Extract date from filename like usage_2026-01-19.csv
+                date_match = re.search(r'(\d{4}-\d{2}-\d{2})', basename)
+                if date_match:
+                    dates.append(date_match.group(1))
+            
+            if dates:
+                dates.sort()
+                stats["date_range"]["oldest"] = dates[0]
+                stats["date_range"]["newest"] = dates[-1]
+            
+            # Get last modification time as proxy for last run
+            newest_file = files[-1]
+            try:
+                mtime = os.path.getmtime(newest_file)
+                stats["last_run"] = dt.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                stats["last_run_error"] = str(e)
+            
+            # Each file = one successful run (approximately)
+            stats["runs_count"] = len(files)
+    
+    # Parse cron.log for additional info (errors, recent entries)
+    log_path = os.path.join(usage_dir, "cron.log")
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+            
+            # Find lines related to this script's files
+            relevant_lines = []
+            for line in lines[-500:]:  # Last 500 lines
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                # Check if line mentions files created by this script
+                if file_prefix and file_prefix in line:
+                    relevant_lines.append(line)
+                    
+                    # Check for errors
+                    if any(err in line.lower() for err in ['error', 'failed', 'exception', 'traceback', 'no such file']):
+                        stats["errors_count"] += 1
+                        if stats["last_error"] is None:
+                            stats["last_error"] = line[:200]
+                    elif 'wrote' in line.lower():
+                        if stats["last_success"] is None:
+                            stats["last_success"] = line[:200]
+            
+            # Keep last 5 relevant log entries
+            stats["log_entries"] = relevant_lines[-5:][::-1]
+            
+        except Exception as e:
+            pass
     
     return stats
 
@@ -2076,18 +2564,233 @@ def api_collector_status():
 
 @app.post("/api/collector/toggle")
 def api_collector_toggle():
+    """Toggle collector cron jobs on/off by commenting/uncommenting lines in cron file"""
     if not request.is_json:
         return fail("json_required")
     j = request.get_json(silent=True) or {}
     enabled = bool(j.get("enabled"))
+    job_script = j.get("script")  # Optional: toggle specific job
     
+    cron_file = "/etc/cron.d/xray-usage"
+    
+    # Update settings
     with LOCK:
         s = load_settings()
         s["collector"]["enabled"] = enabled
         save_settings(s)
     
-    append_event({"type": "COLLECTOR", "severity": "INFO", "action": "toggle", "enabled": enabled})
-    return ok({"enabled": enabled})
+    # If cron file doesn't exist, just update settings
+    if not os.path.exists(cron_file):
+        append_event({"type": "COLLECTOR", "severity": "INFO", "action": "toggle", "enabled": enabled, "message": "Settings updated (no cron file)"})
+        return ok({"enabled": enabled, "cron_modified": False, "message": "Settings updated, but cron file not found"})
+    
+    try:
+        # Read current cron file
+        with open(cron_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        new_lines = []
+        modified_count = 0
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            # Skip empty lines and shell/path declarations
+            if not stripped or stripped.startswith('SHELL=') or stripped.startswith('PATH=') or stripped.startswith('MAILTO='):
+                new_lines.append(line)
+                continue
+            
+            # Check if this is a cron job line (has schedule pattern)
+            is_commented = stripped.startswith('#')
+            job_line = stripped.lstrip('#').strip()
+            
+            # Check if it looks like a cron job (starts with schedule or is a job we care about)
+            parts = job_line.split()
+            if len(parts) >= 6:
+                # This looks like a cron job
+                # If job_script specified, only toggle that specific job
+                if job_script and job_script not in line:
+                    new_lines.append(line)
+                    continue
+                
+                if enabled:
+                    # Enable: uncomment the line
+                    if is_commented:
+                        # Remove leading # and preserve indentation
+                        new_line = line.replace('#', '', 1)
+                        new_lines.append(new_line)
+                        modified_count += 1
+                    else:
+                        new_lines.append(line)
+                else:
+                    # Disable: comment the line
+                    if not is_commented:
+                        # Add # at the beginning, preserve the rest
+                        leading_space = len(line) - len(line.lstrip())
+                        new_line = line[:leading_space] + '#' + line[leading_space:]
+                        new_lines.append(new_line)
+                        modified_count += 1
+                    else:
+                        new_lines.append(line)
+            else:
+                new_lines.append(line)
+        
+        # Write updated cron file
+        if modified_count > 0:
+            with open(cron_file, 'w', encoding='utf-8') as f:
+                f.writelines(new_lines)
+        
+        append_event({
+            "type": "COLLECTOR", 
+            "severity": "INFO", 
+            "action": "toggle", 
+            "enabled": enabled,
+            "jobs_modified": modified_count
+        })
+        
+        return ok({
+            "enabled": enabled, 
+            "cron_modified": modified_count > 0,
+            "jobs_modified": modified_count,
+            "message": f"{'Enabled' if enabled else 'Disabled'} {modified_count} cron job(s)"
+        })
+        
+    except PermissionError:
+        return fail("Permission denied: cannot modify cron file. Run with sudo or fix permissions.", code=403)
+    except Exception as e:
+        return fail(f"Error modifying cron: {str(e)}", code=500)
+
+@app.post("/api/collector/run")
+def api_collector_run():
+    """Manually trigger ALL collector scripts to run now
+    
+    Optional JSON body:
+    - include_today: bool - if true, collect data for today (incomplete day) instead of yesterday
+    """
+    j = request.get_json(silent=True) or {}
+    include_today = bool(j.get("include_today", False))
+    
+    s = load_settings()
+    usage_dir = s["collector"].get("usage_dir", USAGE_DIR)
+    
+    # Find ALL collector scripts from cron
+    cron_info = _find_collector_cron()
+    
+    scripts_to_run = []
+    
+    if cron_info.get("all_jobs"):
+        for job in cron_info["all_jobs"]:
+            cmd = job.get("command", "")
+            # Extract script path
+            for part in cmd.split():
+                if part.endswith('.sh') or part.endswith('.py'):
+                    if os.path.exists(part) and part not in scripts_to_run:
+                        scripts_to_run.append(part)
+                        break
+    
+    if not scripts_to_run:
+        # Try common locations
+        common_scripts = [
+            "/opt/xray-report-ui/scripts/collect-usage.sh",
+            "/usr/local/bin/xray-usage-collect.sh",
+            "/opt/xray-usage/collect.sh",
+        ]
+        for script in common_scripts:
+            if os.path.exists(script):
+                scripts_to_run.append(script)
+                break
+    
+    if not scripts_to_run:
+        return fail("Collector scripts not found. Check cron configuration.", code=404)
+    
+    try:
+        # Run ALL scripts sequentially
+        append_event({
+            "type": "COLLECTOR",
+            "severity": "INFO",
+            "action": "manual_run_started",
+            "message": f"Manual collector run started: {len(scripts_to_run)} scripts"
+        })
+        
+        all_outputs = []
+        all_success = True
+        failed_scripts = []
+        
+        # Set environment for date override
+        env = os.environ.copy()
+        if include_today:
+            today = dt.datetime.now().strftime("%Y-%m-%d")
+            env["LABEL_DATE"] = today
+            all_outputs.append(f"[INFO] Collecting data for TODAY: {today} (incomplete day)\n")
+        else:
+            yesterday = (dt.datetime.now() - dt.timedelta(days=1)).strftime("%Y-%m-%d")
+            all_outputs.append(f"[INFO] Collecting data for yesterday: {yesterday}\n")
+        
+        for script_to_run in scripts_to_run:
+            script_name = os.path.basename(script_to_run)
+            all_outputs.append(f"=== Running {script_name} ===")
+            
+            try:
+                cp = subprocess.run(
+                    [script_to_run],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,  # 2 minutes timeout per script
+                    cwd=os.path.dirname(script_to_run) or "/tmp",
+                    env=env
+                )
+                
+                output = (cp.stdout or "") + (cp.stderr or "")
+                all_outputs.append(output if output.strip() else "(no output)")
+                
+                if cp.returncode != 0:
+                    all_success = False
+                    failed_scripts.append(script_name)
+                    all_outputs.append(f"[FAILED] Exit code: {cp.returncode}")
+                else:
+                    all_outputs.append(f"[OK] Completed successfully")
+                    
+            except subprocess.TimeoutExpired:
+                all_success = False
+                failed_scripts.append(script_name)
+                all_outputs.append(f"[TIMEOUT] Script timed out after 120s")
+            except Exception as e:
+                all_success = False
+                failed_scripts.append(script_name)
+                all_outputs.append(f"[ERROR] {str(e)}")
+            
+            all_outputs.append("")  # Empty line between scripts
+        
+        combined_output = "\n".join(all_outputs)
+        
+        append_event({
+            "type": "COLLECTOR",
+            "severity": "INFO" if all_success else "WARNING",
+            "action": "manual_run_completed",
+            "result": "success" if all_success else "partial",
+            "scripts_run": len(scripts_to_run),
+            "scripts_failed": len(failed_scripts),
+            "message": f"Completed {len(scripts_to_run)} scripts, {len(failed_scripts)} failed"
+        })
+        
+        if all_success:
+            message = f"Все {len(scripts_to_run)} скрипта успешно выполнены"
+        elif failed_scripts:
+            message = f"Выполнено {len(scripts_to_run) - len(failed_scripts)}/{len(scripts_to_run)} скриптов. Ошибки: {', '.join(failed_scripts)}"
+        else:
+            message = "Collector run completed"
+        
+        return ok({
+            "success": all_success,
+            "scripts_run": len(scripts_to_run),
+            "scripts_failed": failed_scripts,
+            "return_code": 0 if all_success else 1,
+            "output": combined_output[:4000] if combined_output else "No output",
+            "message": message
+        })
+        
+    except Exception as e:
+        return fail(f"Error running collector: {str(e)}", code=500)
 
 @app.post("/api/collector/update-schedule")
 def api_collector_update_schedule():
@@ -2262,12 +2965,133 @@ def systemctl_get_uptime(service: str) -> Tuple[Optional[str], Optional[int]]:
     except Exception as e:
         return None, None
 
+# Cache for CPU calculation
+_cpu_prev = None
+
+def get_system_resources() -> Dict[str, Any]:
+    """Get CPU and RAM usage"""
+    global _cpu_prev
+    try:
+        # Try using psutil if available
+        try:
+            import psutil
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            mem = psutil.virtual_memory()
+            return {
+                "cpu": round(cpu_percent, 1),
+                "ram": round(mem.percent, 1),
+                "ram_total_gb": round(mem.total / (1024**3), 2),
+                "ram_used_gb": round(mem.used / (1024**3), 2),
+            }
+        except ImportError:
+            # Fallback to /proc/stat and /proc/meminfo
+            # CPU usage - need two readings for accurate percentage
+            cpu_percent = 0
+            try:
+                # First reading
+                with open('/proc/stat', 'r') as f:
+                    lines = f.readlines()
+                    cpu_line = lines[0].split()
+                    if len(cpu_line) >= 5:
+                        user = int(cpu_line[1])
+                        nice = int(cpu_line[2])
+                        system = int(cpu_line[3])
+                        idle = int(cpu_line[4])
+                        iowait = int(cpu_line[5]) if len(cpu_line) > 5 else 0
+                        irq = int(cpu_line[6]) if len(cpu_line) > 6 else 0
+                        softirq = int(cpu_line[7]) if len(cpu_line) > 7 else 0
+                        
+                        total = user + nice + system + idle + iowait + irq + softirq
+                        non_idle = user + nice + system + iowait + irq + softirq
+                        
+                        if _cpu_prev is not None:
+                            prev_total, prev_non_idle = _cpu_prev
+                            total_diff = total - prev_total
+                            non_idle_diff = non_idle - prev_non_idle
+                            if total_diff > 0:
+                                cpu_percent = round((non_idle_diff / total_diff) * 100, 1)
+                        else:
+                            # First call - wait a bit and get second reading
+                            time.sleep(0.1)
+                            with open('/proc/stat', 'r') as f2:
+                                lines2 = f2.readlines()
+                                cpu_line2 = lines2[0].split()
+                                if len(cpu_line2) >= 5:
+                                    user2 = int(cpu_line2[1])
+                                    nice2 = int(cpu_line2[2])
+                                    system2 = int(cpu_line2[3])
+                                    idle2 = int(cpu_line2[4])
+                                    iowait2 = int(cpu_line2[5]) if len(cpu_line2) > 5 else 0
+                                    irq2 = int(cpu_line2[6]) if len(cpu_line2) > 6 else 0
+                                    softirq2 = int(cpu_line2[7]) if len(cpu_line2) > 7 else 0
+                                    
+                                    total2 = user2 + nice2 + system2 + idle2 + iowait2 + irq2 + softirq2
+                                    non_idle2 = user2 + nice2 + system2 + iowait2 + irq2 + softirq2
+                                    
+                                    total_diff = total2 - total
+                                    non_idle_diff = non_idle2 - non_idle
+                                    if total_diff > 0:
+                                        cpu_percent = round((non_idle_diff / total_diff) * 100, 1)
+                                    
+                                    total = total2
+                                    non_idle = non_idle2
+                        
+                        _cpu_prev = (total, non_idle)
+            except Exception:
+                cpu_percent = 0
+            
+            # RAM usage
+            ram_percent = 0
+            ram_total_gb = 0
+            ram_used_gb = 0
+            try:
+                with open('/proc/meminfo', 'r') as f:
+                    meminfo = {}
+                    for line in f:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            key = parts[0].rstrip(':')
+                            value = int(parts[1])
+                            meminfo[key] = value
+                    
+                    mem_total = meminfo.get('MemTotal', 0) * 1024  # Convert KB to bytes
+                    mem_available = meminfo.get('MemAvailable', meminfo.get('MemFree', 0)) * 1024
+                    mem_used = mem_total - mem_available
+                    if mem_total > 0:
+                        ram_percent = round((mem_used / mem_total) * 100, 1)
+                    ram_total_gb = round(mem_total / (1024**3), 2)
+                    ram_used_gb = round(mem_used / (1024**3), 2)
+            except Exception:
+                pass
+            
+            return {
+                "cpu": cpu_percent,
+                "ram": ram_percent,
+                "ram_total_gb": ram_total_gb,
+                "ram_used_gb": ram_used_gb,
+            }
+    except Exception:
+        return {
+            "cpu": 0,
+            "ram": 0,
+            "ram_total_gb": 0,
+            "ram_used_gb": 0,
+        }
+
+@app.get("/api/system/resources")
+def api_system_resources():
+    """Get CPU and RAM usage"""
+    return ok(get_system_resources())
+
 @app.get("/api/system/status")
 def api_system_status():
     s = load_settings()
     srv = s["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
     ui_active, ui_state = systemctl_is_active(SERVICE_UI)
     xray_active, xray_state = systemctl_is_active(srv)
+    
+    # Check Next.js status
+    nextjs_status = check_nextjs_status()
     
     # Get uptime and restart counts
     ui_uptime, ui_restarts = systemctl_get_uptime(SERVICE_UI)
@@ -2340,6 +3164,7 @@ def api_system_status():
             "restart_count": xray_restarts,
             "restart_count_14d": restart_counts_14d["xray"],
         },
+        "nextjs": nextjs_status,
         "restart_history": restart_events,
     })
 
@@ -2354,23 +3179,37 @@ def api_restart_ui():
 
 @app.post("/api/system/restart")
 def api_system_restart():
-    """Restart UI or Xray service"""
-    target = request.args.get("target", "").strip().lower()
-    if target not in ["ui", "xray"]:
-        return fail("target must be 'ui' or 'xray'")
+    """Restart UI, Xray, NextJS or all services"""
+    target = request.args.get("target", "all").strip().lower()
+    if target not in ["ui", "xray", "nextjs", "all"]:
+        return fail("target must be 'ui', 'xray', 'nextjs' or 'all'")
     
-    if target == "ui":
+    results = []
+    
+    if target in ["ui", "all"]:
         append_event({"type": "SYSTEM", "severity": "WARN", "action": "restart_ui"})
         ok_r, msg = systemctl_restart(SERVICE_UI)
-    else:
+        results.append({"service": "ui", "ok": ok_r, "message": msg})
+    
+    if target in ["nextjs", "all"]:
+        append_event({"type": "SYSTEM", "severity": "WARN", "action": "restart_nextjs"})
+        ok_r, msg = systemctl_restart(SERVICE_NEXTJS)
+        results.append({"service": "nextjs", "ok": ok_r, "message": msg})
+    
+    if target == "xray":
         settings = load_settings()
         srv = settings["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
         append_event({"type": "SYSTEM", "severity": "WARN", "action": "restart_xray", "service": srv})
         ok_r, msg = systemctl_restart(srv)
+        results.append({"service": "xray", "ok": ok_r, "message": msg})
     
-    if not ok_r:
-        return fail(msg)
-    return ok({"result": msg, "target": target})
+    # Check if any failed
+    all_ok = all(r["ok"] for r in results)
+    if not all_ok:
+        failed = [r for r in results if not r["ok"]]
+        return fail(f"Some services failed: {failed}")
+    
+    return ok({"results": results, "target": target})
 
 def get_system_timezone() -> str:
     """Get system timezone info"""
@@ -2499,6 +3338,356 @@ def api_backups_list():
         except:
             pass
     return ok({"backups": items})
+
+@app.get("/api/backups/preview")
+def api_backups_preview():
+    """Get preview/statistics of a backup file"""
+    filename = request.args.get("filename")
+    if not filename:
+        return jsonify({"error": "filename parameter required"}), 400
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    
+    filepath = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        return jsonify({"error": "Backup not found"}), 404
+    
+    try:
+        cfg = read_json(filepath, None)
+        if not cfg:
+            return ok({
+                "users_count": 0,
+                "ports": [],
+                "protocols": [],
+                "inbounds_count": 0,
+            })
+        
+        # Extract statistics
+        inbounds = cfg.get("inbounds", [])
+        users_count = 0
+        ports = []
+        protocols = []
+        
+        for inbound in inbounds:
+            protocol = inbound.get("protocol", "unknown")
+            port = inbound.get("port")
+            if port:
+                ports.append(port)
+            if protocol:
+                protocols.append(protocol)
+            
+            # Count users in VLESS/VLESS inbounds
+            if protocol in ["vless", "vmess", "trojan"]:
+                settings = inbound.get("settings", {})
+                clients = settings.get("clients", [])
+                users_count += len(clients)
+        
+        return ok({
+            "users_count": users_count,
+            "ports": sorted(list(set(ports))),
+            "protocols": sorted(list(set(protocols))),
+            "inbounds_count": len(inbounds),
+        })
+    except Exception as e:
+        return fail(f"Error reading backup: {str(e)}")
+
+@app.get("/api/backups/detail")
+def api_backups_detail():
+    """Get detailed information about a backup (users, ports, settings)"""
+    filename = request.args.get("filename")
+    if not filename:
+        return jsonify({"error": "filename parameter required"}), 400
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    
+    filepath = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        return jsonify({"error": "Backup not found"}), 404
+    
+    try:
+        cfg = read_json(filepath, None)
+        if not cfg:
+            return ok({
+                "users": [],
+                "inbounds": [],
+                "ports": [],
+                "protocols": [],
+            })
+        
+        settings = load_settings()
+        inbounds = cfg.get("inbounds", [])
+        all_users = []
+        inbound_details = []
+        
+        for inbound in inbounds:
+            protocol = inbound.get("protocol", "unknown")
+            port = inbound.get("port")
+            tag = inbound.get("tag", "")
+            listen = inbound.get("listen", "0.0.0.0")
+            
+            inbound_info = {
+                "protocol": protocol,
+                "port": port,
+                "tag": tag,
+                "listen": listen,
+                "users": [],
+            }
+            
+            # Extract users from VLESS/VLESS/Trojan inbounds
+            if protocol in ["vless", "vmess", "trojan"]:
+                inbound_settings = inbound.get("settings", {})
+                clients = inbound_settings.get("clients", [])
+                for client in clients:
+                    user_info = {
+                        "id": client.get("id", ""),
+                        "email": client.get("email", ""),
+                        "alias": client.get("alias", ""),
+                        "flow": client.get("flow", ""),
+                    }
+                    inbound_info["users"].append(user_info)
+                    all_users.append(user_info)
+            
+            inbound_details.append(inbound_info)
+        
+        ports = sorted(list(set([ib["port"] for ib in inbound_details if ib["port"]])))
+        protocols = sorted(list(set([ib["protocol"] for ib in inbound_details])))
+        
+        return ok({
+            "users": all_users,
+            "inbounds": inbound_details,
+            "ports": ports,
+            "protocols": protocols,
+        })
+    except Exception as e:
+        return fail(f"Error reading backup: {str(e)}")
+
+@app.get("/api/backups/view")
+def api_backups_view():
+    """Get full content of a backup file"""
+    filename = request.args.get("filename")
+    if not filename:
+        return jsonify({"error": "filename parameter required"}), 400
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    
+    filepath = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        return jsonify({"error": "Backup not found"}), 404
+    
+    try:
+        cfg = read_json(filepath, None)
+        if cfg is None:
+            return jsonify({"error": "Invalid JSON"}), 400
+        return ok({"content": cfg})
+    except Exception as e:
+        return fail(f"Error reading backup: {str(e)}")
+
+@app.get("/api/backups/download")
+def api_backups_download():
+    filename = request.args.get("filename")
+    if not filename:
+        return jsonify({"error": "filename parameter required"}), 400
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    
+    filepath = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        return jsonify({"error": "Backup not found"}), 404
+    
+    return send_file(filepath, as_attachment=True, download_name=filename)
+
+@app.post("/api/backups/create")
+def api_backups_create():
+    """Create a manual backup of current Xray configuration"""
+    try:
+        settings = load_settings()
+        config_path = settings["xray"].get("config_path", XRAY_CFG)
+        
+        if not os.path.exists(config_path):
+            return fail("Xray config file not found", code=404)
+        
+        # Create backup with "manual" label
+        backup_path = backup_file(config_path, "manual_backup")
+        backup_name = os.path.basename(backup_path)
+        
+        # Get file info
+        st = os.stat(backup_path)
+        
+        append_event({
+            "type": "SYSTEM",
+            "severity": "INFO",
+            "action": "backup_created",
+            "message": f"Manual backup created: {backup_name}",
+            "details": backup_name
+        })
+        
+        return ok({
+            "backup": {
+                "name": backup_name,
+                "size": st.st_size,
+                "mtime": dt.datetime.utcfromtimestamp(st.st_mtime).isoformat() + "Z",
+            },
+            "message": "Backup created successfully"
+        })
+    except Exception as e:
+        return fail(f"Error creating backup: {str(e)}", code=500)
+
+@app.post("/api/backups/restore")
+def api_backups_restore():
+    """Restore Xray configuration from a backup file"""
+    if not request.is_json:
+        return fail("json_required")
+    
+    j = request.get_json(silent=True) or {}
+    filename = (j.get("filename") or "").strip()
+    confirm = bool(j.get("confirm", False))
+    restart_xray = bool(j.get("restart_xray", True))
+    
+    if not filename:
+        return fail("filename parameter required")
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return fail("Invalid filename")
+    
+    backup_path = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(backup_path) or not os.path.isfile(backup_path):
+        return fail("Backup not found", code=404)
+    
+    try:
+        # Load backup content
+        backup_cfg = read_json(backup_path, None)
+        if not backup_cfg:
+            return fail("Invalid backup file (not valid JSON)")
+        
+        settings = load_settings()
+        config_path = settings["xray"].get("config_path", XRAY_CFG)
+        
+        # If not confirmed, return preview of what will change
+        if not confirm:
+            # Load current config for comparison
+            current_cfg, err = load_xray_config(config_path)
+            if err:
+                current_cfg = {}
+            
+            # Count differences
+            current_users = len(get_xray_clients(current_cfg) if current_cfg else [])
+            backup_users = 0
+            backup_inbounds = backup_cfg.get("inbounds", [])
+            for ib in backup_inbounds:
+                if ib.get("protocol") in ["vless", "vmess", "trojan"]:
+                    backup_users += len((ib.get("settings") or {}).get("clients") or [])
+            
+            return ok({
+                "preview": True,
+                "current": {
+                    "users_count": current_users,
+                    "config_exists": current_cfg is not None,
+                },
+                "backup": {
+                    "users_count": backup_users,
+                    "inbounds_count": len(backup_inbounds),
+                },
+                "warning": "This will replace current Xray configuration. A backup of current config will be created before restore."
+            })
+        
+        # Confirmed - proceed with restore
+        
+        # First, backup current config
+        if os.path.exists(config_path):
+            pre_restore_backup = backup_file(config_path, "pre_restore")
+        else:
+            pre_restore_backup = None
+        
+        # Write backup content to config
+        save_xray_config(backup_cfg, config_path)
+        
+        # Clear relevant caches
+        clear_cache("users")
+        clear_cache("dashboard")
+        
+        # Optionally restart Xray
+        restart_result = None
+        if restart_xray:
+            srv = settings["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
+            ok_r, msg = systemctl_restart(srv)
+            restart_result = {"ok": ok_r, "message": msg}
+            
+            if not ok_r:
+                # Rollback on failure
+                if pre_restore_backup and os.path.exists(pre_restore_backup):
+                    shutil.copy2(pre_restore_backup, config_path)
+                    systemctl_restart(srv)
+                    append_event({
+                        "type": "SYSTEM",
+                        "severity": "ERROR",
+                        "action": "backup_restore_failed",
+                        "message": f"Restore failed, rolled back: {msg}",
+                        "details": filename
+                    })
+                    return fail(f"Restore failed (rolled back): {msg}")
+        
+        append_event({
+            "type": "SYSTEM",
+            "severity": "WARN",
+            "action": "backup_restored",
+            "message": f"Configuration restored from backup: {filename}",
+            "details": filename
+        })
+        
+        return ok({
+            "restored": True,
+            "backup_name": filename,
+            "pre_restore_backup": os.path.basename(pre_restore_backup) if pre_restore_backup else None,
+            "restart_result": restart_result,
+            "message": "Configuration restored successfully"
+        })
+        
+    except Exception as e:
+        return fail(f"Error restoring backup: {str(e)}", code=500)
+
+@app.post("/api/backups/delete")
+def api_backups_delete():
+    """Delete a backup file"""
+    if not request.is_json:
+        return fail("json_required")
+    
+    j = request.get_json(silent=True) or {}
+    filename = (j.get("filename") or "").strip()
+    
+    if not filename:
+        return fail("filename parameter required")
+    
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return fail("Invalid filename")
+    
+    filepath = os.path.join(BACKUPS_DIR, filename)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        return fail("Backup not found", code=404)
+    
+    try:
+        os.remove(filepath)
+        
+        append_event({
+            "type": "SYSTEM",
+            "severity": "INFO",
+            "action": "backup_deleted",
+            "message": f"Backup deleted: {filename}",
+            "details": filename
+        })
+        
+        return ok({"deleted": True, "filename": filename})
+    except Exception as e:
+        return fail(f"Error deleting backup: {str(e)}", code=500)
 
 # --- Live SSE (legacy) ---
 
@@ -2703,8 +3892,8 @@ def _get_live_now() -> Dict[str, Any]:
     with live_buffer_lock:
         cutoff = time.time() - 300  # 5 minutes
         online_users = set()
-        total_conns = 0
-        total_traffic = 0
+        conns_values = []
+        traffic_values = []
         
         # Aggregate from buffer
         for metric_name, metric_data in live_buffer.items():
@@ -2713,15 +3902,19 @@ def _get_live_now() -> Dict[str, Any]:
                     if metric_name == "online_users" and "users" in point:
                         online_users.update(point["users"])
                     elif metric_name == "conns":
-                        total_conns += point.get("value", 0)
+                        conns_values.append(point.get("value", 0))
                     elif metric_name == "traffic":
-                        total_traffic += point.get("value", 0)
+                        traffic_values.append(point.get("value", 0))
+        
+        # Use last value (most recent) instead of sum
+        current_conns = conns_values[-1] if conns_values else 0
+        current_traffic = traffic_values[-1] if traffic_values else 0
         
         return {
             "onlineUsers": list(online_users),  # Return list of user IDs
             "onlineUsersCount": len(online_users),
-            "conns": total_conns,
-            "trafficBytes": total_traffic,
+            "conns": current_conns,
+            "trafficBytes": current_traffic,
             "trafficAvailable": live_traffic_available,
         }
 
@@ -2751,7 +3944,7 @@ def api_live_series():
     # Validate
     if period not in [3600, 21600, 86400]:  # 60m, 6h, 24h
         period = 3600
-    if gran not in [60, 300, 600]:  # 1m, 5m, 10m
+    if gran not in [60, 300, 600, 900, 1800]:  # 1m, 5m, 10m, 15m, 30m
         gran = 300
     
     # Aggregate from ring buffer
@@ -2875,6 +4068,20 @@ def bootstrap():
     load_settings()
     _load_live_buffer_from_dump()
     
+    # Log startup event
+    try:
+        import sys
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        append_event({
+            "type": "SYSTEM",
+            "severity": "INFO",
+            "action": "startup",
+            "message": f"xray-report-ui started (Python {python_version})",
+            "version": "2.0"
+        })
+    except Exception:
+        pass
+    
     # Start background thread for live buffer updates (every minute)
     def live_updater():
         while True:
@@ -2886,8 +4093,159 @@ def bootstrap():
     
     updater_thread = threading.Thread(target=live_updater, daemon=True)
     updater_thread.start()
+    
+    # Start health check monitor (every 30 seconds)
+    def health_checker():
+        import socket
+        import http.client
+        
+        service_status = {}  # Track service states to detect changes
+        
+        while True:
+            try:
+                # Check Frontend (Next.js on port 3002)
+                frontend_healthy = False
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(2)
+                    result = sock.connect_ex(('127.0.0.1', NEXTJS_PORT))
+                    sock.close()
+                    frontend_healthy = (result == 0)
+                except Exception:
+                    frontend_healthy = False
+                
+                if service_status.get('frontend') != frontend_healthy:
+                    if not frontend_healthy:
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "ERROR",
+                            "action": "service_down",
+                            "service": "Frontend",
+                            "port": NEXTJS_PORT,
+                            "message": f"Сервис Frontend (порт {NEXTJS_PORT}) недоступен"
+                        })
+                    elif 'frontend' in service_status:  # Was down, now up
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "INFO",
+                            "action": "service_up",
+                            "service": "Frontend",
+                            "port": NEXTJS_PORT,
+                            "message": f"Сервис Frontend (порт {NEXTJS_PORT}) восстановлен"
+                        })
+                    service_status['frontend'] = frontend_healthy
+                
+                # Check API Backend (this server on APP_PORT)
+                backend_healthy = False
+                try:
+                    conn = http.client.HTTPConnection('127.0.0.1', APP_PORT, timeout=2)
+                    conn.request('GET', '/api/settings')
+                    response = conn.getresponse()
+                    backend_healthy = (response.status == 200)
+                    conn.close()
+                except Exception:
+                    backend_healthy = False
+                
+                if service_status.get('backend') != backend_healthy:
+                    if not backend_healthy:
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "ERROR",
+                            "action": "service_down",
+                            "service": "API Backend",
+                            "port": APP_PORT,
+                            "message": f"Сервис API Backend (порт {APP_PORT}) недоступен"
+                        })
+                    elif 'backend' in service_status:
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "INFO",
+                            "action": "service_up",
+                            "service": "API Backend",
+                            "port": APP_PORT,
+                            "message": f"Сервис API Backend (порт {APP_PORT}) восстановлен"
+                        })
+                    service_status['backend'] = backend_healthy
+                
+                # Check Xray service
+                xray_healthy = False
+                try:
+                    result = subprocess.run(
+                        ["systemctl", "is-active", SERVICE_XRAY_DEFAULT],
+                        capture_output=True,
+                        text=True,
+                        timeout=2
+                    )
+                    xray_healthy = (result.returncode == 0 and result.stdout.strip() == "active")
+                except Exception:
+                    xray_healthy = False
+                
+                if service_status.get('xray') != xray_healthy:
+                    if not xray_healthy:
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "ERROR",
+                            "action": "service_down",
+                            "service": "Xray",
+                            "message": "Сервис Xray не активен"
+                        })
+                    elif 'xray' in service_status:
+                        append_event({
+                            "type": "SERVICE_HEALTH",
+                            "severity": "INFO",
+                            "action": "service_up",
+                            "service": "Xray",
+                            "message": "Сервис Xray восстановлен"
+                        })
+                    service_status['xray'] = xray_healthy
+                
+            except Exception:
+                pass
+            
+            time.sleep(60)  # Check every 60 seconds (оптимизировано для слабого сервера)
+    
+    health_thread = threading.Thread(target=health_checker, daemon=True)
+    health_thread.start()
 
 bootstrap()
+
+# Shutdown handler
+import atexit
+import signal
+
+def shutdown_handler():
+    """Log shutdown event and save Xray statistics"""
+    try:
+        # Save Xray statistics before shutdown (in case of server reboot)
+        save_xray_stats_before_restart()
+        
+        append_event({
+            "type": "SYSTEM",
+            "severity": "INFO",
+            "action": "shutdown",
+            "message": "xray-report-ui shutting down (stats saved)"
+        })
+    except Exception:
+        pass
+
+atexit.register(shutdown_handler)
+
+def signal_handler(signum, frame):
+    """Handle termination signals"""
+    try:
+        append_event({
+            "type": "SYSTEM",
+            "severity": "WARN",
+            "action": "shutdown",
+            "message": f"xray-report-ui received signal {signum}"
+        })
+    except Exception:
+        pass
+    import sys
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
 
 if __name__ == "__main__":
     app.run(host=APP_HOST, port=APP_PORT, debug=False)

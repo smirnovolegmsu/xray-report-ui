@@ -1,170 +1,238 @@
 # Xray Report UI
 
-Веб-панель управления для Xray VPN с мониторингом использования и управлением пользователями.
+Веб-панель управления VPN сервером на базе Xray-core.
 
-## 🚀 Быстрый старт
+## Архитектура
 
-### Установка
+Проект состоит из двух компонентов:
+
+1. **Backend (Flask API)** — Python сервер, обрабатывающий запросы к Xray
+2. **Frontend (Next.js)** — React приложение с современным UI
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Пользователь                          │
+│                     http://SERVER:3000                       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Next.js Frontend                          │
+│                       PORT: 3000                             │
+│              Сервис: xray-nextjs-ui.service                  │
+│                                                              │
+│   - Все страницы UI (Overview, Users, Online, Events, etc)  │
+│   - Проксирует /api/* запросы на Backend                     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              │ /api/*
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Flask Backend                            │
+│                       PORT: 8787                             │
+│              Сервис: xray-report-ui.service                  │
+│                                                              │
+│   - REST API для всех операций                               │
+│   - Управление пользователями Xray                           │
+│   - Сбор статистики и логов                                  │
+│   - Интеграция с systemd                                     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Xray-core                               │
+│               Конфиг: /usr/local/etc/xray/config.json        │
+│                   Сервис: xray.service                       │
+│                                                              │
+│   - VPN сервер (VLESS + Reality)                             │
+│   - Управление клиентами                                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Порты
+
+| Порт | Сервис | Описание | Доступ |
+|------|--------|----------|--------|
+| **3000** | `xray-nextjs-ui` | Next.js Frontend (основной UI) | Публичный |
+| **8787** | `xray-report-ui` | Flask Backend API | Только localhost |
+| **443** | `xray` | Xray VLESS+Reality VPN | Публичный |
+
+**Подробная информация:** см. [документацию по портам](./docs/ports.md)
+
+## Установка
+
+### Требования
+- Ubuntu 20.04+ / Debian 11+
+- Python 3.8+
+- Node.js 18+
+- Xray-core
+
+### Быстрый старт
 
 ```bash
-cd /opt/xray-report-ui
+# 1. Клонирование
+git clone https://github.com/YOUR_USERNAME/xray-report-ui.git
+cd xray-report-ui
+
+# 2. Backend
 python3 -m venv venv
 source venv/bin/activate
-pip install flask
+pip install flask python-dateutil
+
+# 3. Frontend
+cd frontend
+npm install
+npm run build
+cd ..
+
+# 4. Systemd сервисы
+sudo cp /etc/systemd/system/xray-report-ui.service.example /etc/systemd/system/xray-report-ui.service
+sudo cp /etc/systemd/system/xray-nextjs-ui.service.example /etc/systemd/system/xray-nextjs-ui.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now xray-report-ui xray-nextjs-ui
 ```
 
-### Запуск
+## Systemd сервисы
+
+### xray-report-ui.service (Backend)
+```ini
+[Unit]
+Description=Xray Report UI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/xray-report-ui
+ExecStart=/opt/xray-report-ui/venv/bin/python /opt/xray-report-ui/app.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### xray-nextjs-ui.service (Frontend)
+```ini
+[Unit]
+Description=Xray Report UI (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/xray-report-ui/frontend
+Environment="PORT=3000"
+Environment="NODE_ENV=production"
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## Управление сервисами
 
 ```bash
-# Через systemd (рекомендуется)
-systemctl start xray-report-ui
-systemctl enable xray-report-ui
+# Статус
+sudo systemctl status xray-report-ui xray-nextjs-ui
 
-# Или вручную
-python3 app.py
+# Перезапуск
+sudo systemctl restart xray-report-ui xray-nextjs-ui
+
+# Логи
+sudo journalctl -u xray-report-ui -f
+sudo journalctl -u xray-nextjs-ui -f
+
+# Автоматическая проверка сервисов
+./scripts/services/check.sh
 ```
 
-Затем откройте в браузере: `http://YOUR_IP:8787`
+**Подробная информация:** см. [документацию по сервисам](./docs/services.md)
 
-## 📁 Структура проекта
+## Структура проекта
 
 ```
-xray-report-ui/
-├── 🌐 FRONTEND (что видит пользователь)
-│   ├── templates/index.html    - HTML страница
-│   └── static/
-│       ├── css/styles.css      - Стили
-│       └── js/*.js             - Модули JavaScript
-│
-├── 🐍 BACKEND (логика на сервере)
-│   └── app.py                  - Flask сервер (вся логика в одном файле)
-│
-├── 🗄️ АРХИВ (не используется)
-│   └── _archive_legacy/        - Старые прототипы и неиспользуемый код
-│
-└── 💾 ДАННЫЕ (не в Git)
-    ├── data/                   - Рабочие данные
-    └── venv/                   - Python окружение
+/opt/xray-report-ui/
+├── app.py                 # Flask Backend (основной файл)
+├── venv/                  # Python virtual environment (не в Git)
+├── data/                  # Данные приложения (не в Git)
+│   ├── settings.json      # Настройки UI
+│   ├── events.log         # Лог событий
+│   └── backups/           # Бэкапы конфигов
+├── frontend/              # Next.js Frontend
+│   ├── app/               # Next.js App Router страницы
+│   ├── components/        # React компоненты
+│   ├── lib/               # Утилиты и API клиент
+│   ├── types/             # TypeScript типы
+│   └── .next/             # Build output (не в Git)
+├── scripts/               # Вспомогательные скрипты
+│   ├── ports/             # Скрипты для работы с портами
+│   │   ├── analyze.sh     # Анализ портов
+│   │   ├── cleanup.sh     # Очистка портов
+│   │   └── optimize.sh    # Оптимизация портов
+│   └── services/          # Скрипты для работы с сервисами
+│       └── check.sh       # Проверка сервисов
+├── docs/                  # Документация проекта
+│   ├── architecture.md   # Архитектура системы
+│   ├── ports.md           # Документация по портам
+│   ├── services.md        # Документация по сервисам
+│   ├── optimization.md    # Оптимизация и производительность
+│   ├── development.md     # Руководство разработчика
+│   └── troubleshooting.md # Решение проблем
+└── README.md              # Этот файл
 ```
 
 ## 📚 Документация
 
-**Начните с этих файлов:**
+Подробная документация находится в папке [`docs/`](./docs/):
 
-1. **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** 🔥 - Подробное объяснение структуры
-2. **[README_REFACTORING.md](README_REFACTORING.md)** - Руководство после рефакторинга
-3. **[REFACTORING_REPORT.md](REFACTORING_REPORT.md)** - Отчет о проделанной работе
+- **[Структура проекта](./docs/structure.md)** — описание структуры проекта
+- **[Архитектура](./docs/architecture.md)** — описание архитектуры системы
+- **[Порты](./docs/ports.md)** — документация по портам и их назначению
+- **[Сервисы](./docs/services.md)** — управление systemd сервисами
+- **[Оптимизация](./docs/optimization.md)** — оптимизация и производительность
+- **[Разработка](./docs/development.md)** — руководство для разработчиков
+- **[Решение проблем](./docs/troubleshooting.md)** — типичные проблемы и их решения
 
-## ✨ Возможности
+## 🛠️ Вспомогательные скрипты
 
-- ✅ **Управление пользователями** - добавление, удаление, kick
-- ✅ **Мониторинг трафика** - daily/cumulative графики
-- ✅ **Live статистика** - real-time подключения
-- ✅ **История** - детальная статистика за 7 дней
-- ✅ **Топ домены** - анализ использования
-- ✅ **События** - логирование всех действий
-- ✅ **Локализация** - RU/EN
-- ✅ **Темная/светлая тема**
+Скрипты для управления проектом находятся в папке [`scripts/`](./scripts/):
 
-## 🎯 Как это работает
+- **Анализ портов:** `./scripts/ports/analyze.sh`
+- **Очистка портов:** `./scripts/ports/cleanup.sh`
+- **Оптимизация портов:** `./scripts/ports/optimize.sh`
+- **Проверка сервисов:** `./scripts/services/check.sh`
 
-### Простой поток:
+Подробнее см. [README скриптов](./scripts/README.md).
 
-```
-Браузер → index.html → загружает JS → делает API запрос
-                                              ↓
-                                         app.py
-                                              ↓
-                                    Обрабатывает данные
-                                              ↓
-                                    Возвращает JSON
-                                              ↓
-                                    Браузер рисует UI
-```
+## API Endpoints
 
-### Пример: Добавление пользователя
+### Users
+- `GET /api/users` — список пользователей
+- `POST /api/users/add` — добавить пользователя
+- `POST /api/users/delete` — удалить пользователя
+- `GET /api/users/stats` — статистика пользователей
+- `GET /api/users/link?uuid=...` — получить VLESS ссылку
 
-1. Браузер (`users.js`) → `POST /api/users/add {email: "user1"}`
-2. `app.py` → читает config, добавляет юзера, делает бэкап
-3. Возвращает `{ok: true}`
-4. Браузер обновляет таблицу
+### Dashboard
+- `GET /api/dashboard` — данные дашборда
+- `GET /api/usage/dashboard` — статистика использования
 
-## 🛠️ Разработка
+### Live Monitoring
+- `GET /api/live/now` — текущие подключения
+- `GET /api/live/series` — временные ряды
 
-### Структура кода:
+### System
+- `GET /api/system/status` — статус системы
+- `POST /api/system/restart` — перезапуск сервисов
+- `GET /api/ports/status` — статус портов
 
-- **Frontend** (`static/`, `templates/`) - HTML/CSS/JS
-- **Backend** (`app.py`) - Вся Python логика в одном файле
-- **Данные** (`data/`) - не добавляется в Git
-- **Архив** (`_archive_legacy/`) - устаревший код, не используется
+### Settings
+- `GET /api/settings` — получить настройки
+- `POST /api/settings` — сохранить настройки
 
-### Проверка после изменений:
+## Лицензия
 
-```bash
-./test_refactoring.sh
-```
-
-## 📊 Метрики рефакторинга
-
-| Метрика | До | После | Изменение |
-|---------|-----|-------|-----------|
-| HTML размер | 324 KB | 32 KB | **-90%** |
-| HTML строк | 9514 | ~600 | **-94%** |
-| Модулей | 2 | 26 | **+1200%** |
-| Legacy код | 135 строк | 0 | **-100%** |
-| Мусора | 1.2 MB | 0 | **-100%** |
-
-## 🔧 Конфигурация
-
-### Основные настройки:
-
-- **Порт:** 8787 (можно изменить через `XRAY_REPORT_UI_PORT`)
-- **Xray config:** `/usr/local/etc/xray/config.json`
-- **Usage CSV:** `/var/log/xray/usage/`
-- **Data dir:** `/opt/xray-report-ui/data/`
-
-### Настройки через UI:
-
-1. Открыть панель → Система → Настройки
-2. Указать `server_host` (IP или домен вашего сервера)
-3. (Опционально) `reality_pbk` для ручного указания публичного ключа
-
-## 🐛 Troubleshooting
-
-### Проблема: Не загружается UI
-
-```bash
-# Проверить статус
-systemctl status xray-report-ui
-
-# Логи
-journalctl -u xray-report-ui -f
-
-# Проверить файлы
-./test_refactoring.sh
-```
-
-### Проблема: Не работают графики
-
-1. Открыть DevTools (F12) → Console
-2. Проверить ошибки JavaScript
-3. Проверить что статические файлы загружаются (Network tab)
-
-### Проблема: Не видно пользователей
-
-1. Проверить `/usr/local/etc/xray/config.json` существует
-2. Проверить права доступа к config.json
-3. Проверить логи: `journalctl -u xray-report-ui`
-
-## 🎉 Итоги
-
-**Frontend:** ✅ Завершен (модульный, быстрый)  
-**Backend:** ✅ Работает (монолитный app.py)  
-**Приложение:** ✅ Production Ready
-**Архив:** ✅ Legacy код перенесен в `_archive_legacy/`
-
----
-
-**Версия:** 2.0  
-**Дата:** 2026-01-18  
-**Статус:** Production Ready ✅
+MIT

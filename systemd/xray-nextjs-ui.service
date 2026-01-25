@@ -1,0 +1,38 @@
+[Unit]
+Description=Xray Report UI (Next.js Frontend)
+After=network.target xray-report-ui.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/xray-report-ui/frontend/.next/standalone
+
+# Environment variables
+Environment="PORT=3000"
+Environment="NODE_ENV=production"
+Environment="NODE_OPTIONS=--max-old-space-size=512"
+Environment="HOSTNAME=0.0.0.0"
+
+# Используем standalone build для минимального потребления памяти
+# WorkingDirectory должен быть в standalone директории для правильных путей к статическим файлам
+ExecStart=/usr/bin/node server.js
+
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# === РЕСУРСНЫЕ ЛИМИТЫ для 3.8GB RAM сервера ===
+MemoryMax=768M
+MemoryHigh=600M
+CPUQuota=80%
+LimitNOFILE=4096
+
+# Graceful shutdown
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
