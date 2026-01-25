@@ -108,9 +108,9 @@ export default function EventsPage() {
 
   return (
     <MainLayout>
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col min-h-0">
         {/* Sticky Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+        <div className="sticky top-0 z-[5] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
           <div className="p-4 space-y-3">
             {/* Title and Time Range */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

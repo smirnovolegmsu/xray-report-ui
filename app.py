@@ -950,13 +950,17 @@ def load_dashboard_data(days: int = 7, user_filter: str = None) -> Dict[str, Any
     
     # KPI: today vs yesterday
     today_data = g_last["daily_traffic_bytes"][-1] if g_last["daily_traffic_bytes"] else 0
-    yesterday_data = g_prev["daily_traffic_bytes"][-1] if g_prev["daily_traffic_bytes"] and len(g_prev["daily_traffic_bytes"]) > 0 else 0
-    if not yesterday_data and len(date_keys) >= 2:
+    yesterday_data = g_prev["daily_traffic_bytes"][-1] if g_prev["daily_traffic_bytes"] else None
+    if yesterday_data is None and len(date_keys) >= 2:
         # Try to get yesterday from all data
         yesterday_date = today - dt.timedelta(days=1)
         if yesterday_date.isoformat() in date_keys:
             idx = date_keys.index(yesterday_date.isoformat())
             yesterday_data = g_bytes_all[idx] if idx < len(g_bytes_all) else 0
+        else:
+            yesterday_data = 0
+    elif yesterday_data is None:
+        yesterday_data = 0
     
     def pct_change(a, b):
         if b == 0:
@@ -1886,25 +1890,27 @@ def api_users_delete():
     if not request.is_json:
         return fail("json_required")
     j = request.get_json(silent=True) or {}
-    email = (j.get("email") or "").strip()
-    if not email:
-        return fail("email_required")
-    
+    uuid = (j.get("uuid") or "").strip()
+    if not uuid:
+        return fail("uuid_required")
+
     cfg, err = load_xray_config()
     if err:
         return fail(f"Cannot load config: {err}")
-    
+
     clients = get_xray_clients(cfg)
-    new_clients = [c for c in clients if c.get("email") != email]
-    
-    if len(new_clients) == len(clients):
+    # Find user by uuid to get email for event logging
+    user_to_delete = next((c for c in clients if c.get("id") == uuid), None)
+    if not user_to_delete:
         return fail("user_not_found")
-    
+
+    new_clients = [c for c in clients if c.get("id") != uuid]
+
     ok_r, msg = set_xray_clients(new_clients)
     if not ok_r:
         return fail(msg)
-    
-    append_event({"type": "USER", "severity": "WARN", "action": "delete", "email": email})
+
+    append_event({"type": "USER", "severity": "WARN", "action": "delete", "email": user_to_delete.get("email", "unknown")})
     return ok()
 
 @app.post("/api/users/kick")
@@ -1913,32 +1919,32 @@ def api_users_kick():
     if not request.is_json:
         return fail("json_required")
     j = request.get_json(silent=True) or {}
-    email = (j.get("email") or "").strip()
-    if not email:
-        return fail("email_required")
-    
+    uuid = (j.get("uuid") or "").strip()
+    if not uuid:
+        return fail("uuid_required")
+
     cfg, err = load_xray_config()
     if err:
         return fail(f"Cannot load config: {err}")
-    
+
     clients = get_xray_clients(cfg)
-    found = False
+    found_user = None
     new_uuid = str(uuid_lib.uuid4())
-    
+
     for c in clients:
-        if c.get("email") == email:
+        if c.get("id") == uuid:
             c["id"] = new_uuid
-            found = True
+            found_user = c
             break
-    
-    if not found:
+
+    if not found_user:
         return fail("user_not_found")
-    
+
     ok_r, msg = set_xray_clients(clients)
     if not ok_r:
         return fail(msg)
-    
-    append_event({"type": "USER", "severity": "WARN", "action": "kick", "email": email})
+
+    append_event({"type": "USER", "severity": "WARN", "action": "kick", "email": found_user.get("email", "unknown")})
     return ok({"new_uuid": new_uuid})
 
 @app.get("/api/users/link")
@@ -2020,37 +2026,37 @@ def api_users_update_alias():
     if not request.is_json:
         return fail("json_required")
     j = request.get_json(silent=True) or {}
-    email = (j.get("email") or "").strip()
+    uuid = (j.get("uuid") or "").strip()
     alias = (j.get("alias") or "").strip()
-    
-    if not email:
-        return fail("email_required")
-    
+
+    if not uuid:
+        return fail("uuid_required")
+
     cfg, err = load_xray_config()
     if err:
         return fail(f"Cannot load config: {err}")
-    
+
     clients = get_xray_clients(cfg)
-    found = False
-    
+    found_user = None
+
     for c in clients:
-        if c.get("email") == email:
+        if c.get("id") == uuid:
             if alias:
                 c["alias"] = alias
             else:
                 c.pop("alias", None)  # Remove alias if empty
-            found = True
+            found_user = c
             break
-    
-    if not found:
+
+    if not found_user:
         return fail("user_not_found")
-    
+
     ok_r, msg = set_xray_clients(clients)
     if not ok_r:
         return fail(msg)
-    
-    append_event({"type": "USER", "severity": "INFO", "action": "update_alias", "email": email, "alias": alias})
-    return ok({"email": email, "alias": alias})
+
+    append_event({"type": "USER", "severity": "INFO", "action": "update_alias", "email": found_user.get("email", "unknown"), "alias": alias})
+    return ok({"email": found_user.get("email"), "alias": alias})
 
 # --- Events ---
 
@@ -2088,7 +2094,7 @@ def api_events():
 @app.get("/api/events/stats")
 def api_events_stats():
     """Get statistics about events for dashboard"""
-    hours = int(request.args.get("hours") or "24")
+    hours = safe_int(request.args.get("hours"), 24)
     
     events = []
     if os.path.exists(EVENTS_PATH):
