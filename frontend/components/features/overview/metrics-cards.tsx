@@ -1,16 +1,14 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, memo } from 'react';
+import { useMemo, memo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users, Activity, TrendingUp, TrendingDown, Zap } from 'lucide-react';
-import { apiClient } from '@/lib/api';
-import { handleApiError, formatBytes, devLog, calculateChange, formatChange } from '@/lib/utils';
+import { formatBytes, calculateChange, formatChange } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
-import { toast } from 'sonner';
 import NumberFlow from '@number-flow/react';
 import { defaultNumberFlowConfig } from '@/lib/number-flow-config';
-import type { DashboardApiResponse } from '@/types';
+import { useDashboard } from '@/lib/swr';
 
 interface DashboardStats {
   users_total: number;
@@ -29,84 +27,65 @@ interface MetricsCardsProps {
 }
 
 export const MetricsCards = memo(function MetricsCards({ selectedDate, mode }: MetricsCardsProps) {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
 
-  const loadStats = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.getDashboard({ days: 14 });
+  // Use SWR for data fetching with automatic caching and deduplication
+  const { data: dashboardData, isLoading: loading } = useDashboard(14);
 
-      if (!response?.data) {
-        throw new Error('Empty response from server');
-      }
-      const data = response.data as DashboardApiResponse;
+  // Process dashboard data into stats
+  const stats = useMemo<DashboardStats | null>(() => {
+    if (!dashboardData?.ok) return null;
 
-      if (!data?.ok) {
-        throw new Error(data.error || 'Failed to load dashboard data');
-      }
-      
-      const globalData = data.global || {};
-      const usersData = data.users || {};
+    const globalData = dashboardData.global || {};
+    const usersData = dashboardData.users || {};
 
-      // Current 7 days data
-      const dailyTraffic = globalData.daily_traffic_bytes || [];
-      const dailyConns = globalData.daily_conns || [];
-      // Previous 7 days data (separate fields from API)
-      const prevDailyTraffic = globalData.prev_daily_traffic_bytes || [];
-      const prevDailyConns = globalData.prev_daily_conns || [];
+    // Current 7 days data
+    const dailyTraffic = globalData.daily_traffic_bytes || [];
+    const dailyConns = globalData.daily_conns || [];
+    // Previous 7 days data (separate fields from API)
+    const prevDailyTraffic = globalData.prev_daily_traffic_bytes || [];
+    const prevDailyConns = globalData.prev_daily_conns || [];
 
-      const traffic_total = dailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
-      const traffic_prev = prevDailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
-      const connections_total = dailyConns.reduce((sum: number, val: number) => sum + val, 0);
-      const connections_prev = prevDailyConns.reduce((sum: number, val: number) => sum + val, 0);
-      
-      const users_total = Object.keys(usersData).length;
-      const users_active = Object.values(usersData).filter(
-        (u) => (u?.daily_traffic_bytes || []).some((v: number) => v > 0)
-      ).length;
-      
-      // Считаем активных пользователей за каждый период
-      // Активный = был трафик > 0
-      const users_active_current = Object.values(usersData).filter(
-        (u: any) => (u?.sum7_traffic_bytes || 0) > 0
-      ).length;
-      
-      const users_active_prev = Object.values(usersData).filter(
-        (u: any) => (u?.sum_prev7_traffic_bytes || 0) > 0
-      ).length;
-      
-      // Средний трафик на активного пользователя в день
-      // = Общий трафик / (активных пользователей × 7 дней)
-      const avg_traffic = users_active_current > 0 
-        ? traffic_total / (users_active_current * 7) 
-        : 0;
-      const avg_traffic_prev = users_active_prev > 0 
-        ? traffic_prev / (users_active_prev * 7) 
-        : 0;
-      
-      setStats({
-        users_total,
-        users_active,
-        traffic_total_bytes: traffic_total,
-        traffic_prev_bytes: traffic_prev,
-        connections_total,
-        connections_prev,
-        avg_traffic_per_user: avg_traffic,
-        avg_traffic_prev: avg_traffic_prev,
-      });
-    } catch (error) {
-      devLog.error('Error loading dashboard stats:', error);
-      toast.error(handleApiError(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedDate, mode]);
+    const traffic_total = dailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
+    const traffic_prev = prevDailyTraffic.reduce((sum: number, val: number) => sum + val, 0);
+    const connections_total = dailyConns.reduce((sum: number, val: number) => sum + val, 0);
+    const connections_prev = prevDailyConns.reduce((sum: number, val: number) => sum + val, 0);
 
-  useEffect(() => {
-    loadStats();
-  }, [loadStats]);
+    const users_total = Object.keys(usersData).length;
+    const users_active = Object.values(usersData).filter(
+      (u) => (u?.daily_traffic_bytes || []).some((v: number) => v > 0)
+    ).length;
+
+    // Считаем активных пользователей за каждый период
+    // Активный = был трафик > 0
+    const users_active_current = Object.values(usersData).filter(
+      (u: any) => (u?.sum7_traffic_bytes || 0) > 0
+    ).length;
+
+    const users_active_prev = Object.values(usersData).filter(
+      (u: any) => (u?.sum_prev7_traffic_bytes || 0) > 0
+    ).length;
+
+    // Средний трафик на активного пользователя в день
+    // = Общий трафик / (активных пользователей × 7 дней)
+    const avg_traffic = users_active_current > 0
+      ? traffic_total / (users_active_current * 7)
+      : 0;
+    const avg_traffic_prev = users_active_prev > 0
+      ? traffic_prev / (users_active_prev * 7)
+      : 0;
+
+    return {
+      users_total,
+      users_active,
+      traffic_total_bytes: traffic_total,
+      traffic_prev_bytes: traffic_prev,
+      connections_total,
+      connections_prev,
+      avg_traffic_per_user: avg_traffic,
+      avg_traffic_prev: avg_traffic_prev,
+    };
+  }, [dashboardData]);
 
   // All useMemo hooks must be called before any early returns (Rules of Hooks)
   const trafficChange = useMemo(

@@ -1,22 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback, memo } from 'react';
+import { useMemo, memo } from 'react';
 import { Card } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { apiClient } from '@/lib/api';
-import { handleApiError } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
-import { toast } from 'sonner';
-import { formatBytes, devLog } from '@/lib/utils';
-import type { DashboardApiResponse } from '@/types';
+import { formatBytes } from '@/lib/utils';
+import { useDashboard } from '@/lib/swr';
 
 interface DomainStat {
   domain: string;
@@ -30,50 +19,27 @@ interface TopDomainsProps {
 }
 
 export const TopDomains = memo(function TopDomains({ selectedDate, mode }: TopDomainsProps) {
-  const [domains, setDomains] = useState<DomainStat[]>([]);
-  const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
 
-  const loadDomains = useCallback(async () => {
-    try {
-      setLoading(true);
+  // Use SWR for data fetching with automatic caching and deduplication
+  const { data: dashboardData, isLoading: loading } = useDashboard(14);
 
-      const response = await apiClient.getDashboard({ days: 14 });
+  // Process dashboard data into domains list
+  const domains = useMemo<DomainStat[]>(() => {
+    if (!dashboardData?.ok) return [];
 
-      if (!response?.data) {
-        throw new Error('Empty response from server');
-      }
-      const data = response.data as DashboardApiResponse;
+    const globalData = dashboardData.global || {};
+    const topDomainsTraffic = globalData.top_domains_traffic || [];
+    const topDomainsConns = globalData.top_domains_conns || [];
 
-      if (!data?.ok) {
-        throw new Error(data?.error || 'Failed to load data');
-      }
-      
-      const globalData = data.global || {};
-      const topDomainsTraffic = globalData.top_domains_traffic || [];
-      const topDomainsConns = globalData.top_domains_conns || [];
-      
-      const domainsList = topDomainsTraffic
-        .filter((item: any) => item && item.domain) // Filter out invalid entries
-        .map((item: any) => ({
-          domain: item.domain,
-          traffic_bytes: item.value || 0,
-          connections: topDomainsConns.find((d: any) => d?.domain === item.domain)?.value || 0,
-        }));
-      
-      setDomains(domainsList);
-    } catch (error) {
-      devLog.error('Error loading domains:', error);
-      toast.error(handleApiError(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedDate, mode]);
-
-  // CRITICAL: useEffect MUST be called before any early returns (Rules of Hooks)
-  useEffect(() => {
-    loadDomains();
-  }, [loadDomains]);
+    return topDomainsTraffic
+      .filter((item: any) => item && item.domain)
+      .map((item: any) => ({
+        domain: item.domain,
+        traffic_bytes: item.value || 0,
+        connections: topDomainsConns.find((d: any) => d?.domain === item.domain)?.value || 0,
+      }));
+  }, [dashboardData]);
 
   // Early returns AFTER all hooks are called
   if (loading) {

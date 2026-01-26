@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback, memo } from 'react';
+import { useMemo, useCallback, memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Server, Activity, Database } from 'lucide-react';
-import { apiClient } from '@/lib/api';
 import { useRouter } from 'next/navigation';
-import { devLog } from '@/lib/utils';
-import type { SystemStatus, ServiceStatus, CollectorStatus } from '@/types';
+import { useSystemStatus, useCollectorStatus } from '@/lib/swr';
+import type { ServiceStatus } from '@/types';
 
 interface StatusData {
   ui: ServiceStatus;
@@ -15,40 +14,27 @@ interface StatusData {
 }
 
 export const StatusBadges = memo(function StatusBadges() {
-  const [status, setStatus] = useState<StatusData | null>(null);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const loadStatus = useCallback(async () => {
-    try {
-      const [systemRes, collectorRes] = await Promise.all([
-        apiClient.getSystemStatus(),
-        apiClient.getCollectorStatus(),
-      ]);
+  // Use SWR for data fetching with automatic caching and deduplication
+  const { data: systemData, isLoading: systemLoading } = useSystemStatus();
+  const { data: collectorData, isLoading: collectorLoading } = useCollectorStatus();
 
-      const systemData = systemRes.data as SystemStatus;
-      const collectorData = collectorRes.data as CollectorStatus;
-      
-      setStatus({
-        ui: systemData.ui || { active: false, state: 'unknown' },
-        xray: systemData.xray || { active: false, state: 'unknown' },
-        collector: {
-          active: collectorData.cron?.found || false,
-          found: collectorData.cron?.found || false,
-        },
-      });
-      setLoading(false);
-    } catch (error) {
-      devLog.error('Failed to load status:', error);
-      setLoading(false);
-    }
-  }, []);
+  const loading = systemLoading || collectorLoading;
 
-  useEffect(() => {
-    loadStatus();
-    const interval = setInterval(loadStatus, 10000); // Update every 10 seconds
-    return () => clearInterval(interval);
-  }, [loadStatus]);
+  // Process data into status object
+  const status = useMemo<StatusData | null>(() => {
+    if (!systemData) return null;
+
+    return {
+      ui: systemData.ui || { active: false, state: 'unknown' },
+      xray: systemData.xray || { active: false, state: 'unknown' },
+      collector: {
+        active: collectorData?.cron?.found || false,
+        found: collectorData?.cron?.found || false,
+      },
+    };
+  }, [systemData, collectorData]);
 
   const handleUIClick = useCallback(() => {
     router.push('/settings?tab=system');

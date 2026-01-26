@@ -1,44 +1,19 @@
 'use client';
 
-import { useEffect, useState, useCallback, memo } from 'react';
+import { useMemo, memo } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Server, Wifi, WifiOff } from 'lucide-react';
-import { apiClient } from '@/lib/api';
-import { toast } from 'sonner';
-import { devLog } from '@/lib/utils';
-import type { PortInfo, PortsStatusResponse } from '@/types';
+import { Wifi, WifiOff } from 'lucide-react';
+import { usePortsStatus } from '@/lib/swr';
+import type { PortInfo } from '@/types';
 
 export const PortsStatus = memo(function PortsStatus() {
-  const [ports, setPorts] = useState<PortInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  // Use SWR for data fetching with automatic caching and deduplication
+  const { data: portsData, isLoading: loading, error } = usePortsStatus();
 
-  const loadPorts = useCallback(async () => {
-    try {
-      const response = await apiClient.getPortsStatus();
-      const data = response.data as PortsStatusResponse;
-      if (data && data.ports) {
-        setPorts(data.ports || []);
-        setError(false);
-      } else {
-        setError(true);
-      }
-    } catch (err) {
-      // Silent fail - don't show toast on every refresh
-      devLog.error('Failed to load ports:', err);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // CRITICAL: useEffect MUST be called before any early returns (Rules of Hooks)
-  useEffect(() => {
-    loadPorts();
-    // Update every 30 seconds
-    const interval = setInterval(loadPorts, 30000);
-    return () => clearInterval(interval);
-  }, [loadPorts]);
+  // Process data into ports array
+  const ports = useMemo<PortInfo[]>(() => {
+    return portsData?.ports || [];
+  }, [portsData]);
 
   // Early returns AFTER all hooks are called
   if (loading) {

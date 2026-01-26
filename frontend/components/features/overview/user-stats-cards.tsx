@@ -1,19 +1,17 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Users, Globe, TrendingUp, TrendingDown } from 'lucide-react';
 import { ResponsiveLine } from '@nivo/line';
-import { apiClient } from '@/lib/api';
-import { toast } from 'sonner';
-import { handleApiError, formatBytes, calculateChange, devLog } from '@/lib/utils';
+import { formatBytes, calculateChange } from '@/lib/utils';
 import NumberFlow from '@number-flow/react';
 import { defaultNumberFlowConfig } from '@/lib/number-flow-config';
-import { LoadingSpinner, CardLoadingSpinner } from '@/components/ui/loading-spinner';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useAppStore } from '@/lib/store';
-import type { DashboardApiResponse } from '@/types';
+import { useDashboard, useLiveNow } from '@/lib/swr';
 
 interface UserStatsCard {
   uuid: string;
@@ -34,110 +32,68 @@ interface UserStatsCard {
 }
 
 export function UserStatsCards() {
-  const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState<UserStatsCard[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('all');
-  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [mounted, setMounted] = useState(false);
   const lang = useAppStore((state) => state.lang);
-  const usersRef = useRef<UserStatsCard[]>([]);
-  
+
+  // Use SWR for data fetching
+  const { data: dashboardData, isLoading: loading } = useDashboard(14);
+  const { data: liveData } = useLiveNow();
+
   // Ensure component is mounted before accessing store
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Keep usersRef in sync with users
-  useEffect(() => {
-    usersRef.current = users;
-  }, [users]);
+  // Process dashboard data into users list
+  const users = useMemo<UserStatsCard[]>(() => {
+    if (!dashboardData?.ok) return [];
 
-  const loadOnlineStatus = useCallback(async () => {
-    try {
-      const response = await apiClient.getLiveNow();
-      const onlineUsersList = response.data?.now?.onlineUsers || [];
-      // Create a set with both email and uuid for matching
-      const onlineSet = new Set<string>();
-      
-      // Add all online users from API response
-      onlineUsersList.forEach((user: string) => {
-        onlineSet.add(user);
-      });
-      
-      // Match with our users list to add both email and uuid for each online user
-      usersRef.current.forEach(u => {
-        if (onlineSet.has(u.email) || onlineSet.has(u.uuid)) {
-          // If user is online, add both identifiers
-          onlineSet.add(u.email);
-          onlineSet.add(u.uuid);
-        }
-      });
-      
-      setOnlineUsers(onlineSet);
-    } catch (error) {
-      devLog.warn('Failed to load online status:', error);
-    }
-  }, []);
+    const usersData = dashboardData.users || {};
+    const usersList = Object.keys(usersData)
+      .filter(email => email && usersData[email])
+      .map(email => {
+        const userData = usersData[email];
+        if (!userData) return null;
+        return {
+          uuid: userData.uuid || email,
+          email: userData.email || email,
+          alias: userData.alias || '',
+          anomaly: userData.anomaly || false,
+          sum7_traffic_bytes: userData.sum7_traffic_bytes || 0,
+          sum7_conns: userData.sum7_conns || 0,
+          sum_prev7_traffic_bytes: userData.sum_prev7_traffic_bytes || 0,
+          sum_prev7_conns: userData.sum_prev7_conns || 0,
+          daily_traffic_bytes: userData.daily_traffic_bytes || [],
+          daily_conns: userData.daily_conns || [],
+          top_domains_traffic: userData.top_domains_traffic || [],
+        };
+      })
+      .filter((user): user is UserStatsCard => user !== null);
 
-  const loadUserStats = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.getDashboard({ days: 14 });
+    usersList.sort((a, b) => b.sum7_traffic_bytes - a.sum7_traffic_bytes);
+    return usersList;
+  }, [dashboardData]);
 
-      if (!response?.data) {
-        throw new Error('Empty response from server');
+  // Process online users from live data
+  const onlineUsers = useMemo<Set<string>>(() => {
+    const onlineSet = new Set<string>();
+    const onlineUsersList = liveData?.now?.onlineUsers || [];
+
+    onlineUsersList.forEach((user: string) => {
+      onlineSet.add(user);
+    });
+
+    // Match with our users list to add both email and uuid for each online user
+    users.forEach(u => {
+      if (onlineSet.has(u.email) || onlineSet.has(u.uuid)) {
+        onlineSet.add(u.email);
+        onlineSet.add(u.uuid);
       }
-      const data = response.data as DashboardApiResponse;
+    });
 
-      const usersData = data?.users || {};
-      const usersList = Object.keys(usersData)
-        .filter(email => email && usersData[email]) // Filter out invalid entries
-        .map(email => {
-          const userData = usersData[email];
-          // Safety check - skip if userData is undefined
-          if (!userData) {
-            return null;
-          }
-          return {
-            uuid: userData.uuid || email,
-            email: userData.email || email,
-            alias: userData.alias || '',
-            anomaly: userData.anomaly || false,
-            sum7_traffic_bytes: userData.sum7_traffic_bytes || 0,
-            sum7_conns: userData.sum7_conns || 0,
-            sum_prev7_traffic_bytes: userData.sum_prev7_traffic_bytes || 0,
-            sum_prev7_conns: userData.sum_prev7_conns || 0,
-            daily_traffic_bytes: userData.daily_traffic_bytes || [],
-            daily_conns: userData.daily_conns || [],
-            top_domains_traffic: userData.top_domains_traffic || [],
-          };
-        })
-        .filter((user): user is UserStatsCard => user !== null);
-      
-      usersList.sort((a, b) => b.sum7_traffic_bytes - a.sum7_traffic_bytes);
-      setUsers(usersList);
-    } catch (error) {
-      toast.error(handleApiError(error));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadUserStats();
-  }, [loadUserStats]);
-
-  // Load online status when users are loaded, then update periodically
-  useEffect(() => {
-    if (users.length > 0) {
-      loadOnlineStatus();
-      // Update online status every 10 seconds
-      const interval = setInterval(() => {
-        loadOnlineStatus();
-      }, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [users.length, loadOnlineStatus]);
+    return onlineSet;
+  }, [liveData, users]);
 
   const formatConns = useCallback((conns: number): string => {
     if (conns >= 1000) {
