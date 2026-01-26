@@ -60,6 +60,7 @@ NEXTJS_PORT = 3000
 NEXTJS_URL = os.environ.get("NEXTJS_URL", f"http://127.0.0.1:{NEXTJS_PORT}")
 
 LOCK = threading.Lock()
+BACKUP_LOCK = threading.Lock()  # Mutex for backup operations to prevent race conditions
 
 app = Flask(__name__)
 
@@ -183,6 +184,79 @@ def safe_int(value: Optional[str], default: int) -> int:
         return int(value)
     except (ValueError, TypeError):
         return default
+
+def validate_email(email: str) -> bool:
+    """Validate email format - simple check for basic safety"""
+    if not email or not isinstance(email, str):
+        return False
+    if len(email) > 255:
+        return False
+    # Basic validation: must contain @ and have reasonable format
+    # Don't allow dangerous characters that could break config
+    dangerous_chars = ['"', "'", '\\', '\n', '\r', '\0', '<', '>', '`', '$', '{', '}']
+    if any(char in email for char in dangerous_chars):
+        return False
+    if '@' not in email or email.count('@') != 1:
+        return False
+    local, domain = email.rsplit('@', 1)
+    if not local or not domain or len(local) > 64 or len(domain) > 255:
+        return False
+    return True
+
+def validate_uuid(uuid_str: str) -> bool:
+    """Validate UUID format"""
+    if not uuid_str or not isinstance(uuid_str, str):
+        return False
+    if len(uuid_str) > 100:  # UUIDs should be ~36 chars
+        return False
+    # Check UUID format: 8-4-4-4-12 hex digits
+    try:
+        uuid_obj = uuid_lib.UUID(uuid_str, version=4)
+        return str(uuid_obj) == uuid_str
+    except (ValueError, AttributeError):
+        return False
+
+def validate_service_name(service: str) -> bool:
+    """Validate service name to prevent command injection"""
+    if not service or not isinstance(service, str):
+        return False
+    if len(service) > 100:
+        return False
+    # Only allow alphanumeric, dash, underscore, dot
+    allowed_pattern = re.compile(r'^[a-zA-Z0-9._-]+$')
+    if not allowed_pattern.match(service):
+        return False
+    # Whitelist of known safe services
+    safe_services = ['xray', 'ui', 'nextjs', 'xray-report-ui', 'xray-nextjs-ui']
+    return service in safe_services
+
+def validate_backup_filename(filename: str) -> bool:
+    """Validate backup filename to prevent path traversal attacks
+
+    Uses os.path.realpath() to resolve symlinks and verify the path is within BACKUPS_DIR
+    """
+    if not filename or not isinstance(filename, str):
+        return False
+    if len(filename) > 255:  # Reasonable filename length limit
+        return False
+    # Block dangerous characters
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return False
+    # Additional safety: only allow alphanumeric, dash, underscore, dot
+    allowed_pattern = re.compile(r'^[a-zA-Z0-9._-]+$')
+    if not allowed_pattern.match(filename):
+        return False
+    # Resolve the full path and check it's within BACKUPS_DIR
+    try:
+        backup_path = os.path.join(BACKUPS_DIR, filename)
+        real_backup_path = os.path.realpath(backup_path)
+        real_backups_dir = os.path.realpath(BACKUPS_DIR)
+        # Verify the resolved path is within the backups directory
+        if not real_backup_path.startswith(real_backups_dir + os.sep):
+            return False
+        return True
+    except (OSError, ValueError):
+        return False
 
 def append_event(ev: Dict[str, Any]) -> None:
     ensure_dirs()
@@ -472,17 +546,28 @@ def save_xray_stats_before_restart() -> None:
         print(f"Warning: Failed to save stats before restart: {e}")
 
 def systemctl_restart(service: str) -> Tuple[bool, str]:
+    # First: validate format to prevent command injection
+    if not service or not isinstance(service, str):
+        return False, "invalid_service_name"
+    if len(service) > 100:
+        return False, "service_name_too_long"
+    # Only allow alphanumeric, dash, underscore, dot
+    allowed_pattern = re.compile(r'^[a-zA-Z0-9._-]+$')
+    if not allowed_pattern.match(service):
+        return False, "invalid_service_name_format"
+
+    # Second: check whitelist
     allowed = {SERVICE_UI, SERVICE_XRAY_DEFAULT, "xray", SERVICE_NEXTJS}
     s = load_settings()
     xray_service = s["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
     allowed.add(xray_service)
     if service not in allowed:
         return False, f"service_not_allowed: {service}"
-    
+
     # IMPORTANT: Save Xray statistics BEFORE restart to prevent data loss
     if service in {SERVICE_XRAY_DEFAULT, "xray", xray_service}:
         save_xray_stats_before_restart()
-    
+
     try:
         cp = subprocess.run(["systemctl", "restart", service], capture_output=True, text=True, timeout=30)
         if cp.returncode != 0:
@@ -492,6 +577,16 @@ def systemctl_restart(service: str) -> Tuple[bool, str]:
         return False, str(e)
 
 def systemctl_is_active(service: str) -> Tuple[bool, str]:
+    # Validate service name format to prevent command injection
+    if not service or not isinstance(service, str):
+        return False, "invalid_service_name"
+    if len(service) > 100:
+        return False, "service_name_too_long"
+    # Only allow alphanumeric, dash, underscore, dot
+    allowed_pattern = re.compile(r'^[a-zA-Z0-9._-]+$')
+    if not allowed_pattern.match(service):
+        return False, "invalid_service_name_format"
+
     try:
         cp = subprocess.run(["systemctl", "is-active", service], capture_output=True, text=True, timeout=10)
         s = (cp.stdout or "").strip()
@@ -1864,6 +1959,8 @@ def api_users_add():
     email = (j.get("email") or "").strip()
     if not email:
         return fail("email_required")
+    if not validate_email(email):
+        return fail("invalid_email_format")
     
     # Generate UUID
     new_uuid = str(uuid_lib.uuid4())
@@ -1901,6 +1998,8 @@ def api_users_delete():
     uuid = (j.get("uuid") or "").strip()
     if not uuid:
         return fail("uuid_required")
+    if not validate_uuid(uuid):
+        return fail("invalid_uuid_format")
 
     cfg, err = load_xray_config()
     if err:
@@ -1930,6 +2029,8 @@ def api_users_kick():
     uuid = (j.get("uuid") or "").strip()
     if not uuid:
         return fail("uuid_required")
+    if not validate_uuid(uuid):
+        return fail("invalid_uuid_format")
 
     cfg, err = load_xray_config()
     if err:
@@ -2039,6 +2140,8 @@ def api_users_update_alias():
 
     if not uuid:
         return fail("uuid_required")
+    if not validate_uuid(uuid):
+        return fail("invalid_uuid_format")
 
     cfg, err = load_xray_config()
     if err:
@@ -2957,6 +3060,16 @@ def api_xray_restart():
 
 def systemctl_get_uptime(service: str) -> Tuple[Optional[str], Optional[int]]:
     """Get service uptime and restart count"""
+    # Validate service name format to prevent command injection
+    if not service or not isinstance(service, str):
+        return None, None
+    if len(service) > 100:
+        return None, None
+    # Only allow alphanumeric, dash, underscore, dot
+    allowed_pattern = re.compile(r'^[a-zA-Z0-9._-]+$')
+    if not allowed_pattern.match(service):
+        return None, None
+
     try:
         # Get uptime
         cp = subprocess.run(
@@ -3330,6 +3443,20 @@ def api_system_restart():
     target = request.args.get("target", "all").strip().lower()
     if target not in ["ui", "xray", "nextjs", "all"]:
         return fail("target must be 'ui', 'xray', 'nextjs' or 'all'")
+
+    # Additional validation for security
+    if target in ["ui", "xray", "nextjs"]:
+        service_map = {
+            "ui": SERVICE_UI,
+            "xray": None,  # Loaded from settings
+            "nextjs": SERVICE_NEXTJS,
+        }
+        service = service_map.get(target)
+        if target == "xray":
+            s = load_settings()
+            service = s["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
+        if service and not validate_service_name(service):
+            return fail("invalid_service_name")
     
     results = []
     
@@ -3492,11 +3619,11 @@ def api_backups_preview():
     filename = request.args.get("filename")
     if not filename:
         return jsonify({"error": "filename parameter required"}), 400
-    
-    # Security: prevent path traversal
-    if ".." in filename or "/" in filename or "\\" in filename:
+
+    # Security: prevent path traversal using realpath resolution
+    if not validate_backup_filename(filename):
         return jsonify({"error": "Invalid filename"}), 400
-    
+
     filepath = os.path.join(BACKUPS_DIR, filename)
     if not os.path.exists(filepath) or not os.path.isfile(filepath):
         return jsonify({"error": "Backup not found"}), 404
@@ -3546,11 +3673,11 @@ def api_backups_detail():
     filename = request.args.get("filename")
     if not filename:
         return jsonify({"error": "filename parameter required"}), 400
-    
-    # Security: prevent path traversal
-    if ".." in filename or "/" in filename or "\\" in filename:
+
+    # Security: prevent path traversal using realpath resolution
+    if not validate_backup_filename(filename):
         return jsonify({"error": "Invalid filename"}), 400
-    
+
     filepath = os.path.join(BACKUPS_DIR, filename)
     if not os.path.exists(filepath) or not os.path.isfile(filepath):
         return jsonify({"error": "Backup not found"}), 404
@@ -3640,11 +3767,11 @@ def api_backups_download():
     filename = request.args.get("filename")
     if not filename:
         return jsonify({"error": "filename parameter required"}), 400
-    
-    # Security: prevent path traversal
-    if ".." in filename or "/" in filename or "\\" in filename:
+
+    # Security: prevent path traversal using realpath resolution
+    if not validate_backup_filename(filename):
         return jsonify({"error": "Invalid filename"}), 400
-    
+
     filepath = os.path.join(BACKUPS_DIR, filename)
     if not os.path.exists(filepath) or not os.path.isfile(filepath):
         return jsonify({"error": "Backup not found"}), 404
@@ -3654,187 +3781,190 @@ def api_backups_download():
 @app.post("/api/backups/create")
 def api_backups_create():
     """Create a manual backup of current Xray configuration"""
-    try:
-        settings = load_settings()
-        config_path = settings["xray"].get("config_path", XRAY_CFG)
-        
-        if not os.path.exists(config_path):
-            return fail("Xray config file not found", code=404)
-        
-        # Create backup with "manual" label
-        backup_path = backup_file(config_path, "manual_backup")
-        backup_name = os.path.basename(backup_path)
-        
-        # Get file info
-        st = os.stat(backup_path)
-        
-        append_event({
-            "type": "SYSTEM",
-            "severity": "INFO",
-            "action": "backup_created",
-            "message": f"Manual backup created: {backup_name}",
-            "details": backup_name
-        })
-        
-        return ok({
-            "backup": {
-                "name": backup_name,
-                "size": st.st_size,
-                "mtime": dt.datetime.utcfromtimestamp(st.st_mtime).isoformat() + "Z",
-            },
-            "message": "Backup created successfully"
-        })
-    except Exception as e:
-        return fail(f"Error creating backup: {str(e)}", code=500)
+    with BACKUP_LOCK:  # Prevent concurrent backup operations
+        try:
+            settings = load_settings()
+            config_path = settings["xray"].get("config_path", XRAY_CFG)
+
+            if not os.path.exists(config_path):
+                return fail("Xray config file not found", code=404)
+
+            # Create backup with "manual" label
+            backup_path = backup_file(config_path, "manual_backup")
+            backup_name = os.path.basename(backup_path)
+
+            # Get file info
+            st = os.stat(backup_path)
+
+            append_event({
+                "type": "SYSTEM",
+                "severity": "INFO",
+                "action": "backup_created",
+                "message": f"Manual backup created: {backup_name}",
+                "details": backup_name
+            })
+
+            return ok({
+                "backup": {
+                    "name": backup_name,
+                    "size": st.st_size,
+                    "mtime": dt.datetime.utcfromtimestamp(st.st_mtime).isoformat() + "Z",
+                },
+                "message": "Backup created successfully"
+            })
+        except Exception as e:
+            return fail(f"Error creating backup: {str(e)}", code=500)
 
 @app.post("/api/backups/restore")
 def api_backups_restore():
     """Restore Xray configuration from a backup file"""
     if not request.is_json:
         return fail("json_required")
-    
+
     j = request.get_json(silent=True) or {}
     filename = (j.get("filename") or "").strip()
     confirm = bool(j.get("confirm", False))
     restart_xray = bool(j.get("restart_xray", True))
-    
+
     if not filename:
         return fail("filename parameter required")
-    
-    # Security: prevent path traversal
-    if ".." in filename or "/" in filename or "\\" in filename:
+
+    # Security: prevent path traversal using realpath resolution
+    if not validate_backup_filename(filename):
         return fail("Invalid filename")
-    
+
     backup_path = os.path.join(BACKUPS_DIR, filename)
     if not os.path.exists(backup_path) or not os.path.isfile(backup_path):
         return fail("Backup not found", code=404)
-    
-    try:
-        # Load backup content
-        backup_cfg = read_json(backup_path, None)
-        if not backup_cfg:
-            return fail("Invalid backup file (not valid JSON)")
-        
-        settings = load_settings()
-        config_path = settings["xray"].get("config_path", XRAY_CFG)
-        
-        # If not confirmed, return preview of what will change
-        if not confirm:
-            # Load current config for comparison
-            current_cfg, err = load_xray_config(config_path)
-            if err:
-                current_cfg = {}
-            
-            # Count differences
-            current_users = len(get_xray_clients(current_cfg) if current_cfg else [])
-            backup_users = 0
-            backup_inbounds = backup_cfg.get("inbounds", [])
-            for ib in backup_inbounds:
-                if ib.get("protocol") in ["vless", "vmess", "trojan"]:
-                    backup_users += len((ib.get("settings") or {}).get("clients") or [])
-            
-            return ok({
-                "preview": True,
-                "current": {
-                    "users_count": current_users,
-                    "config_exists": current_cfg is not None,
-                },
-                "backup": {
-                    "users_count": backup_users,
-                    "inbounds_count": len(backup_inbounds),
-                },
-                "warning": "This will replace current Xray configuration. A backup of current config will be created before restore."
+
+    with BACKUP_LOCK:  # Prevent concurrent backup/restore operations
+        try:
+            # Load backup content
+            backup_cfg = read_json(backup_path, None)
+            if not backup_cfg:
+                return fail("Invalid backup file (not valid JSON)")
+
+            settings = load_settings()
+            config_path = settings["xray"].get("config_path", XRAY_CFG)
+
+            # If not confirmed, return preview of what will change
+            if not confirm:
+                # Load current config for comparison
+                current_cfg, err = load_xray_config(config_path)
+                if err:
+                    current_cfg = {}
+
+                # Count differences
+                current_users = len(get_xray_clients(current_cfg) if current_cfg else [])
+                backup_users = 0
+                backup_inbounds = backup_cfg.get("inbounds", [])
+                for ib in backup_inbounds:
+                    if ib.get("protocol") in ["vless", "vmess", "trojan"]:
+                        backup_users += len((ib.get("settings") or {}).get("clients") or [])
+
+                return ok({
+                    "preview": True,
+                    "current": {
+                        "users_count": current_users,
+                        "config_exists": current_cfg is not None,
+                    },
+                    "backup": {
+                        "users_count": backup_users,
+                        "inbounds_count": len(backup_inbounds),
+                    },
+                    "warning": "This will replace current Xray configuration. A backup of current config will be created before restore."
+                })
+
+            # Confirmed - proceed with restore
+
+            # First, backup current config
+            if os.path.exists(config_path):
+                pre_restore_backup = backup_file(config_path, "pre_restore")
+            else:
+                pre_restore_backup = None
+
+            # Write backup content to config
+            save_xray_config(backup_cfg, config_path)
+
+            # Clear relevant caches
+            clear_cache("users")
+            clear_cache("dashboard")
+
+            # Optionally restart Xray
+            restart_result = None
+            if restart_xray:
+                srv = settings["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
+                ok_r, msg = systemctl_restart(srv)
+                restart_result = {"ok": ok_r, "message": msg}
+
+                if not ok_r:
+                    # Rollback on failure
+                    if pre_restore_backup and os.path.exists(pre_restore_backup):
+                        shutil.copy2(pre_restore_backup, config_path)
+                        systemctl_restart(srv)
+                        append_event({
+                            "type": "SYSTEM",
+                            "severity": "ERROR",
+                            "action": "backup_restore_failed",
+                            "message": f"Restore failed, rolled back: {msg}",
+                            "details": filename
+                        })
+                        return fail(f"Restore failed (rolled back): {msg}")
+
+            append_event({
+                "type": "SYSTEM",
+                "severity": "WARN",
+                "action": "backup_restored",
+                "message": f"Configuration restored from backup: {filename}",
+                "details": filename
             })
-        
-        # Confirmed - proceed with restore
-        
-        # First, backup current config
-        if os.path.exists(config_path):
-            pre_restore_backup = backup_file(config_path, "pre_restore")
-        else:
-            pre_restore_backup = None
-        
-        # Write backup content to config
-        save_xray_config(backup_cfg, config_path)
-        
-        # Clear relevant caches
-        clear_cache("users")
-        clear_cache("dashboard")
-        
-        # Optionally restart Xray
-        restart_result = None
-        if restart_xray:
-            srv = settings["xray"].get("service_name", SERVICE_XRAY_DEFAULT)
-            ok_r, msg = systemctl_restart(srv)
-            restart_result = {"ok": ok_r, "message": msg}
-            
-            if not ok_r:
-                # Rollback on failure
-                if pre_restore_backup and os.path.exists(pre_restore_backup):
-                    shutil.copy2(pre_restore_backup, config_path)
-                    systemctl_restart(srv)
-                    append_event({
-                        "type": "SYSTEM",
-                        "severity": "ERROR",
-                        "action": "backup_restore_failed",
-                        "message": f"Restore failed, rolled back: {msg}",
-                        "details": filename
-                    })
-                    return fail(f"Restore failed (rolled back): {msg}")
-        
-        append_event({
-            "type": "SYSTEM",
-            "severity": "WARN",
-            "action": "backup_restored",
-            "message": f"Configuration restored from backup: {filename}",
-            "details": filename
-        })
-        
-        return ok({
-            "restored": True,
-            "backup_name": filename,
-            "pre_restore_backup": os.path.basename(pre_restore_backup) if pre_restore_backup else None,
-            "restart_result": restart_result,
-            "message": "Configuration restored successfully"
-        })
-        
-    except Exception as e:
-        return fail(f"Error restoring backup: {str(e)}", code=500)
+
+            return ok({
+                "restored": True,
+                "backup_name": filename,
+                "pre_restore_backup": os.path.basename(pre_restore_backup) if pre_restore_backup else None,
+                "restart_result": restart_result,
+                "message": "Configuration restored successfully"
+            })
+
+        except Exception as e:
+            return fail(f"Error restoring backup: {str(e)}", code=500)
 
 @app.post("/api/backups/delete")
 def api_backups_delete():
     """Delete a backup file"""
     if not request.is_json:
         return fail("json_required")
-    
+
     j = request.get_json(silent=True) or {}
     filename = (j.get("filename") or "").strip()
-    
+
     if not filename:
         return fail("filename parameter required")
-    
-    # Security: prevent path traversal
-    if ".." in filename or "/" in filename or "\\" in filename:
+
+    # Security: prevent path traversal using realpath resolution
+    if not validate_backup_filename(filename):
         return fail("Invalid filename")
-    
+
     filepath = os.path.join(BACKUPS_DIR, filename)
     if not os.path.exists(filepath) or not os.path.isfile(filepath):
         return fail("Backup not found", code=404)
-    
-    try:
-        os.remove(filepath)
-        
-        append_event({
-            "type": "SYSTEM",
-            "severity": "INFO",
-            "action": "backup_deleted",
-            "message": f"Backup deleted: {filename}",
-            "details": filename
-        })
-        
-        return ok({"deleted": True, "filename": filename})
-    except Exception as e:
-        return fail(f"Error deleting backup: {str(e)}", code=500)
+
+    with BACKUP_LOCK:  # Prevent concurrent backup operations
+        try:
+            os.remove(filepath)
+
+            append_event({
+                "type": "SYSTEM",
+                "severity": "INFO",
+                "action": "backup_deleted",
+                "message": f"Backup deleted: {filename}",
+                "details": filename
+            })
+
+            return ok({"deleted": True, "filename": filename})
+        except Exception as e:
+            return fail(f"Error deleting backup: {str(e)}", code=500)
 
 # --- Live SSE (legacy) ---
 
