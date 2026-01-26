@@ -109,20 +109,20 @@ export const TrafficChart = memo(function TrafficChart({ selectedDate, mode, met
   
   if (loading) {
     return (
-      <Card className="p-3 h-[238px]">
+      <Card className="p-3 min-h-[200px] lg:h-[238px]">
         <div className="h-4 w-32 bg-muted animate-pulse rounded mb-3"></div>
-        <div className="h-[190px] bg-muted animate-pulse rounded"></div>
+        <div className="h-[160px] lg:h-[190px] bg-muted animate-pulse rounded"></div>
       </Card>
     );
   }
 
   if (data.length === 0) {
     return (
-      <Card className="p-3 h-[238px]">
+      <Card className="p-3 min-h-[200px] lg:h-[238px]">
         <h3 className="text-sm font-semibold mb-2">
           {lang === 'ru' ? 'Трафик (7 дней)' : 'Traffic (7 Days)'}
         </h3>
-        <div className="h-[190px] flex items-center justify-center text-muted-foreground text-sm">
+        <div className="h-[160px] lg:h-[190px] flex items-center justify-center text-muted-foreground text-sm">
           {lang === 'ru' ? 'Нет данных' : 'No data'}
         </div>
       </Card>
@@ -130,13 +130,13 @@ export const TrafficChart = memo(function TrafficChart({ selectedDate, mode, met
   }
 
   return (
-    <Card className="p-3 h-[238px]">
+    <Card className="p-3 min-h-[200px] lg:h-[238px]">
       <h3 className="text-sm font-semibold mb-2">
-        {metric === 'traffic' 
+        {metric === 'traffic'
           ? (lang === 'ru' ? 'Трафик (7 дней)' : 'Traffic (7 Days)')
           : (lang === 'ru' ? 'Подключения (7 дней)' : 'Connections (7 Days)')}
       </h3>
-      <div style={{ height: '195px', width: '100%' }}>
+      <div className="h-[160px] lg:h-[195px] w-full">
         <ResponsiveBar
           data={data}
           keys={['value']}
@@ -233,3 +233,4 @@ export const TrafficChart = memo(function TrafficChart({ selectedDate, mode, met
     </Card>
   );
 });
+

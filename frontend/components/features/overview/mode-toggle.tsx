@@ -15,19 +15,19 @@ export function ModeToggle({ mode, onModeChange }: ModeToggleProps) {
         variant={mode === 'daily' ? 'default' : 'ghost'}
         size="sm"
         onClick={() => onModeChange('daily')}
-        className="h-7 text-xs px-2"
+        className="h-7 text-xs px-1.5 sm:px-2"
       >
-        <BarChart3 className="w-3.5 h-3.5 mr-1" />
-        Daily
+        <BarChart3 className="w-3.5 h-3.5 sm:mr-1" />
+        <span className="hidden sm:inline">Daily</span>
       </Button>
       <Button
         variant={mode === 'cumulative' ? 'default' : 'ghost'}
         size="sm"
         onClick={() => onModeChange('cumulative')}
-        className="h-7 text-xs px-2"
+        className="h-7 text-xs px-1.5 sm:px-2"
       >
-        <TrendingUp className="w-3.5 h-3.5 mr-1" />
-        Cumul.
+        <TrendingUp className="w-3.5 h-3.5 sm:mr-1" />
+        <span className="hidden sm:inline">Cumul.</span>
       </Button>
     </div>
   );

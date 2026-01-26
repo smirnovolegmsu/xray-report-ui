@@ -223,8 +223,8 @@ export function UserStatsCards() {
         ))}
       </div>
 
-      {/* User Cards Grid */}
-      <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
+      {/* User Cards Grid - single column on mobile */}
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
         {filteredUsers.map((user) => {
           const trafficChange = calculateChange(user.sum7_traffic_bytes, user.sum_prev7_traffic_bytes);
           const connsChange = calculateChange(user.sum7_conns, user.sum_prev7_conns);

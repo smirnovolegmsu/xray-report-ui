@@ -1,36 +1,35 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Card } from '@/components/ui/card';
+import { useEffect, useState, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { apiClient } from '@/lib/api';
 import { handleApiError, devLog } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAppStore } from '@/lib/store';
-import type { EventsStats as EventsStatsType } from '@/types';
+import type { EventsStats as EventsStatsType, Event } from '@/types';
 import {
   Activity,
   AlertCircle,
   AlertTriangle,
   Info,
-  TrendingUp,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
-import { getCardColorClasses } from '@/lib/card-colors';
-import { useTr } from '@/lib/i18n';
 
 interface EventsStatsSidebarProps {
   hours?: number;
+  events?: Event[];
+  onTypeClick?: (type: string) => void;
 }
 
-export function EventsStatsSidebar({ hours = 24 }: EventsStatsSidebarProps) {
+export function EventsStatsSidebar({ hours = 24, events = [], onTypeClick }: EventsStatsSidebarProps) {
   const [stats, setStats] = useState<EventsStatsType | null>(null);
   const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
-  const tr = useTr();
 
   useEffect(() => {
     loadStats();
-    const interval = setInterval(loadStats, 30000); // Update every 30 seconds
+    const interval = setInterval(loadStats, 30000);
     return () => clearInterval(interval);
   }, [hours]);
 
@@ -44,8 +43,8 @@ export function EventsStatsSidebar({ hours = 24 }: EventsStatsSidebarProps) {
     } catch (error) {
       const errorMessage = handleApiError(error);
       if (loading) {
-        toast.error(lang === 'ru' 
-          ? `Ошибка загрузки статистики: ${errorMessage}` 
+        toast.error(lang === 'ru'
+          ? `Ошибка загрузки статистики: ${errorMessage}`
           : `Failed to load statistics: ${errorMessage}`
         );
       }
@@ -54,91 +53,125 @@ export function EventsStatsSidebar({ hours = 24 }: EventsStatsSidebarProps) {
     }
   };
 
+  // Calculate services status from events
+  const servicesStatus = useMemo(() => {
+    const services = new Map<string, { status: 'up' | 'down' | 'slow'; lastSeen: Date }>();
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+
+    // Process SERVICE_HEALTH events
+    events
+      .filter(e => e.type === 'SERVICE_HEALTH')
+      .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+      .forEach(e => {
+        const serviceName = e.service || 'unknown';
+        if (!services.has(serviceName)) {
+          let status: 'up' | 'down' | 'slow' = 'up';
+          if (e.action?.includes('service_down')) status = 'down';
+          else if (e.action?.includes('service_slow')) status = 'slow';
+          services.set(serviceName, { status, lastSeen: new Date(e.ts) });
+        }
+      });
+
+    return Array.from(services.entries())
+      .map(([name, data]) => ({
+        name,
+        ...data,
+        isRecent: data.lastSeen.getTime() >= fiveMinutesAgo,
+      }))
+      .slice(0, 6);
+  }, [events]);
+
   if (loading || !stats) {
     return (
       <div className="space-y-3">
-        {[...Array(4)].map((_, i) => (
-          <Card key={i} className="p-4">
-            <div className="animate-pulse space-y-2">
-              <div className="h-3 bg-muted rounded w-16"></div>
-              <div className="h-6 bg-muted rounded w-12"></div>
-            </div>
-          </Card>
-        ))}
+        <div className="animate-pulse space-y-2">
+          <div className="h-4 bg-muted rounded w-16"></div>
+          <div className="h-10 bg-muted rounded"></div>
+        </div>
       </div>
     );
   }
 
-  const statCards = [
-    {
-      title: lang === 'ru' ? 'Всего' : 'Total',
-      value: stats.total,
-      icon: Activity,
-      colorScheme: 'blue' as const,
-    },
-    {
-      title: lang === 'ru' ? 'Ошибки' : 'Errors',
-      value: stats.errors,
-      icon: AlertCircle,
-      colorScheme: 'red' as const,
-    },
-    {
-      title: lang === 'ru' ? 'Предупр.' : 'Warnings',
-      value: stats.warnings,
-      icon: AlertTriangle,
-      colorScheme: 'yellow' as const,
-    },
-    {
-      title: lang === 'ru' ? 'Инфо' : 'Info',
-      value: stats.info,
-      icon: Info,
-      colorScheme: 'green' as const,
-    },
-  ];
-
   return (
     <div className="space-y-4">
-      {/* Compact Stats Cards */}
-      <div className="space-y-2">
-        {statCards.map((card, idx) => {
-          const colors = getCardColorClasses(card.colorScheme);
-          return (
-            <Card key={idx} className="p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className={`p-1.5 rounded ${colors.bg}`}>
-                    <card.icon className={`w-4 h-4 ${colors.text}`} />
-                  </div>
-                  <span className="text-xs text-muted-foreground">{card.title}</span>
-                </div>
-                <span className="text-lg font-bold">{card.value}</span>
-              </div>
-            </Card>
-          );
-        })}
+      {/* Summary Stats - Ultra Compact */}
+      <div>
+        <h4 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+          {lang === 'ru' ? 'Сводка' : 'Summary'}
+        </h4>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex items-center gap-1.5">
+            <Activity className="w-3.5 h-3.5 text-blue-500" />
+            <span className="text-xs text-muted-foreground">{lang === 'ru' ? 'Всего' : 'Total'}</span>
+            <span className="text-sm font-semibold ml-auto">{stats.total}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+            <span className="text-xs text-muted-foreground">{lang === 'ru' ? 'Ошиб.' : 'Err'}</span>
+            <span className="text-sm font-semibold ml-auto text-red-600 dark:text-red-400">{stats.errors}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
+            <span className="text-xs text-muted-foreground">{lang === 'ru' ? 'Пред.' : 'Warn'}</span>
+            <span className="text-sm font-semibold ml-auto text-yellow-600 dark:text-yellow-400">{stats.warnings}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Info className="w-3.5 h-3.5 text-green-500" />
+            <span className="text-xs text-muted-foreground">Info</span>
+            <span className="text-sm font-semibold ml-auto">{stats.info}</span>
+          </div>
+        </div>
       </div>
 
-      {/* Events by Type - Compact */}
+      {/* By Type - Clickable */}
       {Object.keys(stats.byType).length > 0 && (
-        <Card className="p-4">
-          <h4 className="text-xs font-medium mb-3 flex items-center gap-2">
-            <TrendingUp className="w-3 h-3" />
-            {tr('По типам', 'By Type')}
+        <div>
+          <h4 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+            {lang === 'ru' ? 'По типам' : 'By Type'}
           </h4>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             {Object.entries(stats.byType)
               .sort(([, a], [, b]) => b - a)
-              .slice(0, 8) // Limit to top 8
+              .slice(0, 6)
               .map(([type, count]) => (
-                <div key={type} className="flex items-center justify-between text-xs">
+                <button
+                  key={type}
+                  onClick={() => onTypeClick?.(type)}
+                  className="flex items-center justify-between w-full text-[11px] py-0.5 px-1 rounded hover:bg-muted/50 transition-colors"
+                >
                   <span className="text-muted-foreground truncate">{type}</span>
-                  <Badge variant="outline" className="text-xs ml-2">
+                  <Badge variant="outline" className="text-[10px] h-4 px-1 ml-1">
                     {count}
                   </Badge>
-                </div>
+                </button>
               ))}
           </div>
-        </Card>
+        </div>
+      )}
+
+      {/* Services Status */}
+      {servicesStatus.length > 0 && (
+        <div>
+          <h4 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+            {lang === 'ru' ? 'Сервисы' : 'Services'}
+          </h4>
+          <div className="space-y-1">
+            {servicesStatus.map(({ name, status, isRecent }) => (
+              <div key={name} className="flex items-center gap-1.5 text-[11px]">
+                {status === 'down' ? (
+                  <XCircle className={`w-3 h-3 ${isRecent ? 'text-red-500 animate-pulse' : 'text-red-400'}`} />
+                ) : status === 'slow' ? (
+                  <AlertTriangle className={`w-3 h-3 ${isRecent ? 'text-yellow-500' : 'text-yellow-400'}`} />
+                ) : (
+                  <CheckCircle className="w-3 h-3 text-green-500" />
+                )}
+                <span className={`truncate ${status === 'down' && isRecent ? 'text-red-600 dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
+                  {name}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

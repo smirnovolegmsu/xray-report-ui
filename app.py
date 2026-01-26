@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import traceback
 import uuid as uuid_lib
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
@@ -2671,6 +2672,12 @@ def _find_collector_cron() -> Dict[str, Any]:
                                     })
 
                             # Parse commented jobs to show they exist but are disabled
+                            # Helper to validate cron schedule field
+                            def is_valid_cron_field(field: str) -> bool:
+                                """Check if string looks like a cron schedule field (number, *, */n, n-m, etc)"""
+                                import re
+                                return bool(re.match(r'^(\*|(\*/?\d+)|\d+(-\d+)?(,\d+(-\d+)?)*)$', field))
+
                             for line in commented_lines:
                                 # Remove leading # and whitespace
                                 uncommented = line.lstrip('#').strip()
@@ -2680,6 +2687,12 @@ def _find_collector_cron() -> Dict[str, Any]:
                                 parts = uncommented.split()
                                 if len(parts) >= 6:
                                     schedule_parts = parts[:5]
+
+                                    # Validate that schedule_parts look like actual cron schedule
+                                    # (not just text comments like "Каждый час — описание")
+                                    if not all(is_valid_cron_field(p) for p in schedule_parts):
+                                        continue  # Skip - this is just a text comment, not a cron job
+
                                     command_parts = parts[5:]
                                     command = " ".join(command_parts)
 
@@ -3178,7 +3191,6 @@ def systemctl_get_uptime(service: str) -> Tuple[Optional[str], Optional[int]]:
                         else:
                             # Fallback: try to parse manually
                             # Format: "Wed 2026-01-07 18:24:50 UTC"
-                            import re
                             match = re.match(r'(\w+)\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\s+(\w+)', timestamp_str)
                             if match:
                                 date_part = match.group(2)
@@ -4123,43 +4135,82 @@ def _try_stats_api() -> Tuple[bool, Dict[str, Any]]:
         )
 
         if result.returncode != 0:
+            # Log failure for debugging
+            try:
+                append_event({
+                    "type": "STATS_API",
+                    "severity": "WARNING",
+                    "action": "stats_api_failed",
+                    "message": f"Stats API command failed with code {result.returncode}",
+                    "details": result.stderr[:500] if result.stderr else "No error output"
+                })
+            except Exception:
+                pass
             return False, {}
 
         output = result.stdout.strip()
         if not output:
             return False, {}
 
-        # Parse xray stats output
-        # Format: stat { name: "user>>>email>>>traffic>>>uplink" value: 12345 }
         users: Dict[str, Dict[str, int]] = {}
         total_uplink = 0
         total_downlink = 0
 
-        # Parse each stat entry
-        stat_pattern = re.compile(
-            r'name:\s*"([^"]+)"\s+value:\s*(\d+)',
-            re.MULTILINE
-        )
+        try:
+            # Parse JSON output from xray Stats API
+            # Format: {"stat": [{"name": "user>>>email>>>traffic>>>uplink", "value": 12345}, ...]}
+            data = json.loads(output)
 
-        for match in stat_pattern.finditer(output):
-            name = match.group(1)
-            value = int(match.group(2))
+            # Extract stats from JSON
+            for stat in data.get("stat", []):
+                name = stat.get("name", "")
+                value = stat.get("value", 0)
 
-            # Parse user traffic stats: user>>>email>>>traffic>>>uplink/downlink
-            parts = name.split(">>>")
-            if len(parts) >= 4 and parts[0] == "user" and parts[2] == "traffic":
-                email = parts[1]
-                direction = parts[3]  # "uplink" or "downlink"
+                # Parse user traffic stats: user>>>email>>>traffic>>>uplink/downlink
+                parts = name.split(">>>")
+                if len(parts) >= 4 and parts[0] == "user" and parts[2] == "traffic":
+                    email = parts[1]
+                    direction = parts[3]  # "uplink" or "downlink"
 
-                if email not in users:
-                    users[email] = {"uplink": 0, "downlink": 0}
+                    if email not in users:
+                        users[email] = {"uplink": 0, "downlink": 0}
 
-                if direction == "uplink":
-                    users[email]["uplink"] = value
-                    total_uplink += value
-                elif direction == "downlink":
-                    users[email]["downlink"] = value
-                    total_downlink += value
+                    if direction == "uplink":
+                        users[email]["uplink"] = value
+                        total_uplink += value
+                    elif direction == "downlink":
+                        users[email]["downlink"] = value
+                        total_downlink += value
+
+            # If no users found, return failure to trigger fallback
+            if not users:
+                try:
+                    append_event({
+                        "type": "STATS_API",
+                        "severity": "INFO",
+                        "action": "stats_empty",
+                        "message": "Stats API returned no user data, falling back to access.log",
+                        "details": f"Output length: {len(output)}, stat entries: {len(data.get('stat', []))}"
+                    })
+                except Exception:
+                    pass
+                return False, {}
+
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            # Log parsing failure
+            try:
+                append_event({
+                    "type": "STATS_API",
+                    "severity": "ERROR",
+                    "action": "stats_parse_failed",
+                    "error": type(e).__name__,
+                    "message": f"Failed to parse Stats API output: {str(e)[:200]}",
+                    "details": f"Output preview: {output[:500]}"
+                })
+            except Exception:
+                pass
+            # Failed to parse JSON, return failure to trigger fallback
+            return False, {}
 
         # Return parsed stats
         return True, {
@@ -4571,8 +4622,19 @@ def bootstrap():
         while True:
             try:
                 _update_live_buffer()
-            except Exception:
-                pass
+            except Exception as e:
+                # Log critical failures
+                try:
+                    append_event({
+                        "type": "LIVE_BUFFER",
+                        "severity": "ERROR",
+                        "action": "update_failed",
+                        "error": type(e).__name__,
+                        "message": f"Live buffer update crashed: {str(e)[:200]}",
+                        "details": traceback.format_exc()[:1000]
+                    })
+                except Exception:
+                    pass
             time.sleep(60)  # Update every minute
     
     updater_thread = threading.Thread(target=live_updater, daemon=True)

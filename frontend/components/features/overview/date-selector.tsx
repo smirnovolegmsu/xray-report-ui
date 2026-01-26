@@ -45,8 +45,8 @@ export function DateSelector({ selectedDate, onDateChange }: DateSelectorProps) 
   };
 
   const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return 'Current (Last 7 days)';
-    
+    if (!dateStr) return 'Last 7 days';
+
     const date = new Date(dateStr);
     return date.toLocaleDateString('ru-RU', {
       day: '2-digit',
@@ -55,26 +55,30 @@ export function DateSelector({ selectedDate, onDateChange }: DateSelectorProps) 
     });
   };
 
+  const getDisplayText = () => {
+    if (!selectedDate) return '7 days';
+    const date = new Date(selectedDate);
+    return `${date.getDate()}.${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+  };
+
   return (
-    <div className="flex items-center gap-2">
-      <Calendar className="w-4 h-4 text-muted-foreground" />
-      <Select
-        value={selectedDate || 'current'}
-        onValueChange={(value) => onDateChange(value === 'current' ? null : value)}
-        disabled={loading}
-      >
-        <SelectTrigger className="w-[180px] h-8 text-xs">
-          <SelectValue placeholder="Select date..." />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="current">Current (Last 7 days)</SelectItem>
-          {dates.map((date) => (
-            <SelectItem key={date} value={date}>
-              {formatDate(date)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <Select
+      value={selectedDate || 'current'}
+      onValueChange={(value) => onDateChange(value === 'current' ? null : value)}
+      disabled={loading}
+    >
+      <SelectTrigger className="w-auto h-8 text-xs px-2">
+        <Calendar className="w-3.5 h-3.5 mr-1 text-muted-foreground shrink-0" />
+        <span>{getDisplayText()}</span>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="current">Last 7 days</SelectItem>
+        {dates.map((date) => (
+          <SelectItem key={date} value={date}>
+            {formatDate(date)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

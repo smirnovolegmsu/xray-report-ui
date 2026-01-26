@@ -15,19 +15,19 @@ export function MetricFilter({ metric, onMetricChange }: MetricFilterProps) {
         variant={metric === 'traffic' ? 'default' : 'ghost'}
         size="sm"
         onClick={() => onMetricChange('traffic')}
-        className="h-7 text-xs px-2"
+        className="h-7 text-xs px-1.5 sm:px-2"
       >
-        <TrendingUp className="w-3.5 h-3.5 mr-1" />
-        Traffic
+        <TrendingUp className="w-3.5 h-3.5 sm:mr-1" />
+        <span className="hidden sm:inline">Traffic</span>
       </Button>
       <Button
         variant={metric === 'conns' ? 'default' : 'ghost'}
         size="sm"
         onClick={() => onMetricChange('conns')}
-        className="h-7 text-xs px-2"
+        className="h-7 text-xs px-1.5 sm:px-2"
       >
-        <Activity className="w-3.5 h-3.5 mr-1" />
-        Conns
+        <Activity className="w-3.5 h-3.5 sm:mr-1" />
+        <span className="hidden sm:inline">Conns</span>
       </Button>
     </div>
   );

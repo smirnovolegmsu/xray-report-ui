@@ -50,24 +50,26 @@ export default function OverviewPage() {
     <MainLayout>
       <div className="space-y-3 smooth-scroll">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div className="min-w-0">
+        <div className="flex flex-col gap-2">
+          {/* Title - hidden on mobile, shown in header instead */}
+          <div className="hidden sm:block">
             <h1 className="text-lg font-bold tracking-tight">Overview</h1>
             <p className="text-xs text-muted-foreground">
               System overview and metrics
             </p>
           </div>
-          
-          <div className="flex flex-row items-center gap-2">
-            <DateSelector 
+
+          {/* Controls - wrap on mobile */}
+          <div className="flex flex-wrap items-center gap-2">
+            <DateSelector
               selectedDate={selectedDate}
               onDateChange={setSelectedDate}
             />
-            <ModeToggle 
+            <ModeToggle
               mode={mode}
               onModeChange={handleModeChange}
             />
-            <MetricFilter 
+            <MetricFilter
               metric={metric}
               onMetricChange={handleMetricChange}
             />
@@ -76,14 +78,20 @@ export default function OverviewPage() {
 
         {/* Main Row: Metrics 2x2 | Chart + Top Domains */}
         <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_auto] gap-3 items-start">
-          {/* Left: 4 Metric Cards in 2x2 */}
-          <MetricsCards selectedDate={selectedDate} mode={mode} />
-          
-          {/* Center: Traffic Chart */}
-          <TrafficChart selectedDate={selectedDate} mode={mode} metric={metric} />
-          
+          {/* Left: 4 Metric Cards in 2x2 - full width on mobile */}
+          <div className="w-full lg:w-auto">
+            <MetricsCards selectedDate={selectedDate} mode={mode} />
+          </div>
+
+          {/* Center: Traffic Chart - full width on mobile */}
+          <div className="w-full min-w-0">
+            <TrafficChart selectedDate={selectedDate} mode={mode} metric={metric} />
+          </div>
+
           {/* Right: Top Domains */}
-          <TopDomains selectedDate={selectedDate} mode={mode} />
+          <div className="w-full lg:w-auto">
+            <TopDomains selectedDate={selectedDate} mode={mode} />
+          </div>
         </div>
         
         {/* User Statistics */}

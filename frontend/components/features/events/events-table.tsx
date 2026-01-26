@@ -286,8 +286,9 @@ export function EventsTable({
     return result;
   }, [events]);
 
-  // Apply all filters
-  const filteredEvents = deduplicatedEvents.filter((event) => {
+  // Apply all filters - wrapped in useMemo to prevent infinite loop
+  const filteredEvents = useMemo(() => {
+    return deduplicatedEvents.filter((event) => {
       // Selected hour filter (if user clicked on timeline chart)
       if (selectedHour) {
         const eventTime = new Date(event.ts).getTime();
@@ -306,34 +307,35 @@ export function EventsTable({
           }
         }
       }
-      
+
       // Text filter
       if (filter) {
         const interpretation = interpretEvent(event).toLowerCase();
         const filterLower = filter.toLowerCase();
         const serviceName = (event.service || event.target || '').toLowerCase();
-        const matchesText = 
+        const matchesText =
           interpretation.includes(filterLower) ||
           event.type.toLowerCase().includes(filterLower) ||
           event.action?.toLowerCase().includes(filterLower) ||
           event.email?.toLowerCase().includes(filterLower) ||
           serviceName.includes(filterLower);
-        
+
         if (!matchesText) return false;
       }
-      
+
       // Type filter
       if (typeFilter !== 'ALL' && event.type !== typeFilter) {
         return false;
       }
-      
+
       // Severity filter
       if (severityFilter !== 'ALL' && event.severity !== severityFilter) {
         return false;
       }
-      
+
       return true;
     });
+  }, [deduplicatedEvents, selectedHour, timeRange, filter, typeFilter, severityFilter, interpretEvent]);
 
   // Expose filtered events to parent component
   useEffect(() => {
@@ -390,9 +392,9 @@ export function EventsTable({
     return sorted;
   }, [filteredEvents, sortField, sortDirection]);
 
-  // Пагинация
+  // Пагинация - 30 items for compact view
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const itemsPerPage = 30;
   const totalPages = Math.ceil(sortedEvents.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -424,59 +426,43 @@ export function EventsTable({
 
   if (loading) {
     return (
-      <Card className="p-6">
+      <Card className="p-4">
         <CardLoadingSpinner />
       </Card>
     );
   }
 
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between mb-3">
+    <Card className="p-3">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-xs font-semibold">
-            {lang === 'ru' ? 'События' : 'Events'}
-          </h3>
           {sortedEvents.length > 0 && (
-            <>
-              <Badge variant="outline" className="text-xs">
-                {sortedEvents.length} {lang === 'ru' ? 'всего' : 'total'}
-              </Badge>
-              {totalPages > 1 && (
-                <Badge variant="secondary" className="text-xs">
-                  {lang === 'ru' 
-                    ? `Показано ${startIndex + 1}-${Math.min(endIndex, sortedEvents.length)}`
-                    : `Showing ${startIndex + 1}-${Math.min(endIndex, sortedEvents.length)}`}
-                </Badge>
-              )}
-            </>
+            <Badge variant="outline" className="text-[10px] h-5">
+              {sortedEvents.length} {lang === 'ru' ? 'событий' : 'events'}
+            </Badge>
           )}
         </div>
         {totalPages > 1 && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>
-              {lang === 'ru' 
-                ? `Страница ${currentPage} из ${totalPages}`
-                : `Page ${currentPage} of ${totalPages}`}
-            </span>
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span>{currentPage}/{totalPages}</span>
+            <div className="flex items-center gap-0.5">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-6 w-6"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
+                <ChevronLeft className="w-3 h-3" />
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-6 w-6"
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
               >
-                <ChevronRight className="w-3.5 h-3.5" />
+                <ChevronRight className="w-3 h-3" />
               </Button>
             </div>
           </div>
@@ -484,50 +470,50 @@ export function EventsTable({
       </div>
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead className="w-[6rem] text-xs py-2">
+          <TableRow className="h-8">
+            <TableHead className="w-[5.5rem] text-[11px] py-1">
               <button
                 onClick={() => handleSort('time')}
-                className="flex items-center gap-1 hover:text-foreground transition-colors"
+                className="flex items-center gap-0.5 hover:text-foreground transition-colors"
               >
                 {lang === 'ru' ? 'Время' : 'Time'}
                 {getSortIcon('time')}
               </button>
             </TableHead>
-            <TableHead className="w-16 text-xs py-2">
+            <TableHead className="w-14 text-[11px] py-1">
               <button
                 onClick={() => handleSort('type')}
-                className="flex items-center gap-1 hover:text-foreground transition-colors"
+                className="flex items-center gap-0.5 hover:text-foreground transition-colors"
               >
                 {lang === 'ru' ? 'Тип' : 'Type'}
                 {getSortIcon('type')}
               </button>
             </TableHead>
-            <TableHead className="w-[80px] text-xs py-2">
+            <TableHead className="w-[60px] text-[11px] py-1">
               <button
                 onClick={() => handleSort('severity')}
-                className="flex items-center gap-1 hover:text-foreground transition-colors"
+                className="flex items-center gap-0.5 hover:text-foreground transition-colors"
               >
-                {lang === 'ru' ? 'Уровень' : 'Severity'}
+                {lang === 'ru' ? 'Ур.' : 'Sev'}
                 {getSortIcon('severity')}
               </button>
             </TableHead>
-            <TableHead className="w-[120px] text-xs py-2">
+            <TableHead className="w-[100px] text-[11px] py-1">
               <button
                 onClick={() => handleSort('service')}
-                className="flex items-center gap-1 hover:text-foreground transition-colors"
+                className="flex items-center gap-0.5 hover:text-foreground transition-colors"
               >
                 {lang === 'ru' ? 'Сервис' : 'Service'}
                 {getSortIcon('service')}
               </button>
             </TableHead>
-            <TableHead className="text-xs py-2">{lang === 'ru' ? 'Описание' : 'Description'}</TableHead>
+            <TableHead className="text-[11px] py-1">{lang === 'ru' ? 'Описание' : 'Description'}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedEvents.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs">
+              <TableCell colSpan={5} className="text-center py-6 text-muted-foreground text-xs">
                 {lang === 'ru' ? 'Нет событий' : 'No events'}
               </TableCell>
             </TableRow>
@@ -539,28 +525,27 @@ export function EventsTable({
               const duplicates = (event as any)._duplicates as Event[] | undefined;
               const duplicateKey = (event as any)._duplicateKey as string | undefined;
               const isExpanded = duplicateKey ? expandedDuplicates.has(duplicateKey) : false;
-              
+
               return (
                 <>
-                  <TableRow 
+                  <TableRow
                     key={`${event.ts}-${event.type}-${event.action || ''}-${idx}`}
-                    className={isError ? 'bg-red-50/50 dark:bg-red-950/10' : isWarn ? 'bg-yellow-50/50 dark:bg-yellow-950/10' : ''}
+                    className={`h-8 ${isError ? 'bg-red-50/50 dark:bg-red-950/10' : isWarn ? 'bg-yellow-50/50 dark:bg-yellow-950/10' : ''}`}
                   >
-                    <TableCell className="font-mono text-xs py-2" title={new Date(event.ts).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')}>
+                    <TableCell className="font-mono text-[11px] py-1" title={new Date(event.ts).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')}>
                       {formatEventTime(event.ts, timeRange, lang, true)}
                     </TableCell>
-                    <TableCell className="py-2">
-                      <div className="flex items-center gap-1.5">
+                    <TableCell className="py-1">
+                      <div className="flex items-center gap-1">
                         <EventIcon type={event.type} action={event.action} />
-                        <span className="text-xs">{event.type}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-2">
-                      <Badge variant={getSeverityVariant(event.severity)} className="text-xs px-1.5 py-0">
-                        {event.severity}
+                    <TableCell className="py-1">
+                      <Badge variant={getSeverityVariant(event.severity)} className="text-[10px] px-1 py-0 h-4">
+                        {event.severity.substring(0, 3)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="py-2">
+                    <TableCell className="py-1">
                       <button
                         onClick={() => {
                           const service = event.service || event.target;
@@ -568,20 +553,20 @@ export function EventsTable({
                             onServiceClick(service);
                           }
                         }}
-                        className={`flex items-center gap-1.5 hover:opacity-80 transition-opacity ${
+                        className={`flex items-center gap-1 hover:opacity-80 transition-opacity ${
                           event.service || event.target ? 'cursor-pointer' : 'cursor-default'
                         }`}
                         disabled={!event.service && !event.target}
                       >
                         <ServiceIcon service={event.service || event.target || 'Unknown'} />
-                        <span className="text-xs truncate max-w-[100px]" title={event.service || event.target || 'Unknown'}>
-                          {event.service || event.target || (lang === 'ru' ? 'Неизвестно' : 'Unknown')}
+                        <span className="text-[11px] truncate max-w-[80px]" title={event.service || event.target || 'Unknown'}>
+                          {event.service || event.target || '—'}
                         </span>
                       </button>
                     </TableCell>
-                    <TableCell className="text-xs py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate max-w-md">{interpretEvent(event)}</span>
+                    <TableCell className="text-[11px] py-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate max-w-lg">{interpretEvent(event)}</span>
                         {duplicateCount && duplicateCount > 1 && (
                           <button
                             onClick={() => {
@@ -595,10 +580,10 @@ export function EventsTable({
                                 setExpandedDuplicates(newExpanded);
                               }
                             }}
-                            className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+                            className="flex items-center gap-0.5 hover:opacity-80 transition-opacity shrink-0"
                           >
-                            <Badge variant="outline" className="text-xs shrink-0">
-                              {duplicateCount}x
+                            <Badge variant="secondary" className="text-[10px] h-4 px-1">
+                              +{duplicateCount - 1}
                             </Badge>
                             {isExpanded ? (
                               <ChevronUp className="w-3 h-3 text-muted-foreground" />
@@ -611,35 +596,29 @@ export function EventsTable({
                     </TableCell>
                   </TableRow>
                   {/* Развернутые дубликаты */}
-                  {isExpanded && duplicates && duplicates.length > 0 && duplicates.map((duplicate, dupIdx) => (
-                    <TableRow 
+                  {isExpanded && duplicates && duplicates.length > 0 && duplicates.slice(0, 5).map((duplicate, dupIdx) => (
+                    <TableRow
                       key={`duplicate-${duplicateKey}-${dupIdx}`}
-                      className={`${isError ? 'bg-red-50/30 dark:bg-red-950/5' : isWarn ? 'bg-yellow-50/30 dark:bg-yellow-950/5' : 'bg-muted/20'} border-l-2 border-muted`}
+                      className={`h-7 ${isError ? 'bg-red-50/30 dark:bg-red-950/5' : isWarn ? 'bg-yellow-50/30 dark:bg-yellow-950/5' : 'bg-muted/20'} border-l-2 border-muted-foreground/20`}
                     >
-                      <TableCell className="font-mono text-xs py-2 pl-6" title={new Date(duplicate.ts).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')}>
+                      <TableCell className="font-mono text-[10px] py-0.5 pl-4 text-muted-foreground" title={new Date(duplicate.ts).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')}>
                         {formatEventTime(duplicate.ts, timeRange, lang, true)}
                       </TableCell>
-                      <TableCell className="py-2">
-                        <div className="flex items-center gap-1.5">
-                          <EventIcon type={duplicate.type} action={duplicate.action} />
-                          <span className="text-xs">{duplicate.type}</span>
-                        </div>
+                      <TableCell className="py-0.5">
+                        <EventIcon type={duplicate.type} action={duplicate.action} />
                       </TableCell>
-                      <TableCell className="py-2">
-                        <Badge variant={getSeverityVariant(duplicate.severity)} className="text-xs px-1.5 py-0">
-                          {duplicate.severity}
+                      <TableCell className="py-0.5">
+                        <Badge variant={getSeverityVariant(duplicate.severity)} className="text-[9px] px-1 py-0 h-3.5">
+                          {duplicate.severity.substring(0, 3)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="py-2">
-                        <div className="flex items-center gap-1.5">
-                          <ServiceIcon service={duplicate.service || duplicate.target || 'Unknown'} />
-                          <span className="text-xs truncate max-w-[100px]" title={duplicate.service || duplicate.target || 'Unknown'}>
-                            {duplicate.service || duplicate.target || (lang === 'ru' ? 'Неизвестно' : 'Unknown')}
-                          </span>
-                        </div>
+                      <TableCell className="py-0.5">
+                        <span className="text-[10px] text-muted-foreground truncate max-w-[80px]">
+                          {duplicate.service || duplicate.target || '—'}
+                        </span>
                       </TableCell>
-                      <TableCell className="text-xs py-2">
-                        <span className="truncate max-w-md">{interpretEvent(duplicate)}</span>
+                      <TableCell className="text-[10px] py-0.5 text-muted-foreground">
+                        <span className="truncate max-w-lg">{interpretEvent(duplicate)}</span>
                       </TableCell>
                     </TableRow>
                   ))}

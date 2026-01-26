@@ -104,7 +104,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       {/* Overlay for mobile when sidebar is open */}
       {isMobile && sidebarOpen && (
         <div
-          className="sidebar-overlay fixed inset-0 w-screen h-screen bg-black/60 z-[45] md:hidden backdrop-blur-sm"
+          className="sidebar-overlay fixed inset-0 w-screen h-screen bg-black/60 z-[90] md:hidden backdrop-blur-sm"
           onClick={closeSidebar}
           role="button"
           aria-label="Close sidebar"

@@ -75,11 +75,10 @@ export const TopDomains = memo(function TopDomains({ selectedDate, mode }: TopDo
     loadDomains();
   }, [loadDomains]);
 
-  // Size matches 2 metric cards: 408px width (200+200+8), 238px height (115+115+8)
   // Early returns AFTER all hooks are called
   if (loading) {
     return (
-      <Card className="p-3 w-[408px] h-[238px]">
+      <Card className="p-3 w-full lg:w-[408px] min-h-[200px] lg:h-[238px]">
         <div className="h-4 w-32 bg-muted animate-pulse rounded mb-3"></div>
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
@@ -92,7 +91,7 @@ export const TopDomains = memo(function TopDomains({ selectedDate, mode }: TopDo
 
   if (domains.length === 0) {
     return (
-      <Card className="p-3 w-[408px] h-[238px]">
+      <Card className="p-3 w-full lg:w-[408px] min-h-[200px] lg:h-[238px]">
         <h3 className="text-sm font-semibold mb-2">
           {lang === 'ru' ? 'Топ доменов (7 дней)' : 'Top Domains (7 days)'}
         </h3>
@@ -104,46 +103,41 @@ export const TopDomains = memo(function TopDomains({ selectedDate, mode }: TopDo
   }
 
   return (
-    <Card className="p-3 w-[408px] h-[238px] flex flex-col">
-      <h3 className="text-sm font-semibold mb-1">
+    <Card className="p-3 w-full lg:w-[408px] min-h-[200px] lg:h-[238px] flex flex-col">
+      <h3 className="text-sm font-semibold mb-2">
         {lang === 'ru' ? 'Топ доменов (7 дней)' : 'Top Domains (7 days)'}
       </h3>
       <div className="flex-1 overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-7 py-1 text-xs">#</TableHead>
-              <TableHead className="py-1 text-xs">{lang === 'ru' ? 'Домен' : 'Domain'}</TableHead>
-              <TableHead className="text-right py-1 text-xs">{lang === 'ru' ? 'Трафик' : 'Traffic'}</TableHead>
-              <TableHead className="text-right py-1 text-xs">{lang === 'ru' ? 'Подкл.' : 'Conns'}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {domains.slice(0, 5).map((domain, index) => (
-              <TableRow key={index}>
-                <TableCell className="py-1 text-xs">
-                  <Badge
-                    variant={index === 0 ? 'default' : index === 1 ? 'secondary' : 'outline'}
-                    className="text-[10px] h-4 w-4 justify-center px-0"
-                  >
-                    {index + 1}
-                  </Badge>
-                </TableCell>
-                <TableCell className="font-mono text-[11px] py-1">
-                  <span className="block truncate max-w-[180px]" title={domain.domain}>
-                    {domain.domain}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right font-medium text-xs py-1 whitespace-nowrap">
-                  {formatBytes(domain.traffic_bytes, { decimals: 2 }) as string}
-                </TableCell>
-                <TableCell className="text-right text-muted-foreground text-xs py-1 whitespace-nowrap">
-                  {domain.connections.toLocaleString()}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        {/* Mobile: simple list, Desktop: table */}
+        <div className="space-y-1.5">
+          {domains.slice(0, 5).map((domain, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-2 py-1 px-2 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors"
+            >
+              <Badge
+                variant={index === 0 ? 'default' : index === 1 ? 'secondary' : 'outline'}
+                className="text-[10px] h-5 w-5 justify-center px-0 shrink-0"
+              >
+                {index + 1}
+              </Badge>
+              <span
+                className="font-mono text-[11px] truncate flex-1 min-w-0"
+                title={domain.domain}
+              >
+                {domain.domain}
+              </span>
+              <span className="text-xs font-medium whitespace-nowrap tabular-nums">
+                {formatBytes(domain.traffic_bytes, { compact: true }) as string}
+              </span>
+              <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums w-12 text-right">
+                {domain.connections >= 1000
+                  ? `${(domain.connections / 1000).toFixed(1)}k`
+                  : domain.connections.toLocaleString()}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </Card>
   );

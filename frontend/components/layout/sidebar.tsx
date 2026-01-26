@@ -56,8 +56,8 @@ export function Sidebar({ isOpen, isMobile, onClose }: SidebarProps) {
     <aside
       className={cn(
         'w-64 border-r bg-background flex flex-col transition-transform duration-300 ease-in-out',
-        // z-index: must be higher than overlay (50 > 45)
-        'z-50 h-full',
+        // z-index: must be higher than all page content and overlay
+        'z-[100] h-full',
         // Mobile: fixed positioning with slide animation
         isMobile && 'fixed inset-y-0 left-0 shadow-2xl',
         isMobile && !isOpen && '-translate-x-full',

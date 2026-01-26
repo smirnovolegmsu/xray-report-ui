@@ -200,19 +200,19 @@ export const MetricsCards = memo(function MetricsCards({ selectedDate, mode }: M
     },
   }), []);
 
-  // Card dimensions: 200px width, 115px height, 8px gap
-  // Two cards = 408px width, 238px height
-  
+  // Card dimensions: responsive - full width on mobile, fixed 200px on desktop
+  // Two cards = 408px width on desktop, full width on mobile
+
   // Early returns AFTER all hooks are called
   if (loading) {
     return (
-      <div className="grid grid-cols-2 gap-2 w-fit">
+      <div className="grid grid-cols-2 gap-2 w-full lg:w-fit">
         {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="p-3 w-[200px] h-[115px]">
+          <Card key={i} className="p-2 lg:p-3 min-w-0 h-[95px] lg:w-[200px] lg:h-[115px]">
             <div className="animate-pulse space-y-2">
-              <div className="h-6 w-6 bg-muted rounded-md"></div>
-              <div className="h-3 w-24 bg-muted rounded"></div>
-              <div className="h-6 w-14 bg-muted rounded"></div>
+              <div className="h-5 w-5 lg:h-6 lg:w-6 bg-muted rounded-md"></div>
+              <div className="h-3 w-20 bg-muted rounded"></div>
+              <div className="h-5 w-12 bg-muted rounded"></div>
             </div>
           </Card>
         ))}
@@ -223,31 +223,31 @@ export const MetricsCards = memo(function MetricsCards({ selectedDate, mode }: M
   if (!stats) return null;
 
   return (
-    <div className="grid grid-cols-2 gap-2 w-fit">
+    <div className="grid grid-cols-2 gap-2 w-full lg:w-fit">
       {cards.map((card, index) => {
         const Icon = card.icon;
         const colors = colorClasses[card.color as keyof typeof colorClasses];
 
         return (
-          <Card key={index} className="p-3 w-[200px] h-[115px] grid grid-rows-[28px_32px_20px] hover:shadow-md transition-all duration-200">
-            {/* Row 1: Title + Icon - fixed 28px */}
+          <Card key={index} className="p-2 lg:p-3 min-w-0 h-[95px] lg:w-[200px] lg:h-[115px] grid grid-rows-[22px_28px_18px] lg:grid-rows-[28px_32px_20px] hover:shadow-md transition-all duration-200">
+            {/* Row 1: Title + Icon */}
             <div className="flex items-start justify-between">
-              <p className="text-[11px] text-muted-foreground leading-tight flex-1 pr-2">
+              <p className="text-[10px] lg:text-[11px] text-muted-foreground leading-tight flex-1 pr-1 lg:pr-2 truncate">
                 {card.title}
               </p>
-              <div className={`w-7 h-7 ${colors.bg} rounded-md flex items-center justify-center shrink-0`}>
-                <Icon className={`w-3.5 h-3.5 ${colors.text}`} />
+              <div className={`w-6 h-6 lg:w-7 lg:h-7 ${colors.bg} rounded-md flex items-center justify-center shrink-0`}>
+                <Icon className={`w-3 h-3 lg:w-3.5 lg:h-3.5 ${colors.text}`} />
               </div>
             </div>
-            
-            {/* Row 2: Value - fixed 32px */}
-            <div className="flex items-center gap-1">
-              <span className="text-2xl font-bold leading-none">
+
+            {/* Row 2: Value */}
+            <div className="flex items-center gap-0.5 lg:gap-1">
+              <span className="text-xl lg:text-2xl font-bold leading-none">
                 {card.isNumber ? (
-                  <NumberFlow 
+                  <NumberFlow
                     value={card.value as number}
-                    format={{ 
-                      style: 'decimal', 
+                    format={{
+                      style: 'decimal',
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 0,
                       useGrouping: true
@@ -259,21 +259,21 @@ export const MetricsCards = memo(function MetricsCards({ selectedDate, mode }: M
                 )}
               </span>
               {!card.isNumber && card.unit && (
-                <span className="text-base font-medium text-muted-foreground">{card.unit}</span>
+                <span className="text-sm lg:text-base font-medium text-muted-foreground">{card.unit}</span>
               )}
             </div>
-            
-            {/* Row 3: Footer - fixed 20px */}
+
+            {/* Row 3: Footer */}
             <div className="flex items-center justify-between">
-              <p className="text-[10px] text-muted-foreground truncate flex-1 mr-1">
+              <p className="text-[9px] lg:text-[10px] text-muted-foreground truncate flex-1 mr-1">
                 {card.subtitle}
               </p>
               {card.change !== null && (
-                <Badge 
+                <Badge
                   variant="outline"
-                  className={`h-4 px-1 text-[10px] font-semibold shrink-0 flex items-center gap-0.5 ${
-                    card.change > 0 
-                      ? 'border-green-500/50 bg-green-500/10 text-green-600 dark:text-green-400' 
+                  className={`h-4 px-1 text-[9px] lg:text-[10px] font-semibold shrink-0 flex items-center gap-0.5 ${
+                    card.change > 0
+                      ? 'border-green-500/50 bg-green-500/10 text-green-600 dark:text-green-400'
                       : card.change < 0
                       ? 'border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400'
                       : 'border-gray-500/50 bg-gray-500/10 text-gray-600'
