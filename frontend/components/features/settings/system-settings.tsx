@@ -176,7 +176,14 @@ function ServiceCard({
                 <div className="text-xs text-muted-foreground mb-1">
                   {lang === 'ru' ? 'Перезапусков (14 дней)' : 'Restarts (14 days)'}
                 </div>
-                <div className="text-sm font-medium">{restartCount14d}</div>
+                <div className="text-sm font-medium flex items-center gap-2">
+                  {restartCount14d}
+                  {restartCount14d > 5 && (
+                    <Badge variant="destructive" className="text-xs">
+                      {lang === 'ru' ? 'Частые' : 'Frequent'}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </>
           ) : (
@@ -235,6 +242,23 @@ function ServiceCard({
                 </div>
               )}
             </div>
+
+            {/* Frequent Restart Warning */}
+            {restartCount14d > 5 && (
+              <div className="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-yellow-900 dark:text-yellow-100">
+                  <div className="font-medium">
+                    {lang === 'ru' ? 'Частые перезапуски' : 'Frequent Restarts'}
+                  </div>
+                  <div className="text-yellow-700 dark:text-yellow-300 mt-1">
+                    {lang === 'ru'
+                      ? 'Сервис перезапускался более 5 раз за последние 14 дней. Рекомендуется проверить логи.'
+                      : 'Service has restarted more than 5 times in the last 14 days. Consider checking logs.'}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <Separator />
           </>
@@ -443,31 +467,71 @@ export function SystemSettings() {
 
         {/* Resources Card */}
         <Card className="p-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 flex-1">
-              <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                <Cpu className="w-5 h-5 text-blue-500" />
+          <div className="space-y-3">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 flex-1">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  (resources?.cpu || 0) > 80 ? 'bg-red-500/10' : 'bg-blue-500/10'
+                }`}>
+                  <Cpu className={`w-5 h-5 ${
+                    (resources?.cpu || 0) > 80 ? 'text-red-500' : 'text-blue-500'
+                  }`} />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">CPU</div>
+                  <div className="font-semibold flex items-center gap-2">
+                    {resources?.cpu?.toFixed(1) || 0}%
+                    {(resources?.cpu || 0) > 80 && (
+                      <Badge variant="destructive" className="text-xs">
+                        {lang === 'ru' ? 'Высокая' : 'High'}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="text-xs text-muted-foreground">CPU</div>
-                <div className="font-semibold">{resources?.cpu?.toFixed(1) || 0}%</div>
-              </div>
-            </div>
-            <Separator orientation="vertical" className="h-10" />
-            <div className="flex items-center gap-3 flex-1">
-              <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                <HardDrive className="w-5 h-5 text-green-500" />
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">RAM</div>
-                <div className="font-semibold">
-                  {resources?.ram?.toFixed(1) || 0}%
-                  <span className="text-xs text-muted-foreground ml-1">
-                    ({resources?.ram_used_gb?.toFixed(1) || 0}/{resources?.ram_total_gb?.toFixed(1) || 0} GB)
-                  </span>
+              <Separator orientation="vertical" className="h-10" />
+              <div className="flex items-center gap-3 flex-1">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  (resources?.ram || 0) > 85 ? 'bg-red-500/10' : 'bg-green-500/10'
+                }`}>
+                  <HardDrive className={`w-5 h-5 ${
+                    (resources?.ram || 0) > 85 ? 'text-red-500' : 'text-green-500'
+                  }`} />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">RAM</div>
+                  <div className="font-semibold flex items-center gap-2">
+                    <span>
+                      {resources?.ram?.toFixed(1) || 0}%
+                      <span className="text-xs text-muted-foreground ml-1">
+                        ({resources?.ram_used_gb?.toFixed(1) || 0}/{resources?.ram_total_gb?.toFixed(1) || 0} GB)
+                      </span>
+                    </span>
+                    {(resources?.ram || 0) > 85 && (
+                      <Badge variant="destructive" className="text-xs">
+                        {lang === 'ru' ? 'Высокая' : 'High'}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
+            {/* Alert Banner */}
+            {((resources?.cpu || 0) > 80 || (resources?.ram || 0) > 85) && (
+              <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-red-900 dark:text-red-100">
+                  <div className="font-medium">
+                    {lang === 'ru' ? 'Высокая нагрузка на ресурсы' : 'High Resource Usage'}
+                  </div>
+                  <div className="text-red-700 dark:text-red-300 mt-1">
+                    {lang === 'ru'
+                      ? 'Рекомендуется проверить запущенные процессы или увеличить ресурсы сервера.'
+                      : 'Consider checking running processes or increasing server resources.'}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
       </div>

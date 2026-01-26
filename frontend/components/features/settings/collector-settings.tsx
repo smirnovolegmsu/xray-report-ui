@@ -342,6 +342,25 @@ export function CollectorSettings() {
                 </div>
               </div>
             )}
+
+            {/* Warning for collector lag */}
+            {status?.enabled && (status?.lag_days ?? 0) > 2 && (
+              <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+                  <div className="text-xs text-red-900 dark:text-red-100">
+                    <div className="font-medium">
+                      {lang === 'ru' ? 'Устаревшие данные сборщика' : 'Collector Data Outdated'}
+                    </div>
+                    <div className="text-red-700 dark:text-red-300 mt-1">
+                      {lang === 'ru'
+                        ? `Данные не обновлялись ${status.lag_days} дней. Проверьте задачи cron и логи.`
+                        : `Data hasn't been updated for ${status.lag_days} days. Check cron jobs and logs.`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
 

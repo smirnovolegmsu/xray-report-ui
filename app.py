@@ -23,6 +23,7 @@ import uuid as uuid_lib
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 import csv as csv_module
+import psutil
 
 from flask import Flask, Response, jsonify, request, send_file
 
@@ -1187,6 +1188,93 @@ def api_version():
             "api": "v1",
         }
     })
+
+@app.get("/api/health")
+def api_health():
+    """
+    Health check endpoint for monitoring and load balancers
+    Returns overall health status and individual component checks
+    """
+    checks = {}
+    overall_healthy = True
+
+    # Check 1: Xray config file accessibility
+    try:
+        settings = load_settings()
+        config_path = settings["xray"].get("config_path", XRAY_CFG)
+        if os.path.exists(config_path) and os.access(config_path, os.R_OK):
+            checks["xray_config"] = {"status": "healthy", "path": config_path}
+        else:
+            checks["xray_config"] = {"status": "unhealthy", "error": "Config file not accessible"}
+            overall_healthy = False
+    except Exception as e:
+        checks["xray_config"] = {"status": "unhealthy", "error": str(e)}
+        overall_healthy = False
+
+    # Check 2: Data directory accessibility
+    try:
+        if os.path.exists(DATA_DIR) and os.access(DATA_DIR, os.W_OK):
+            checks["data_dir"] = {"status": "healthy", "path": DATA_DIR}
+        else:
+            checks["data_dir"] = {"status": "unhealthy", "error": "Data directory not writable"}
+            overall_healthy = False
+    except Exception as e:
+        checks["data_dir"] = {"status": "unhealthy", "error": str(e)}
+        overall_healthy = False
+
+    # Check 3: System resources
+    try:
+        cpu = psutil.cpu_percent(interval=0.1)
+        mem = psutil.virtual_memory()
+        disk = psutil.disk_usage("/")
+
+        resource_healthy = cpu < 95 and mem.percent < 95 and disk.percent < 95
+        checks["resources"] = {
+            "status": "healthy" if resource_healthy else "degraded",
+            "cpu_percent": round(cpu, 1),
+            "memory_percent": round(mem.percent, 1),
+            "disk_percent": round(disk.percent, 1),
+        }
+        if not resource_healthy:
+            overall_healthy = False
+    except Exception as e:
+        checks["resources"] = {"status": "unhealthy", "error": str(e)}
+        overall_healthy = False
+
+    # Check 4: Events log accessibility
+    try:
+        if os.path.exists(EVENTS_PATH):
+            size = os.path.getsize(EVENTS_PATH)
+            checks["events_log"] = {
+                "status": "healthy",
+                "size_mb": round(size / (1024*1024), 2)
+            }
+        else:
+            # Events log not existing is OK (will be created on first write)
+            checks["events_log"] = {"status": "healthy", "note": "Will be created on first event"}
+    except Exception as e:
+        checks["events_log"] = {"status": "unhealthy", "error": str(e)}
+
+    # Check 5: Metrics database (if exists)
+    try:
+        metrics_db_path = os.path.join(DATA_DIR, "metrics.db")
+        if os.path.exists(metrics_db_path):
+            size = os.path.getsize(metrics_db_path)
+            checks["metrics_db"] = {
+                "status": "healthy",
+                "size_mb": round(size / (1024*1024), 2)
+            }
+        else:
+            checks["metrics_db"] = {"status": "healthy", "note": "Not initialized yet"}
+    except Exception as e:
+        checks["metrics_db"] = {"status": "degraded", "error": str(e)}
+
+    return jsonify({
+        "status": "healthy" if overall_healthy else "unhealthy",
+        "timestamp": dt.datetime.utcnow().isoformat() + "Z",
+        "version": APP_VERSION,
+        "checks": checks
+    }), 200 if overall_healthy else 503
 
 @app.get("/api/ports/status")
 def api_ports_status():
