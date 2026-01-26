@@ -3138,6 +3138,98 @@ def api_system_resources():
     """Get CPU and RAM usage"""
     return ok(get_system_resources())
 
+@app.get("/api/system/resources/history")
+def api_system_resources_history():
+    """Get CPU/RAM history with configurable period and granularity"""
+    import sqlite3
+    from pathlib import Path
+
+    # Get parameters
+    period = request.args.get("period", "1h")  # 1h, 6h, 24h, 7d
+    granularity = request.args.get("granularity", "1m")  # 1m, 5m, 15m, 30m, 60m
+
+    # Parse period to seconds
+    period_map = {
+        "1h": 3600,
+        "6h": 6*3600,
+        "24h": 24*3600,
+        "7d": 7*86400,
+    }
+    period_seconds = period_map.get(period, 3600)
+
+    # Determine which table to query based on period and granularity
+    gran_map = {
+        "1m": ("metrics_1m", 60, ["cpu_percent", "ram_percent", "ram_used_gb"]),
+        "5m": ("metrics_5m", 300, ["cpu_percent_avg", "ram_percent_avg", "ram_used_gb_avg"]),
+        "15m": ("metrics_5m", 900, ["cpu_percent_avg", "ram_percent_avg", "ram_used_gb_avg"]),  # Aggregate from 5m
+        "30m": ("metrics_30m", 1800, ["cpu_percent_avg", "ram_percent_avg", "ram_used_gb_avg"]),
+        "60m": ("metrics_30m", 3600, ["cpu_percent_avg", "ram_percent_avg", "ram_used_gb_avg"]),  # Aggregate from 30m
+    }
+
+    table, interval, fields = gran_map.get(granularity, gran_map["1m"])
+    cpu_field, ram_field, ram_gb_field = fields
+
+    try:
+        DB_PATH = Path(__file__).parent / "data" / "metrics.db"
+        if not DB_PATH.exists():
+            return ok({"data": [], "period": period, "granularity": granularity})
+
+        conn = sqlite3.connect(str(DB_PATH))
+        cursor = conn.cursor()
+
+        # Calculate time range
+        now = int(dt.datetime.utcnow().timestamp())
+        start_ts = now - period_seconds
+
+        # Query data
+        if granularity in ["1m", "5m", "30m"]:
+            # Direct query
+            cursor.execute(f"""
+                SELECT timestamp, {cpu_field}, {ram_field}, {ram_gb_field}, ram_total_gb
+                FROM {table}
+                WHERE timestamp >= ?
+                ORDER BY timestamp ASC
+            """, (start_ts,))
+        else:
+            # Aggregate on the fly for 15m and 60m
+            bucket_size = interval
+            cursor.execute(f"""
+                SELECT
+                    (timestamp / ?) * ? as bucket_ts,
+                    AVG({cpu_field}) as cpu_avg,
+                    AVG({ram_field}) as ram_avg,
+                    AVG({ram_gb_field}) as ram_gb_avg,
+                    MAX(ram_total_gb) as ram_total
+                FROM {table}
+                WHERE timestamp >= ?
+                GROUP BY bucket_ts
+                ORDER BY bucket_ts ASC
+            """, (bucket_size, bucket_size, start_ts))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        # Format data
+        data = []
+        for row in rows:
+            data.append({
+                "timestamp": row[0],
+                "cpu_percent": round(row[1], 1),
+                "ram_percent": round(row[2], 1),
+                "ram_used_gb": round(row[3], 2),
+                "ram_total_gb": round(row[4], 2) if len(row) > 4 else 3.9,
+            })
+
+        return ok({
+            "data": data,
+            "period": period,
+            "granularity": granularity,
+            "count": len(data),
+        })
+
+    except Exception as e:
+        return fail(f"Failed to fetch history: {str(e)}")
+
 @app.get("/api/system/status")
 def api_system_status():
     s = load_settings()

@@ -118,9 +118,14 @@ export const apiClient = {
     }),
   
   getSystemStatus: () => api.get<SystemStatus>('/system/status'),
-  
+
   getSystemResources: () => api.get<SystemResources>('/system/resources'),
-  
+
+  getResourceHistory: (period: string, granularity: string) =>
+    api.get<ApiResponse>('/system/resources/history', {
+      params: { period, granularity },
+    }),
+
   // Legacy methods - use restartService() instead
   /** @deprecated Use restartService('ui') instead */
   restartUI: () => api.post<ApiResponse>('/system/restart', {}, {

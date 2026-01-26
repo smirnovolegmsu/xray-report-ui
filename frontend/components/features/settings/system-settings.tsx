@@ -23,6 +23,7 @@ import { handleApiError } from '@/lib/utils';
 import { CardLoadingSpinner } from '@/components/ui/loading-spinner';
 import { JournalViewer } from './journal-viewer';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ResourceHistoryChart } from './resource-history-chart';
 import type { SystemStatus, SystemResources, Event, VersionResponse } from '@/types';
 
 interface CachedData {
@@ -470,6 +471,9 @@ export function SystemSettings() {
           </div>
         </Card>
       </div>
+
+      {/* Resource History Chart */}
+      <ResourceHistoryChart />
 
       {/* Service Cards */}
       <ServiceCard
