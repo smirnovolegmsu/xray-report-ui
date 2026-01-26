@@ -226,12 +226,20 @@ export function PortsSettings() {
                   
                   <div>
                     <div className="font-semibold text-sm">{port.name}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
                       <span className="font-mono">{port.host}:{port.port}</span>
-                      <span className="mx-2">•</span>
+                      <span className="mx-1">•</span>
                       <Badge variant="outline" className="text-[10px] h-4 px-1">
                         {port.type}
                       </Badge>
+                      {port.protocol && (
+                        <>
+                          <span className="mx-1">•</span>
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1 uppercase">
+                            {port.protocol}
+                          </Badge>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -1097,49 +1097,57 @@ def api_version():
 def api_ports_status():
     """Get status of running ports and services"""
     import socket
-    
+
     ports_info = []
-    
-    # Define expected ports
+
+    # Define expected ports for UI services
     expected_ports = [
         {"port": 8787, "name": "Flask Backend", "type": "backend"},
-        {"port": 3000, "name": "Next.js Dev", "type": "frontend"},
+        {"port": 3000, "name": "Next.js Frontend", "type": "frontend"},
     ]
-    
+
+    # Add Xray inbound ports
+    try:
+        cfg, _ = load_xray_config()
+        if cfg and "inbounds" in cfg:
+            for inbound in cfg.get("inbounds", []):
+                if isinstance(inbound, dict) and "port" in inbound:
+                    port = inbound.get("port")
+                    protocol = inbound.get("protocol", "unknown")
+                    tag = inbound.get("tag", "unnamed")
+
+                    expected_ports.append({
+                        "port": port,
+                        "name": f"Xray {protocol.upper()} ({tag})",
+                        "type": "xray",
+                        "protocol": protocol
+                    })
+    except Exception:
+        pass
+
     for port_config in expected_ports:
         port = port_config["port"]
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(1)
-        
+
         # Check localhost
-        is_open_local = False
+        is_open = False
         try:
             result = sock.connect_ex(('127.0.0.1', port))
-            is_open_local = (result == 0)
+            is_open = (result == 0)
         except OSError:
             pass
         finally:
             sock.close()
 
-        # Check 0.0.0.0 (public)
-        sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock2.settimeout(1)
-        is_open_public = False
-        try:
-            result = sock2.connect_ex(('0.0.0.0', port))
-            is_open_public = (result == 0)
-        except OSError:
-            pass
-        finally:
-            sock2.close()
-        
-        if is_open_local or is_open_public:
+        if is_open:
             ports_info.append({
                 "port": port,
                 "name": port_config["name"],
                 "type": port_config["type"],
+                "protocol": port_config.get("protocol"),
                 "status": "running",
-                "host": "0.0.0.0" if is_open_public else "127.0.0.1"
+                "host": "127.0.0.1"
             })
     
     # Get current app info
@@ -2427,15 +2435,18 @@ def _find_collector_cron() -> Dict[str, Any]:
                         cron_info["file"] = cron_path
                         cron_info["type"] = cron_type
                         
-                        # Parse cron file
-                        lines = [l.strip() for l in content.split('\n') if l.strip() and not l.strip().startswith('#')]
-                        
+                        # Parse cron file - check both active and commented lines
+                        all_lines = [l.strip() for l in content.split('\n') if l.strip()]
+                        active_lines = [l for l in all_lines if not l.startswith('#')]
+                        commented_lines = [l for l in all_lines if l.startswith('#') and not l.startswith('##')]
+
                         # For cron.d files, parse schedule (first 5 fields) and command
-                        if cron_type == "systemd" and lines:
+                        if cron_type == "systemd":
                             # Find all cron job lines (with schedule)
                             cron_jobs = []
-                            
-                            for line in lines:
+
+                            # Parse active jobs
+                            for line in active_lines:
                                 parts = line.split()
                                 if len(parts) >= 6:
                                     # First 5 fields are schedule, rest is command
@@ -2467,19 +2478,52 @@ def _find_collector_cron() -> Dict[str, Any]:
                                         "stats": stats,
                                         "status": status
                                     })
-                            
+
+                            # Parse commented jobs to show they exist but are disabled
+                            for line in commented_lines:
+                                # Remove leading # and whitespace
+                                uncommented = line.lstrip('#').strip()
+                                if not uncommented:
+                                    continue
+
+                                parts = uncommented.split()
+                                if len(parts) >= 6:
+                                    schedule_parts = parts[:5]
+                                    command_parts = parts[5:]
+                                    command = " ".join(command_parts)
+
+                                    script_name = None
+                                    for part in command_parts:
+                                        if '.sh' in part:
+                                            script_name = os.path.basename(part)
+                                            break
+
+                                    description = _get_script_description(script_name or command)
+
+                                    cron_jobs.append({
+                                        "schedule": " ".join(schedule_parts),
+                                        "command": command,
+                                        "script": script_name,
+                                        "description": description,
+                                        "stats": {},
+                                        "status": {
+                                            "active": False,
+                                            "reason": "Строка закомментирована в cron файле"
+                                        }
+                                    })
+
+                            # Store all jobs (active and commented)
                             if cron_jobs:
                                 # Use first job for main display, but show count if multiple
                                 first_job = cron_jobs[0]
                                 cron_info["schedule"] = first_job["schedule"]
                                 cron_info["command"] = first_job["command"]
-                                if len(cron_jobs) > 1:
-                                    cron_info["jobs_count"] = len(cron_jobs)
-                                    cron_info["all_jobs"] = cron_jobs
+                                cron_info["jobs_count"] = len(cron_jobs)
+                                cron_info["all_jobs"] = cron_jobs
                         else:
                             # For daily/hourly, just show the command
-                            if lines:
-                                cron_info["command"] = lines[0] if lines else None
+                            if active_lines:
+                                cron_info["command"] = active_lines[0] if active_lines else None
                         
                         # Set schedule description
                         if not cron_info["schedule"]:
@@ -2540,21 +2584,24 @@ def api_collector_status():
     enabled = False
     disabled_reason = None
     
-    if cron_info.get("found") and cron_info.get("all_jobs"):
-        active_jobs = [j for j in cron_info["all_jobs"] if j.get("status", {}).get("active", False)]
-        if active_jobs:
-            enabled = True
-        else:
-            # Check why jobs are inactive
-            inactive_jobs = [j for j in cron_info["all_jobs"] if not j.get("status", {}).get("active", False)]
-            if inactive_jobs:
-                reasons = set()
-                for job in inactive_jobs:
-                    reason = job.get("status", {}).get("reason", "Неизвестная причина")
-                    reasons.add(reason)
-                disabled_reason = "; ".join(reasons)
+    if cron_info.get("found"):
+        if cron_info.get("all_jobs"):
+            active_jobs = [j for j in cron_info["all_jobs"] if j.get("status", {}).get("active", False)]
+            if active_jobs:
+                enabled = True
             else:
-                disabled_reason = "Cron задачи не найдены"
+                # All jobs are inactive - collect reasons
+                inactive_jobs = [j for j in cron_info["all_jobs"] if not j.get("status", {}).get("active", False)]
+                if inactive_jobs:
+                    reasons = set()
+                    for job in inactive_jobs:
+                        reason = job.get("status", {}).get("reason", "Неизвестная причина")
+                        reasons.add(reason)
+                    disabled_reason = "; ".join(reasons)
+                else:
+                    disabled_reason = "Cron задачи не найдены в файле"
+        else:
+            disabled_reason = "Cron файл найден, но не содержит задач для сборщика"
     else:
         disabled_reason = "Cron файл не найден. Проверьте /etc/cron.d/xray-usage"
     

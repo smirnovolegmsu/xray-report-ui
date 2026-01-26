@@ -240,6 +240,7 @@ export interface PortInfo {
   type: string;
   status: string;
   host: string;
+  protocol?: string;
 }
 
 export interface PortsStatusResponse {

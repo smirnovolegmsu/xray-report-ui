@@ -41,27 +41,31 @@ let globalCache: CachedData = {
 
 const CACHE_DURATION = 30000;
 
-function formatUptime(uptime: number | string | null | undefined): string {
+function formatUptime(uptime: number | string | null | undefined, lang: 'en' | 'ru' = 'en'): string {
   if (!uptime) return '-';
-  
+
   if (typeof uptime === 'number') {
     const seconds = uptime;
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
+    const units = lang === 'ru'
+      ? { d: 'д', h: 'ч', m: 'м', s: 'с' }
+      : { d: 'd', h: 'h', m: 'm', s: 's' };
+
     if (days > 0) {
-      return `${days}д ${hours}ч ${minutes}м`;
+      return `${days}${units.d} ${hours}${units.h} ${minutes}${units.m}`;
     } else if (hours > 0) {
-      return `${hours}ч ${minutes}м ${secs}с`;
+      return `${hours}${units.h} ${minutes}${units.m} ${secs}${units.s}`;
     } else if (minutes > 0) {
-      return `${minutes}м ${secs}с`;
+      return `${minutes}${units.m} ${secs}${units.s}`;
     } else {
-      return `${secs}с`;
+      return `${secs}${units.s}`;
     }
   }
-  
+
   return uptime;
 }
 
@@ -100,8 +104,8 @@ function ServiceCard({
   const state = service?.state || '-';
   
   // Type guards for service-specific properties
-  const uptime = serviceKey !== 'nextjs' && status?.[serviceKey as 'ui' | 'xray'] 
-    ? formatUptime((status[serviceKey as 'ui' | 'xray'] as any)?.uptime)
+  const uptime = serviceKey !== 'nextjs' && status?.[serviceKey as 'ui' | 'xray']
+    ? formatUptime((status[serviceKey as 'ui' | 'xray'] as any)?.uptime, lang)
     : '-';
   const restartCount = serviceKey !== 'nextjs' && status?.[serviceKey as 'ui' | 'xray']
     ? (status[serviceKey as 'ui' | 'xray'] as any)?.restart_count ?? 0

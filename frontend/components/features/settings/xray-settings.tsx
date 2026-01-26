@@ -228,7 +228,7 @@ export function XraySettings() {
                 id="serverHost"
                 value={serverHost}
                 onChange={(e) => setServerHost(e.target.value)}
-                placeholder="example.com или 1.2.3.4"
+                placeholder={lang === 'ru' ? 'example.com или 1.2.3.4' : 'example.com or 1.2.3.4'}
                 className={hostError ? 'border-destructive' : ''}
               />
               {hostError ? (
