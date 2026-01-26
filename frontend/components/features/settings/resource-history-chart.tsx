@@ -256,7 +256,7 @@ export function ResourceHistoryChart() {
                 <Line
                   type="monotone"
                   dataKey="cpu"
-                  stroke="hsl(var(--chart-1))"
+                  stroke="#3b82f6"
                   name={lang === 'ru' ? 'CPU %' : 'CPU %'}
                   strokeWidth={2}
                   dot={false}
@@ -264,7 +264,7 @@ export function ResourceHistoryChart() {
                 <Line
                   type="monotone"
                   dataKey="ram"
-                  stroke="hsl(var(--chart-2))"
+                  stroke="#10b981"
                   name={lang === 'ru' ? 'RAM %' : 'RAM %'}
                   strokeWidth={2}
                   dot={false}

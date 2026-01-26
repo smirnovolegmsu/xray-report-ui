@@ -591,6 +591,16 @@ export function CollectorSettings() {
                         </div>
                       )}
                     </div>
+
+                    {/* BLOCK 4: Data folder path */}
+                    <div className="px-3 py-2 bg-muted/30 border-t border-border/50">
+                      <div className="flex items-center gap-1.5 text-[10px]">
+                        <Terminal className="w-3 h-3 text-muted-foreground shrink-0" />
+                        <code className="text-muted-foreground truncate" title={status?.usage_dir || '/var/log/xray/usage'}>
+                          {status?.usage_dir || '/var/log/xray/usage'}
+                        </code>
+                      </div>
+                    </div>
                   </Card>
                 );
               })}
