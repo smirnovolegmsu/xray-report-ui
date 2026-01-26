@@ -2,104 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/main-layout';
-import { LiveNow } from '@/components/features/live/live-now';
-import { LiveCharts } from '@/components/features/live/live-charts';
-import { LiveControls } from '@/components/features/live/live-controls';
-import { Card } from '@/components/ui/card';
+import { RealTimeDashboard } from '@/components/features/live/real-time-dashboard';
 
 export default function OnlinePage() {
-  const [scope, setScope] = useState<'global' | 'users'>('global');
-  const [metric, setMetric] = useState<'traffic' | 'conns' | 'online'>('traffic');
-  const [period, setPeriod] = useState('1h');
-  const [granularity, setGranularity] = useState('1m');
-
-  // Load from localStorage
-  useEffect(() => {
-    // Проверяем, что localStorage доступен (только на клиенте)
-    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
-      return;
-    }
-    
-    const savedScope = localStorage.getItem('live-scope');
-    if (savedScope === 'global' || savedScope === 'users') {
-      setScope(savedScope);
-    }
-
-    const savedMetric = localStorage.getItem('live-metric');
-    if (savedMetric === 'traffic' || savedMetric === 'conns' || savedMetric === 'online') {
-      setMetric(savedMetric);
-    }
-
-    const savedPeriod = localStorage.getItem('live-period');
-    if (savedPeriod) {
-      setPeriod(savedPeriod);
-    }
-
-    const savedGranularity = localStorage.getItem('live-granularity');
-    if (savedGranularity) {
-      setGranularity(savedGranularity);
-    }
-  }, []);
-
-  const handleScopeChange = (newScope: 'global' | 'users') => {
-    setScope(newScope);
-    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-      localStorage.setItem('live-scope', newScope);
-    }
-  };
-
-  const handleMetricChange = (newMetric: 'traffic' | 'conns' | 'online') => {
-    setMetric(newMetric);
-    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-      localStorage.setItem('live-metric', newMetric);
-    }
-  };
-
-  const handlePeriodChange = (newPeriod: string) => {
-    setPeriod(newPeriod);
-    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-      localStorage.setItem('live-period', newPeriod);
-    }
-  };
-
-  const handleGranularityChange = (newGranularity: string) => {
-    setGranularity(newGranularity);
-    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-      localStorage.setItem('live-granularity', newGranularity);
-    }
-  };
-
   return (
     <MainLayout>
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl md:text-2xl font-bold">Live Monitoring</h1>
+        {/* Header */}
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-lg font-bold tracking-tight">Live Monitoring</h1>
+          <p className="text-xs text-muted-foreground">
+            Real-time monitoring of currently connected users and system activity
+          </p>
         </div>
 
-        <LiveNow />
-
-        {/* Controls and Chart Combined */}
-        <Card className="p-3 md:p-4">
-          <LiveControls
-            scope={scope}
-            metric={metric}
-            period={period}
-            granularity={granularity}
-            onScopeChange={handleScopeChange}
-            onMetricChange={handleMetricChange}
-            onPeriodChange={handlePeriodChange}
-            onGranularityChange={handleGranularityChange}
-          />
-          
-          <div className="mt-3">
-            <LiveCharts 
-              scope={scope}
-              metric={metric}
-              period={period}
-              granularity={granularity}
-            />
-          </div>
-        </Card>
+        <RealTimeDashboard />
       </div>
     </MainLayout>
   );

@@ -53,13 +53,13 @@ export function Header({ onMenuClick, sidebarOpen }: HeaderProps = {}) {
       </div>
 
       <div className="flex items-center gap-1">
-        {/* System Resources - CPU and RAM */}
+        {/* System Resources - CPU and RAM - always visible */}
+        <SystemResources />
+
+        {/* Ports Status - hide on mobile */}
         <div className="hidden md:block">
-          <SystemResources />
+          <PortsStatus />
         </div>
-        
-        {/* Ports Status - show running ports */}
-        <PortsStatus />
         
         {/* Status Badges - hide on very small screens */}
         <div className="hidden sm:block">
