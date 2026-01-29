@@ -28,6 +28,14 @@ import psutil
 
 from flask import Flask, Response, jsonify, request, send_file
 
+# Quality monitoring module
+try:
+    import quality_monitor
+    HAS_QUALITY_MONITOR = True
+except ImportError:
+    HAS_QUALITY_MONITOR = False
+    print("Warning: quality_monitor module not available")
+
 # Optional import for date parsing
 try:
     from dateutil import parser as date_parser  # type: ignore[import] # pyright: ignore # noqa: F401
@@ -326,6 +334,14 @@ DEFAULT_SETTINGS = {
     "collector": {
         "usage_dir": USAGE_DIR,
         "enabled": True,
+    },
+    "diagnostics": {
+        "auto_run_hours": 0,  # 0=disabled, 1/3/6/12=hours
+    },
+    "device_detection": {
+        "enabled": True,
+        "tcp_threshold_warning": 30,   # Show warning icon at this many TCP connections
+        "tcp_threshold_multiple": 50,  # Estimate 2+ devices at this many TCP connections
     },
 }
 
@@ -1973,10 +1989,8 @@ def _calculate_user_alltime_stats() -> Dict[str, Dict[str, Any]]:
             if not dst:
                 continue
             
-            # Map IP to domain
+            # Map IP to domain, keep IP if no domain found
             domain = domains_map.get(dst, dst)
-            if domain == dst and _looks_like_ip(dst):
-                domain = "__no_domains__"
             
             try:
                 v = int(float(row.get("traffic_bytes") or 0))
@@ -1994,8 +2008,8 @@ def _calculate_user_alltime_stats() -> Dict[str, Dict[str, Any]]:
         total_bytes = user_traffic.get(user, 0)
         domain_traffic = user_domain_traffic.get(user, {})
         
-        # Calculate top 3 domains
-        top_domains = sorted(domain_traffic.items(), key=lambda x: x[1], reverse=True)[:3]
+        # Calculate top 10 domains
+        top_domains = sorted(domain_traffic.items(), key=lambda x: x[1], reverse=True)[:10]
         top3_list = []
         total_domain_traffic = sum(domain_traffic.values()) or 1
         
@@ -2007,10 +2021,31 @@ def _calculate_user_alltime_stats() -> Dict[str, Dict[str, Any]]:
                 "sharePct": share_pct
             })
         
-        # Calculate first and last seen dates
+        # Calculate first and last seen dates - get real timestamps from quality.db
         first_seen_at = None
         last_seen_at = None
-        if days_set:
+        
+        try:
+            import sqlite3
+            from pathlib import Path
+            quality_db = Path(__file__).parent / "data" / "quality.db"
+            if quality_db.exists():
+                conn = sqlite3.connect(str(quality_db))
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT MIN(timestamp), MAX(timestamp) FROM connection_events WHERE email = ?", (user,))
+                row = cursor.fetchone()
+                if row and row[0]:
+                    first_seen_at = dt.datetime.utcfromtimestamp(row[0]).isoformat() + "Z"
+                if row and row[1]:
+                    last_seen_at = dt.datetime.utcfromtimestamp(row[1]).isoformat() + "Z"
+                
+                conn.close()
+        except Exception:
+            pass
+        
+        # Fallback if quality.db does not have data
+        if not first_seen_at and days_set:
             sorted_days = sorted(days_set)
             first_seen_at = sorted_days[0] + "T00:00:00Z"
             last_seen_at = sorted_days[-1] + "T23:59:59Z"
@@ -2029,6 +2064,11 @@ def _calculate_user_alltime_stats() -> Dict[str, Dict[str, Any]]:
 
 @app.get("/api/users")
 def api_users_list():
+    # Cache users list - 30 seconds
+    cache_key = "users_list"
+    cached = get_cached(cache_key, ttl=30)
+    if cached is not None:
+        return jsonify(cached)
     clients = get_xray_clients()
     users = []
     for c in clients:
@@ -2038,7 +2078,9 @@ def api_users_list():
             "flow": c.get("flow", ""),
             "alias": c.get("alias", ""),  # Add alias field
         })
-    return ok({"users": users})
+    result = {"users": users, "ok": True}
+    set_cached(cache_key, result)
+    return jsonify(result)
 
 @app.post("/api/users/add")
 def api_users_add():
@@ -2178,6 +2220,11 @@ def api_users_link():
 
 @app.get("/api/users/stats")
 def api_users_stats():
+    # Aggressive caching - 2 minutes
+    cache_key = "users_stats_all"
+    cached = get_cached(cache_key, ttl=120)
+    if cached is not None:
+        return jsonify(cached)
     """Get all-time statistics for all users"""
     try:
         # Get online users
@@ -2257,6 +2304,119 @@ def api_users_update_alias():
 
     append_event({"type": "USER", "severity": "INFO", "action": "update_alias", "email": found_user.get("email", "unknown"), "alias": alias})
     return ok({"email": found_user.get("email"), "alias": alias})
+
+
+@app.get("/api/users/devices")
+def api_users_devices():
+    # Cache devices data - 1 minute
+    email_filter = request.args.get("email", "").strip()
+    cache_key = f"devices_{email_filter or 'all'}"
+    cached = get_cached(cache_key, ttl=60)
+    if cached is not None:
+        return jsonify(cached)
+    """
+    Get devices for all users or a specific user.
+    ?email=user_01 - filter by user email
+
+    Returns device info with heuristic-based estimation for devices behind NAT.
+    """
+    email = request.args.get("email", "").strip()
+
+    # Get TCP connections once for all users (optimization)
+    tcp_conns_map = get_tcp_connections_per_ip()
+
+    if email:
+        devices = get_user_devices(email)
+        heuristics = estimate_devices_with_heuristics(email, tcp_conns_map)
+        result_data = {
+            "email": email,
+            "devices": devices,
+            "min_devices": heuristics.get("min_devices", len(devices)),
+            "estimated_devices": heuristics.get("estimated_devices", len(devices)),
+            "sharing_suspected": heuristics.get("sharing_suspected", False),
+            "online_details": heuristics.get("details", [])
+        }
+        set_cached(cache_key, result_data)
+        return ok(result_data)
+
+    # Get all devices grouped by user
+    devices_by_user = get_devices_by_user()
+
+    # Get all xray clients for heuristics on all users
+    clients = get_xray_clients()
+    client_emails = {c.get("email", "") for c in clients if c.get("email")}
+
+    # Format response
+    users = []
+    for user_email in client_emails:
+        user_devices = devices_by_user.get(user_email, [])
+        online_devices = sum(1 for d in user_devices if d.get("is_online"))
+        total_disconnects = sum(d.get("disconnect_count", 0) for d in user_devices)
+
+        # Calculate overall quality for user (average of devices)
+        if user_devices:
+            avg_quality = sum(d.get("quality_score", 100) for d in user_devices) // len(user_devices)
+        else:
+            avg_quality = 100
+
+        # Get heuristic estimation
+        heuristics = estimate_devices_with_heuristics(user_email, tcp_conns_map)
+
+        users.append({
+            "email": user_email,
+            "devices": user_devices,
+            "total_devices": len(user_devices),
+            "online_devices": online_devices,
+            "total_disconnects": total_disconnects,
+            "avg_quality": avg_quality,
+            # Heuristic fields
+            "min_devices": heuristics.get("min_devices", 0),
+            "estimated_devices": heuristics.get("estimated_devices", 0),
+            "sharing_suspected": heuristics.get("sharing_suspected", False),
+            "online_details": heuristics.get("details", [])
+        })
+
+    result_data = {"users": users}
+    set_cached(cache_key, result_data)
+    return ok(result_data)
+
+
+@app.post("/api/users/devices/rename")
+def api_users_devices_rename():
+    """Rename a device for better identification"""
+    data = request.get_json() or {}
+    email = data.get("email", "").strip()
+    ip = data.get("ip", "").strip()
+    name = data.get("name", "").strip()
+
+    if not email or not ip:
+        return fail("email and ip are required")
+
+    if not HAS_QUALITY_MONITOR:
+        return fail("quality monitoring not available")
+
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE user_devices
+            SET device_name = ?
+            WHERE email = ? AND ip_address = ?
+        """, (name if name else None, email, ip))
+
+        if cursor.rowcount == 0:
+            conn.close()
+            return fail("device not found")
+
+        conn.commit()
+        conn.close()
+
+        return ok({"email": email, "ip": ip, "name": name})
+    except Exception as e:
+        return fail(f"database error: {str(e)}")
+
 
 # --- Events ---
 
@@ -3358,15 +3518,18 @@ def api_system_resources_history():
     from pathlib import Path
 
     # Get parameters
-    period = request.args.get("period", "1h")  # 1h, 6h, 24h, 7d
-    granularity = request.args.get("granularity", "1m")  # 1m, 5m, 15m, 30m, 60m
+    period = request.args.get("period", "1h")  # 1h, 6h, 12h, 24h, 7d, 14d, 30d
+    granularity = request.args.get("granularity", "1m")  # 1m, 5m, 15m, 30m, 1h
 
     # Parse period to seconds
     period_map = {
         "1h": 3600,
         "6h": 6*3600,
+        "12h": 12*3600,
         "24h": 24*3600,
         "7d": 7*86400,
+        "14d": 14*86400,
+        "30d": 30*86400,
     }
     period_seconds = period_map.get(period, 3600)
 
@@ -3376,7 +3539,7 @@ def api_system_resources_history():
         "5m": ("metrics_5m", 300, ["cpu_percent_avg", "ram_percent_avg", "ram_used_gb_avg"]),
         "15m": ("metrics_5m", 900, ["cpu_percent_avg", "ram_percent_avg", "ram_used_gb_avg"]),  # Aggregate from 5m
         "30m": ("metrics_30m", 1800, ["cpu_percent_avg", "ram_percent_avg", "ram_used_gb_avg"]),
-        "60m": ("metrics_30m", 3600, ["cpu_percent_avg", "ram_percent_avg", "ram_used_gb_avg"]),  # Aggregate from 30m
+        "1h": ("metrics_30m", 3600, ["cpu_percent_avg", "ram_percent_avg", "ram_used_gb_avg"]),  # Aggregate from 30m
     }
 
     table, interval, fields = gran_map.get(granularity, gran_map["1m"])
@@ -3694,6 +3857,2643 @@ def api_system_journal():
             "lines": [error_msg],
             "error": True
         })
+
+# --- Diagnostics ---
+
+def _run_diagnostic_test(name: str, test_fn) -> Dict[str, Any]:
+    """Run a single diagnostic test and return result"""
+    start_time = time.time()
+    try:
+        result = test_fn()
+        latency_ms = round((time.time() - start_time) * 1000, 1)
+        return {
+            "name": name,
+            "status": result.get("status", "pass"),
+            "value": result.get("value"),
+            "message": result.get("message", ""),
+            "latency_ms": latency_ms,
+        }
+    except Exception as e:
+        latency_ms = round((time.time() - start_time) * 1000, 1)
+        return {
+            "name": name,
+            "status": "fail",
+            "value": None,
+            "message": str(e),
+            "latency_ms": latency_ms,
+        }
+
+def _test_api_endpoint(url: str, name: str) -> Dict[str, Any]:
+    """Test an API endpoint"""
+    import urllib.request
+    import urllib.error
+    try:
+        start = time.time()
+        req = urllib.request.Request(f"http://127.0.0.1:{APP_PORT}{url}")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            latency = round((time.time() - start) * 1000, 1)
+            data = json.loads(resp.read().decode())
+            if data.get("ok", True):
+                return {"status": "pass", "value": f"{latency}ms", "message": f"Response OK in {latency}ms"}
+            else:
+                return {"status": "fail", "value": f"{latency}ms", "message": data.get("error", "Unknown error")}
+    except urllib.error.URLError as e:
+        return {"status": "fail", "value": None, "message": f"Connection failed: {str(e)}"}
+    except Exception as e:
+        return {"status": "fail", "value": None, "message": str(e)}
+
+def _get_diagnostics_api_health() -> List[Dict[str, Any]]:
+    """Test all API endpoints"""
+    endpoints = [
+        ("/api/dashboard?days=7", "Dashboard API"),
+        ("/api/users", "Users API"),
+        ("/api/users/stats", "User Stats API"),
+        ("/api/events?limit=10", "Events API"),
+        ("/api/events/stats?hours=24", "Events Stats API"),
+        ("/api/system/status", "System Status API"),
+        ("/api/system/resources", "System Resources API"),
+        ("/api/ports/status", "Ports Status API"),
+        ("/api/live/now", "Live Now API"),
+        ("/api/live/series?metric=conns&period=1h&gran=1m&scope=global", "Live Series API"),
+        ("/api/collector/status", "Collector Status API"),
+        ("/api/settings", "Settings API"),
+    ]
+
+    results = []
+    for url, name in endpoints:
+        results.append(_run_diagnostic_test(name, lambda u=url, n=name: _test_api_endpoint(u, n)))
+    return results
+
+def _get_diagnostics_services() -> List[Dict[str, Any]]:
+    """Test system services"""
+    results = []
+
+    # Test Xray service
+    def test_xray():
+        try:
+            result = subprocess.run(
+                ["systemctl", "is-active", SERVICE_XRAY_DEFAULT],
+                capture_output=True, text=True, timeout=5
+            )
+            is_active = result.returncode == 0 and result.stdout.strip() == "active"
+            if is_active:
+                return {"status": "pass", "value": "running", "message": "Xray service is active"}
+            else:
+                return {"status": "fail", "value": "stopped", "message": f"Xray service is not active: {result.stdout.strip()}"}
+        except Exception as e:
+            return {"status": "fail", "value": "error", "message": str(e)}
+
+    results.append(_run_diagnostic_test("Xray Core", test_xray))
+
+    # Test UI service
+    def test_ui():
+        try:
+            result = subprocess.run(
+                ["systemctl", "is-active", SERVICE_UI],
+                capture_output=True, text=True, timeout=5
+            )
+            is_active = result.returncode == 0 and result.stdout.strip() == "active"
+            if is_active:
+                return {"status": "pass", "value": "running", "message": "UI service is active"}
+            else:
+                return {"status": "fail", "value": "stopped", "message": f"UI service is not active: {result.stdout.strip()}"}
+        except Exception as e:
+            return {"status": "fail", "value": "error", "message": str(e)}
+
+    results.append(_run_diagnostic_test("UI Service", test_ui))
+
+    # Test Collector cron - check if matches auto-run settings
+    def test_collector():
+        try:
+            # Check auto-run settings
+            settings = read_json(SETTINGS_PATH, {})
+            auto_run_hours = settings.get("diagnostics", {}).get("auto_run_hours", 0)
+
+            result = subprocess.run(
+                ["crontab", "-l"],
+                capture_output=True, text=True, timeout=5
+            )
+            cron_found = "run_diagnostics" in result.stdout
+
+            if auto_run_hours > 0:
+                # Auto-run is enabled, cron should exist
+                if cron_found:
+                    return {"status": "pass", "value": f"every {auto_run_hours}h", "message": f"Diagnostics scheduled every {auto_run_hours}h"}
+                else:
+                    return {"status": "fail", "value": "missing", "message": f"Auto-run enabled but cron not found"}
+            else:
+                # Auto-run is disabled
+                if cron_found:
+                    return {"status": "warning", "value": "unexpected", "message": "Cron found but auto-run disabled"}
+                else:
+                    return {"status": "pass", "value": "disabled", "message": "Auto-run disabled (as configured)"}
+        except Exception as e:
+            return {"status": "warning", "value": "unknown", "message": str(e)}
+
+    results.append(_run_diagnostic_test("Collector Cron", test_collector))
+
+    # Test SQLite database
+    def test_database():
+        db_path = os.path.join(DATA_DIR, "metrics.db")
+        if os.path.exists(db_path):
+            size_mb = os.path.getsize(db_path) / (1024 * 1024)
+            return {"status": "pass", "value": f"{size_mb:.1f} MB", "message": f"Database exists ({size_mb:.1f} MB)"}
+        else:
+            return {"status": "warning", "value": "missing", "message": "Metrics database not found"}
+
+    results.append(_run_diagnostic_test("SQLite Database", test_database))
+
+    return results
+
+def _get_diagnostics_network() -> List[Dict[str, Any]]:
+    """Test network connectivity"""
+    results = []
+
+    # Test ports
+    def test_port(port: int, name: str):
+        def _test():
+            import socket
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(3)
+                result = sock.connect_ex(('127.0.0.1', port))
+                sock.close()
+                if result == 0:
+                    return {"status": "pass", "value": "open", "message": f"Port {port} is open"}
+                else:
+                    return {"status": "fail", "value": "closed", "message": f"Port {port} is closed"}
+            except Exception as e:
+                return {"status": "fail", "value": "error", "message": str(e)}
+        return _test
+
+    # Check common ports
+    settings = load_settings()
+    ports_to_check = [
+        (443, "Port 443 (HTTPS)"),
+        (80, "Port 80 (HTTP)"),
+        (APP_PORT, f"Port {APP_PORT} (API)"),
+    ]
+
+    for port, name in ports_to_check:
+        results.append(_run_diagnostic_test(name, test_port(port, name)))
+
+    # External ping test
+    def test_external_ping():
+        try:
+            result = subprocess.run(
+                ["ping", "-c", "1", "-W", "3", "8.8.8.8"],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                # Parse ping time
+                match = re.search(r'time[=<](\d+\.?\d*)', result.stdout)
+                if match:
+                    latency = float(match.group(1))
+                    return {"status": "pass", "value": f"{latency}ms", "message": f"External ping OK ({latency}ms)"}
+                return {"status": "pass", "value": "ok", "message": "External ping OK"}
+            else:
+                return {"status": "fail", "value": "failed", "message": "Cannot reach external network"}
+        except Exception as e:
+            return {"status": "fail", "value": "error", "message": str(e)}
+
+    results.append(_run_diagnostic_test("External Ping", test_external_ping))
+
+    # DNS resolution test
+    def test_dns():
+        import socket
+        try:
+            start = time.time()
+            socket.gethostbyname("google.com")
+            latency = round((time.time() - start) * 1000, 1)
+            return {"status": "pass", "value": f"{latency}ms", "message": f"DNS resolution OK ({latency}ms)"}
+        except Exception as e:
+            return {"status": "fail", "value": "error", "message": f"DNS resolution failed: {str(e)}"}
+
+    results.append(_run_diagnostic_test("DNS Resolution", test_dns))
+
+    return results
+
+def _get_diagnostics_data() -> List[Dict[str, Any]]:
+    """Test data integrity"""
+    results = []
+
+    # Test dashboard structure
+    def test_dashboard_structure():
+        try:
+            data = load_dashboard_data(days=7)
+            if not data.get("ok"):
+                return {"status": "fail", "value": None, "message": "Dashboard data not OK"}
+
+            required_fields = ["global", "users", "meta"]
+            missing = [f for f in required_fields if f not in data]
+            if missing:
+                return {"status": "fail", "value": None, "message": f"Missing fields: {missing}"}
+
+            return {"status": "pass", "value": "valid", "message": "Dashboard structure is valid"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Dashboard Structure", test_dashboard_structure))
+
+    # Test users data
+    def test_users_data():
+        try:
+            users = get_xray_clients()
+            if not users:
+                return {"status": "warning", "value": "0 users", "message": "No users found in Xray config"}
+
+            valid_count = 0
+            for u in users:
+                if u.get("email") and u.get("id"):
+                    valid_count += 1
+
+            if valid_count == len(users):
+                return {"status": "pass", "value": f"{len(users)} users", "message": f"All {len(users)} users have valid data"}
+            else:
+                return {"status": "warning", "value": f"{valid_count}/{len(users)}", "message": f"Some users missing email/id"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Users Data", test_users_data))
+
+    # Test events data
+    def test_events_data():
+        try:
+            events = []
+            if os.path.exists(EVENTS_PATH):
+                with open(EVENTS_PATH, "r", encoding="utf-8") as f:
+                    for ln in f:
+                        ln = ln.strip()
+                        if ln:
+                            try:
+                                events.append(json.loads(ln))
+                            except json.JSONDecodeError:
+                                pass
+
+            if not events:
+                return {"status": "pass", "value": "0 events", "message": "No events (this is OK)"}
+
+            # Check recent events have valid timestamps
+            invalid_count = 0
+            for e in events[-100:]:  # Check last 100
+                ts = e.get("ts")
+                if not ts:
+                    invalid_count += 1
+
+            if invalid_count == 0:
+                return {"status": "pass", "value": f"{len(events)} events", "message": f"All events have valid timestamps"}
+            else:
+                return {"status": "warning", "value": f"{invalid_count} invalid", "message": f"{invalid_count} events missing timestamp"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Events Data", test_events_data))
+
+    # Test traffic consistency
+    def test_traffic_consistency():
+        try:
+            data = load_dashboard_data(days=7)
+            if not data.get("ok"):
+                return {"status": "fail", "value": None, "message": "Cannot load dashboard data"}
+
+            global_data = data.get("global", {})
+            daily = global_data.get("daily_traffic_bytes", [])
+            cumulative = global_data.get("cumulative_traffic_bytes", [])
+
+            if not daily or not cumulative:
+                return {"status": "warning", "value": "no data", "message": "No traffic data available"}
+
+            # Check cumulative is always >= previous
+            for i in range(1, len(cumulative)):
+                if cumulative[i] < cumulative[i-1]:
+                    return {"status": "warning", "value": "inconsistent", "message": "Cumulative traffic decreased (data reset?)"}
+
+            return {"status": "pass", "value": "consistent", "message": "Traffic data is consistent"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Traffic Consistency", test_traffic_consistency))
+
+    # Test date ranges
+    def test_date_ranges():
+        try:
+            data = load_dashboard_data(days=14)
+            days = data.get("meta", {}).get("days", [])
+
+            if not days:
+                return {"status": "warning", "value": "no dates", "message": "No date data available"}
+
+            today = dt.datetime.utcnow().date()
+            for d in days:
+                try:
+                    date_obj = dt.datetime.strptime(d, "%Y-%m-%d").date()
+                    if date_obj > today:
+                        return {"status": "warning", "value": "future date", "message": f"Date {d} is in the future"}
+                    if (today - date_obj).days > 30:
+                        return {"status": "warning", "value": "old date", "message": f"Date {d} is more than 30 days old"}
+                except ValueError:
+                    return {"status": "fail", "value": "invalid", "message": f"Invalid date format: {d}"}
+
+            return {"status": "pass", "value": f"{len(days)} days", "message": f"All {len(days)} dates are valid"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Date Ranges", test_date_ranges))
+
+    # Test live data freshness
+    def test_live_freshness():
+        try:
+            live_data = read_json(LIVE_STATE_PATH, {})
+            if not live_data:
+                return {"status": "warning", "value": "no data", "message": "No live data available"}
+
+            last_update = live_data.get("last_update")
+            if not last_update:
+                return {"status": "warning", "value": "no timestamp", "message": "Live data has no timestamp"}
+
+            try:
+                last_dt = dt.datetime.fromisoformat(last_update.replace("Z", "+00:00"))
+                age_seconds = (dt.datetime.now(dt.timezone.utc) - last_dt).total_seconds()
+
+                if age_seconds < 60:
+                    return {"status": "pass", "value": f"{int(age_seconds)}s old", "message": f"Live data is fresh ({int(age_seconds)}s old)"}
+                elif age_seconds < 300:
+                    return {"status": "warning", "value": f"{int(age_seconds)}s old", "message": f"Live data is slightly stale ({int(age_seconds)}s old)"}
+                else:
+                    return {"status": "fail", "value": f"{int(age_seconds)}s old", "message": f"Live data is stale ({int(age_seconds)}s old)"}
+            except Exception:
+                return {"status": "warning", "value": "unknown", "message": "Cannot parse live data timestamp"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Live Data Freshness", test_live_freshness))
+
+    # Test no null values in critical fields
+    def test_no_nulls():
+        try:
+            data = load_dashboard_data(days=7)
+            if not data.get("ok"):
+                return {"status": "fail", "value": None, "message": "Cannot load dashboard data"}
+
+            issues = []
+
+            # Check global data
+            global_data = data.get("global", {})
+            if global_data.get("daily_traffic_bytes") is None:
+                issues.append("daily_traffic_bytes is null")
+            if global_data.get("daily_conns") is None:
+                issues.append("daily_conns is null")
+
+            if issues:
+                return {"status": "warning", "value": f"{len(issues)} issues", "message": "; ".join(issues)}
+
+            return {"status": "pass", "value": "no nulls", "message": "No null values in critical fields"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("No Null Values", test_no_nulls))
+
+    # Test Xray config readable
+    def test_xray_config():
+        try:
+            if not os.path.exists(XRAY_CFG):
+                return {"status": "fail", "value": "missing", "message": f"Xray config not found: {XRAY_CFG}"}
+
+            with open(XRAY_CFG, 'r') as f:
+                cfg = json.load(f)
+
+            inbounds = cfg.get("inbounds", [])
+            if not inbounds:
+                return {"status": "warning", "value": "no inbounds", "message": "Xray config has no inbounds"}
+
+            return {"status": "pass", "value": f"{len(inbounds)} inbounds", "message": f"Xray config valid ({len(inbounds)} inbounds)"}
+        except json.JSONDecodeError as e:
+            return {"status": "fail", "value": "invalid JSON", "message": f"Xray config is invalid JSON: {str(e)}"}
+        except Exception as e:
+            return {"status": "fail", "value": "error", "message": str(e)}
+
+    results.append(_run_diagnostic_test("Xray Config", test_xray_config))
+
+    return results
+
+def _get_diagnostics_resources() -> List[Dict[str, Any]]:
+    """Test server resources"""
+    results = []
+
+    # CPU current
+    def test_cpu_current():
+        try:
+            resources = get_system_resources()
+            cpu = resources.get("cpu", 0)
+
+            if cpu >= 90:
+                return {"status": "fail", "value": f"{cpu}%", "message": f"CPU critically high: {cpu}%"}
+            elif cpu >= 70:
+                return {"status": "warning", "value": f"{cpu}%", "message": f"CPU elevated: {cpu}%"}
+            else:
+                return {"status": "pass", "value": f"{cpu}%", "message": f"CPU normal: {cpu}%"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("CPU Current", test_cpu_current))
+
+    # CPU peak 24h - check time spent above 80%
+    def test_cpu_peak():
+        try:
+            import sqlite3
+            db_path = os.path.join(DATA_DIR, "metrics.db")
+            if not os.path.exists(db_path):
+                return {"status": "warning", "value": "no data", "message": "No metrics database"}
+
+            conn = sqlite3.connect(db_path, timeout=5)
+            cursor = conn.cursor()
+
+            # Get all CPU values in last 24h where cpu >= 80%
+            cutoff = int((dt.datetime.utcnow() - dt.timedelta(hours=24)).timestamp())
+            cursor.execute("SELECT COUNT(*) FROM metrics_1m WHERE timestamp > ? AND cpu_percent >= 80", (cutoff,))
+            high_count = cursor.fetchone()[0] or 0
+
+            # Also get peak value
+            cursor.execute("SELECT MAX(cpu_percent) FROM metrics_1m WHERE timestamp > ?", (cutoff,))
+            peak = cursor.fetchone()[0]
+            conn.close()
+
+            if peak is None:
+                return {"status": "warning", "value": "no data", "message": "No CPU data in last 24h"}
+
+            peak = round(peak, 1)
+            # Each record is 1 minute
+            minutes_high = high_count
+
+            if minutes_high == 0:
+                return {"status": "pass", "value": f"Peak {peak}%", "message": f"Peak {peak}%, never above 80%"}
+            elif minutes_high < 5:
+                return {"status": "pass", "value": f"{minutes_high}min >80%", "message": f"Peak {peak}%, {minutes_high} min above 80%"}
+            elif minutes_high < 30:
+                return {"status": "warning", "value": f"{minutes_high}min >80%", "message": f"Peak {peak}%, {minutes_high} min above 80%"}
+            else:
+                hours = minutes_high // 60
+                mins = minutes_high % 60
+                if hours > 0:
+                    return {"status": "fail", "value": f"{hours}h{mins}m >80%", "message": f"Peak {peak}%, {hours}h {mins}m above 80%"}
+                else:
+                    return {"status": "fail", "value": f"{minutes_high}min >80%", "message": f"Peak {peak}%, {minutes_high} min above 80%"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("CPU Peak 24h", test_cpu_peak))
+
+    # RAM current
+    def test_ram_current():
+        try:
+            resources = get_system_resources()
+            ram = resources.get("ram", 0)
+            total = resources.get("ram_total_gb", 0)
+            used = resources.get("ram_used_gb", 0)
+
+            if ram >= 95:
+                return {"status": "fail", "value": f"{ram}% ({used:.1f}/{total:.1f} GB)", "message": f"RAM critically high: {ram}%"}
+            elif ram >= 85:
+                return {"status": "warning", "value": f"{ram}% ({used:.1f}/{total:.1f} GB)", "message": f"RAM elevated: {ram}%"}
+            else:
+                return {"status": "pass", "value": f"{ram}% ({used:.1f}/{total:.1f} GB)", "message": f"RAM normal: {ram}%"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("RAM Current", test_ram_current))
+
+    # RAM peak 24h - check time spent above 85%
+    def test_ram_peak():
+        try:
+            import sqlite3
+            db_path = os.path.join(DATA_DIR, "metrics.db")
+            if not os.path.exists(db_path):
+                return {"status": "warning", "value": "no data", "message": "No metrics database"}
+
+            conn = sqlite3.connect(db_path, timeout=5)
+            cursor = conn.cursor()
+
+            # Get all RAM values in last 24h where ram >= 85%
+            cutoff = int((dt.datetime.utcnow() - dt.timedelta(hours=24)).timestamp())
+            cursor.execute("SELECT COUNT(*) FROM metrics_1m WHERE timestamp > ? AND ram_percent >= 85", (cutoff,))
+            high_count = cursor.fetchone()[0] or 0
+
+            # Also get peak value
+            cursor.execute("SELECT MAX(ram_percent) FROM metrics_1m WHERE timestamp > ?", (cutoff,))
+            peak = cursor.fetchone()[0]
+            conn.close()
+
+            if peak is None:
+                return {"status": "warning", "value": "no data", "message": "No RAM data in last 24h"}
+
+            peak = round(peak, 1)
+            # Each record is 1 minute
+            minutes_high = high_count
+
+            if minutes_high == 0:
+                return {"status": "pass", "value": f"Peak {peak}%", "message": f"Peak {peak}%, never above 85%"}
+            elif minutes_high < 5:
+                return {"status": "pass", "value": f"{minutes_high}min >85%", "message": f"Peak {peak}%, {minutes_high} min above 85%"}
+            elif minutes_high < 30:
+                return {"status": "warning", "value": f"{minutes_high}min >85%", "message": f"Peak {peak}%, {minutes_high} min above 85%"}
+            else:
+                hours = minutes_high // 60
+                mins = minutes_high % 60
+                if hours > 0:
+                    return {"status": "fail", "value": f"{hours}h{mins}m >85%", "message": f"Peak {peak}%, {hours}h {mins}m above 85%"}
+                else:
+                    return {"status": "fail", "value": f"{minutes_high}min >85%", "message": f"Peak {peak}%, {minutes_high} min above 85%"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("RAM Peak 24h", test_ram_peak))
+
+    # Disk free - show percentage free
+    def test_disk_free():
+        try:
+            stat = os.statvfs("/")
+            free_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
+            total_gb = (stat.f_blocks * stat.f_frsize) / (1024**3)
+            free_pct = round((stat.f_bavail / stat.f_blocks) * 100, 1)
+
+            value = f"{free_pct}% ({free_gb:.1f} GB)"
+
+            if free_pct < 10:
+                return {"status": "fail", "value": value, "message": f"Disk critically low: {free_pct}% free"}
+            elif free_pct < 20:
+                return {"status": "warning", "value": value, "message": f"Disk space low: {free_pct}% free"}
+            else:
+                return {"status": "pass", "value": value, "message": f"Disk OK: {free_pct}% free ({free_gb:.1f} GB)"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Disk Free", test_disk_free))
+
+    # Database size
+    def test_db_size():
+        try:
+            db_path = os.path.join(DATA_DIR, "metrics.db")
+            if not os.path.exists(db_path):
+                return {"status": "warning", "value": "0 MB", "message": "Metrics database not found"}
+
+            size_mb = os.path.getsize(db_path) / (1024 * 1024)
+            if size_mb > 500:
+                return {"status": "warning", "value": f"{size_mb:.1f} MB", "message": f"Database large: {size_mb:.1f} MB"}
+            else:
+                return {"status": "pass", "value": f"{size_mb:.1f} MB", "message": f"Database size: {size_mb:.1f} MB"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Database Size", test_db_size))
+
+    # Load average
+    def test_load_average():
+        try:
+            load1, load5, load15 = os.getloadavg()
+            cpu_count = os.cpu_count() or 1
+
+            # Normalize by CPU count
+            normalized = load1 / cpu_count
+
+            value = f"{load1:.2f} / {load5:.2f} / {load15:.2f}"
+            if normalized > 2:
+                return {"status": "fail", "value": value, "message": f"Load very high: {value}"}
+            elif normalized > 1:
+                return {"status": "warning", "value": value, "message": f"Load elevated: {value}"}
+            else:
+                return {"status": "pass", "value": value, "message": f"Load normal: {value}"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Load Average", test_load_average))
+
+    # Uptime
+    def test_uptime():
+        try:
+            with open('/proc/uptime', 'r') as f:
+                uptime_seconds = float(f.read().split()[0])
+
+            days = int(uptime_seconds // 86400)
+            hours = int((uptime_seconds % 86400) // 3600)
+            minutes = int((uptime_seconds % 3600) // 60)
+
+            value = f"{days}d {hours}h {minutes}m"
+            return {"status": "pass", "value": value, "message": f"Server uptime: {value}"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Server Uptime", test_uptime))
+
+    return results
+
+def _get_diagnostics_usage_peaks() -> List[Dict[str, Any]]:
+    """Test usage peaks"""
+    results = []
+
+    # Peak users 24h
+    def test_peak_users_24h():
+        try:
+            live_data = read_json(LIVE_STATE_PATH, {})
+            buffer = live_data.get("buffer", {})
+            online_users_data = buffer.get("online_users", [])
+
+            # Check if we have any data at all
+            if not online_users_data:
+                return {"status": "pass", "value": "awaiting data", "message": "Awaiting first data collection (not an issue)"}
+
+            cutoff_ts = time.time() - (24 * 3600)
+            max_users = 0
+            max_time = None
+
+            for point in online_users_data:
+                ts = point.get("ts", 0)
+                if ts >= cutoff_ts:
+                    value = point.get("value", 0)
+                    if value > max_users:
+                        max_users = value
+                        max_time = ts
+
+            if max_time:
+                time_str = dt.datetime.fromtimestamp(max_time).strftime("%H:%M")
+                if max_users == 0:
+                    return {"status": "pass", "value": "0 users", "message": "No users detected in last 24h"}
+                return {"status": "pass", "value": f"{max_users} at {time_str}", "message": f"Peak: {max_users} users at {time_str}"}
+            else:
+                return {"status": "pass", "value": "no data", "message": "No data in last 24h"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Peak Users 24h", test_peak_users_24h))
+
+    # Peak users 7d
+    def test_peak_users_7d():
+        try:
+            live_data = read_json(LIVE_STATE_PATH, {})
+            buffer = live_data.get("buffer", {})
+            online_users_data = buffer.get("online_users", [])
+
+            if not online_users_data:
+                return {"status": "pass", "value": "awaiting data", "message": "Awaiting first data collection (not an issue)"}
+
+            cutoff_ts = time.time() - (7 * 24 * 3600)
+            max_users = 0
+            max_time = None
+
+            for point in online_users_data:
+                ts = point.get("ts", 0)
+                if ts >= cutoff_ts:
+                    value = point.get("value", 0)
+                    if value > max_users:
+                        max_users = value
+                        max_time = ts
+
+            if max_time:
+                time_str = dt.datetime.fromtimestamp(max_time).strftime("%d.%m %H:%M")
+                if max_users == 0:
+                    return {"status": "pass", "value": "0 users", "message": "No users detected in last 7 days"}
+                return {"status": "pass", "value": f"{max_users} at {time_str}", "message": f"Weekly peak: {max_users} users at {time_str}"}
+            else:
+                return {"status": "pass", "value": "no data", "message": "No data in last 7 days"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Peak Users 7d", test_peak_users_7d))
+
+    # Peak connections 24h
+    def test_peak_conns_24h():
+        try:
+            live_data = read_json(LIVE_STATE_PATH, {})
+            buffer = live_data.get("buffer", {})
+            conns_data = buffer.get("conns", [])
+
+            if not conns_data:
+                return {"status": "pass", "value": "awaiting data", "message": "Awaiting first data collection (not an issue)"}
+
+            cutoff_ts = time.time() - (24 * 3600)
+            max_conns = 0
+            max_time = None
+
+            for point in conns_data:
+                ts = point.get("ts", 0)
+                if ts >= cutoff_ts:
+                    value = point.get("value", 0)
+                    if value > max_conns:
+                        max_conns = value
+                        max_time = ts
+
+            if max_time:
+                time_str = dt.datetime.fromtimestamp(max_time).strftime("%H:%M")
+                if max_conns == 0:
+                    return {"status": "pass", "value": "0 conns", "message": "No connections detected in last 24h"}
+                return {"status": "pass", "value": f"{max_conns} at {time_str}", "message": f"Peak: {max_conns} connections at {time_str}"}
+            else:
+                return {"status": "pass", "value": "no data", "message": "No data in last 24h"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Peak Connections 24h", test_peak_conns_24h))
+
+    # Peak traffic 24h
+    def test_peak_traffic_24h():
+        try:
+            live_data = read_json(LIVE_STATE_PATH, {})
+            buffer = live_data.get("buffer", {})
+            traffic_data = buffer.get("traffic", [])
+
+            if not traffic_data:
+                return {"status": "pass", "value": "awaiting data", "message": "Awaiting first data collection (not an issue)"}
+
+            cutoff_ts = time.time() - (24 * 3600)
+            max_traffic = 0
+            max_time = None
+
+            for point in traffic_data:
+                ts = point.get("ts", 0)
+                if ts >= cutoff_ts:
+                    value = point.get("value", 0)
+                    if value > max_traffic:
+                        max_traffic = value
+                        max_time = ts
+
+            if max_time:
+                time_str = dt.datetime.fromtimestamp(max_time).strftime("%H:%M")
+                traffic_mb = max_traffic / (1024 * 1024)
+                if traffic_mb < 0.1:
+                    return {"status": "pass", "value": "0 MB", "message": "No traffic detected in last 24h"}
+                return {"status": "pass", "value": f"{traffic_mb:.1f} MB at {time_str}", "message": f"Peak: {traffic_mb:.1f} MB at {time_str}"}
+            else:
+                return {"status": "pass", "value": "no data", "message": "No data in last 24h"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Peak Traffic 24h", test_peak_traffic_24h))
+
+    # Quiet period percentage
+    def test_quiet_period():
+        try:
+            import sqlite3
+            db_path = os.path.join(DATA_DIR, "metrics.db")
+            if not os.path.exists(db_path):
+                return {"status": "warning", "value": "no data", "message": "No metrics database"}
+
+            conn = sqlite3.connect(db_path, timeout=5)
+            cursor = conn.cursor()
+
+            cutoff = int((dt.datetime.utcnow() - dt.timedelta(hours=24)).timestamp())
+            cursor.execute("SELECT cpu_percent FROM metrics_1m WHERE timestamp > ?", (cutoff,))
+            rows = cursor.fetchall()
+            conn.close()
+
+            if not rows:
+                return {"status": "warning", "value": "no data", "message": "No data in last 24h"}
+
+            quiet_count = sum(1 for r in rows if r[0] < 30)
+            total = len(rows)
+            pct = round(quiet_count / total * 100, 1)
+
+            return {"status": "pass", "value": f"{pct}%", "message": f"System quiet (CPU <30%) for {pct}% of time"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Quiet Period %", test_quiet_period))
+
+    # Busy period percentage
+    def test_busy_period():
+        try:
+            import sqlite3
+            db_path = os.path.join(DATA_DIR, "metrics.db")
+            if not os.path.exists(db_path):
+                return {"status": "warning", "value": "no data", "message": "No metrics database"}
+
+            conn = sqlite3.connect(db_path, timeout=5)
+            cursor = conn.cursor()
+
+            cutoff = int((dt.datetime.utcnow() - dt.timedelta(hours=24)).timestamp())
+            cursor.execute("SELECT cpu_percent FROM metrics_1m WHERE timestamp > ?", (cutoff,))
+            rows = cursor.fetchall()
+            conn.close()
+
+            if not rows:
+                return {"status": "warning", "value": "no data", "message": "No data in last 24h"}
+
+            busy_count = sum(1 for r in rows if r[0] > 70)
+            total = len(rows)
+            pct = round(busy_count / total * 100, 1)
+
+            if pct > 50:
+                return {"status": "warning", "value": f"{pct}%", "message": f"System busy (CPU >70%) for {pct}% of time"}
+            else:
+                return {"status": "pass", "value": f"{pct}%", "message": f"System busy (CPU >70%) for {pct}% of time"}
+        except Exception as e:
+            return {"status": "fail", "value": None, "message": str(e)}
+
+    results.append(_run_diagnostic_test("Busy Period %", test_busy_period))
+
+    return results
+
+def _init_diagnostics_history_db():
+    """Initialize diagnostics history database"""
+    import sqlite3
+    db_path = os.path.join(DATA_DIR, "diagnostics_history.db")
+    conn = sqlite3.connect(db_path, timeout=10)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS diagnostics_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp INTEGER NOT NULL,
+            duration_ms INTEGER NOT NULL,
+            total INTEGER NOT NULL,
+            passed INTEGER NOT NULL,
+            warnings INTEGER NOT NULL,
+            failed INTEGER NOT NULL,
+            results TEXT NOT NULL
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_diagnostics_runs_ts ON diagnostics_runs(timestamp)")
+
+    conn.commit()
+    conn.close()
+
+def _save_diagnostics_run(result: Dict[str, Any], duration_ms: int):
+    """Save diagnostics run to history"""
+    import sqlite3
+    import json
+
+    try:
+        _init_diagnostics_history_db()
+        db_path = os.path.join(DATA_DIR, "diagnostics_history.db")
+        conn = sqlite3.connect(db_path, timeout=10)
+        cursor = conn.cursor()
+
+        timestamp = int(dt.datetime.utcnow().timestamp())
+        summary = result.get("summary", {})
+
+        cursor.execute("""
+            INSERT INTO diagnostics_runs (timestamp, duration_ms, total, passed, warnings, failed, results)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            timestamp,
+            duration_ms,
+            summary.get("total", 0),
+            summary.get("passed", 0),
+            summary.get("warnings", 0),
+            summary.get("failed", 0),
+            json.dumps(result)
+        ))
+
+        # Keep only last 100 runs
+        cursor.execute("DELETE FROM diagnostics_runs WHERE id NOT IN (SELECT id FROM diagnostics_runs ORDER BY timestamp DESC LIMIT 100)")
+
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+@app.get("/api/diagnostics/run")
+def api_diagnostics_run():
+    """Run all diagnostic tests"""
+    import time
+    start_time = time.time()
+
+    try:
+        categories = request.args.get("categories", "").split(",") if request.args.get("categories") else None
+
+        all_results = {}
+        total_tests = 0
+        passed_tests = 0
+        warning_tests = 0
+        failed_tests = 0
+
+        # API Health
+        if not categories or "api" in categories:
+            api_results = _get_diagnostics_api_health()
+            all_results["api_health"] = {
+                "name": "API Health",
+                "tests": api_results,
+                "passed": sum(1 for t in api_results if t["status"] == "pass"),
+                "warnings": sum(1 for t in api_results if t["status"] == "warning"),
+                "failed": sum(1 for t in api_results if t["status"] == "fail"),
+            }
+            total_tests += len(api_results)
+            passed_tests += all_results["api_health"]["passed"]
+            warning_tests += all_results["api_health"]["warnings"]
+            failed_tests += all_results["api_health"]["failed"]
+
+        # Services
+        if not categories or "services" in categories:
+            services_results = _get_diagnostics_services()
+            all_results["services"] = {
+                "name": "Services",
+                "tests": services_results,
+                "passed": sum(1 for t in services_results if t["status"] == "pass"),
+                "warnings": sum(1 for t in services_results if t["status"] == "warning"),
+                "failed": sum(1 for t in services_results if t["status"] == "fail"),
+            }
+            total_tests += len(services_results)
+            passed_tests += all_results["services"]["passed"]
+            warning_tests += all_results["services"]["warnings"]
+            failed_tests += all_results["services"]["failed"]
+
+        # Network
+        if not categories or "network" in categories:
+            network_results = _get_diagnostics_network()
+            all_results["network"] = {
+                "name": "Network",
+                "tests": network_results,
+                "passed": sum(1 for t in network_results if t["status"] == "pass"),
+                "warnings": sum(1 for t in network_results if t["status"] == "warning"),
+                "failed": sum(1 for t in network_results if t["status"] == "fail"),
+            }
+            total_tests += len(network_results)
+            passed_tests += all_results["network"]["passed"]
+            warning_tests += all_results["network"]["warnings"]
+            failed_tests += all_results["network"]["failed"]
+
+        # Data Integrity
+        if not categories or "data" in categories:
+            data_results = _get_diagnostics_data()
+            all_results["data_integrity"] = {
+                "name": "Data Integrity",
+                "tests": data_results,
+                "passed": sum(1 for t in data_results if t["status"] == "pass"),
+                "warnings": sum(1 for t in data_results if t["status"] == "warning"),
+                "failed": sum(1 for t in data_results if t["status"] == "fail"),
+            }
+            total_tests += len(data_results)
+            passed_tests += all_results["data_integrity"]["passed"]
+            warning_tests += all_results["data_integrity"]["warnings"]
+            failed_tests += all_results["data_integrity"]["failed"]
+
+        # Server Resources
+        if not categories or "resources" in categories:
+            resources_results = _get_diagnostics_resources()
+            all_results["server_resources"] = {
+                "name": "Server Resources",
+                "tests": resources_results,
+                "passed": sum(1 for t in resources_results if t["status"] == "pass"),
+                "warnings": sum(1 for t in resources_results if t["status"] == "warning"),
+                "failed": sum(1 for t in resources_results if t["status"] == "fail"),
+            }
+            total_tests += len(resources_results)
+            passed_tests += all_results["server_resources"]["passed"]
+            warning_tests += all_results["server_resources"]["warnings"]
+            failed_tests += all_results["server_resources"]["failed"]
+
+        # Usage Peaks
+        if not categories or "peaks" in categories:
+            peaks_results = _get_diagnostics_usage_peaks()
+            all_results["usage_peaks"] = {
+                "name": "Usage Peaks",
+                "tests": peaks_results,
+                "passed": sum(1 for t in peaks_results if t["status"] == "pass"),
+                "warnings": sum(1 for t in peaks_results if t["status"] == "warning"),
+                "failed": sum(1 for t in peaks_results if t["status"] == "fail"),
+            }
+            total_tests += len(peaks_results)
+            passed_tests += all_results["usage_peaks"]["passed"]
+            warning_tests += all_results["usage_peaks"]["warnings"]
+            failed_tests += all_results["usage_peaks"]["failed"]
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        result = {
+            "categories": all_results,
+            "summary": {
+                "total": total_tests,
+                "passed": passed_tests,
+                "warnings": warning_tests,
+                "failed": failed_tests,
+            },
+            "timestamp": now_utc_iso(),
+            "duration_ms": duration_ms,
+        }
+
+        # Save to history
+        _save_diagnostics_run(result, duration_ms)
+
+        return ok(result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return fail(f"Diagnostics error: {str(e)}")
+
+@app.get("/api/diagnostics/last")
+def api_diagnostics_last():
+    """Get last diagnostics run"""
+    import sqlite3
+    import json
+
+    try:
+        db_path = os.path.join(DATA_DIR, "diagnostics_history.db")
+        if not os.path.exists(db_path):
+            return ok({"last_run": None})
+
+        conn = sqlite3.connect(db_path, timeout=5)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT timestamp, duration_ms, total, passed, warnings, failed, results
+            FROM diagnostics_runs
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return ok({
+                "last_run": {
+                    "timestamp": row[0],
+                    "duration_ms": row[1],
+                    "summary": {
+                        "total": row[2],
+                        "passed": row[3],
+                        "warnings": row[4],
+                        "failed": row[5],
+                    },
+                    "results": json.loads(row[6]),
+                }
+            })
+        else:
+            return ok({"last_run": None})
+    except Exception as e:
+        return fail(str(e))
+
+@app.get("/api/diagnostics/history")
+def api_diagnostics_history():
+    """Get diagnostics history"""
+    import sqlite3
+    import json
+
+    try:
+        limit = safe_int(request.args.get("limit"), 30)
+        if limit > 100:
+            limit = 100
+
+        db_path = os.path.join(DATA_DIR, "diagnostics_history.db")
+        if not os.path.exists(db_path):
+            return ok({"history": []})
+
+        conn = sqlite3.connect(db_path, timeout=5)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, timestamp, duration_ms, total, passed, warnings, failed
+            FROM diagnostics_runs
+            ORDER BY timestamp DESC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        history = []
+        for row in rows:
+            history.append({
+                "id": row[0],
+                "timestamp": row[1],
+                "duration_ms": row[2],
+                "summary": {
+                    "total": row[3],
+                    "passed": row[4],
+                    "warnings": row[5],
+                    "failed": row[6],
+                }
+            })
+
+        return ok({"history": history})
+    except Exception as e:
+        return fail(str(e))
+
+@app.get("/api/diagnostics/stats")
+def api_diagnostics_stats():
+    """Get diagnostics success rate statistics"""
+    import sqlite3
+
+    try:
+        period_days = safe_int(request.args.get("days"), 7)
+        if period_days not in [1, 3, 7, 14, 30]:
+            period_days = 7
+
+        db_path = os.path.join(DATA_DIR, "diagnostics_history.db")
+        if not os.path.exists(db_path):
+            return ok({
+                "period_days": period_days,
+                "total_runs": 0,
+                "avg_pass_rate": 0,
+                "perfect_runs_rate": 0,
+                "perfect_runs": 0,
+                "avg_duration_ms": 0,
+            })
+
+        conn = sqlite3.connect(db_path, timeout=5)
+        cursor = conn.cursor()
+
+        cutoff = int((dt.datetime.utcnow() - dt.timedelta(days=period_days)).timestamp())
+
+        # Get detailed statistics
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_runs,
+                AVG(duration_ms) as avg_duration,
+                SUM(CASE WHEN failed = 0 THEN 1 ELSE 0 END) as perfect_runs,
+                AVG(CAST(passed AS FLOAT) * 100.0 / CAST(total AS FLOAT)) as avg_pass_rate
+            FROM diagnostics_runs
+            WHERE timestamp >= ?
+        """, (cutoff,))
+        row = cursor.fetchone()
+        conn.close()
+
+        total_runs = row[0] or 0
+        avg_duration = round(row[1]) if row[1] else 0
+        perfect_runs = row[2] or 0
+        avg_pass_rate = round(row[3], 1) if row[3] else 0
+        perfect_runs_rate = round((perfect_runs / total_runs * 100), 1) if total_runs > 0 else 0
+
+        return ok({
+            "period_days": period_days,
+            "total_runs": total_runs,
+            "avg_pass_rate": avg_pass_rate,  # Average % of tests passed (e.g., 95%)
+            "perfect_runs_rate": perfect_runs_rate,  # % of runs with 100% pass (e.g., 45.6%)
+            "perfect_runs": perfect_runs,  # Count of perfect runs
+            "avg_duration_ms": avg_duration,
+        })
+    except Exception as e:
+        return fail(str(e))
+
+@app.post("/api/diagnostics/auto-run")
+def api_diagnostics_auto_run():
+    """Configure auto-run diagnostics"""
+    try:
+        hours = safe_int(request.json.get("hours"), 0)
+        if hours not in [0, 1, 3, 6, 12]:
+            return fail("Invalid hours value. Must be 0 (disabled), 1, 3, 6, or 12")
+
+        # Update settings
+        settings = load_settings()
+        if "diagnostics" not in settings:
+            settings["diagnostics"] = {}
+        settings["diagnostics"]["auto_run_hours"] = hours
+        save_settings(settings)
+
+        # Update cron job
+        script_path = "/opt/xray-report-ui/run_diagnostics.py"
+        cron_comment = "# xray-diagnostics-auto"
+
+        # Remove existing cron job
+        try:
+            result = subprocess.run(
+                ["crontab", "-l"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            current_cron = result.stdout if result.returncode == 0 else ""
+
+            # Filter out old diagnostics cron
+            new_cron_lines = [
+                line for line in current_cron.split('\n')
+                if cron_comment not in line and line.strip()
+            ]
+
+            # Add new cron if hours > 0
+            if hours > 0:
+                # Every N hours: 0 */N * * *
+                cron_line = f"0 */{hours} * * * {script_path} >> /opt/xray-report-ui/data/diagnostics_auto.log 2>&1 {cron_comment}"
+                new_cron_lines.append(cron_line)
+
+            # Write new crontab
+            new_cron = '\n'.join(new_cron_lines) + '\n'
+            proc = subprocess.Popen(['crontab', '-'], stdin=subprocess.PIPE, text=True)
+            proc.communicate(input=new_cron)
+
+            if proc.returncode != 0:
+                return fail("Failed to update crontab")
+
+        except Exception as e:
+            return fail(f"Cron update error: {str(e)}")
+
+        status = "enabled" if hours > 0 else "disabled"
+        return ok({
+            "status": status,
+            "hours": hours,
+            "message": f"Auto-run diagnostics {status}" + (f" (every {hours}h)" if hours > 0 else "")
+        })
+
+    except Exception as e:
+        return fail(str(e))
+
+@app.get("/api/diagnostics/auto-run")
+def api_diagnostics_auto_run_status():
+    """Get current auto-run status"""
+    try:
+        settings = load_settings()
+        hours = settings.get("diagnostics", {}).get("auto_run_hours", 0)
+
+        return ok({
+            "enabled": hours > 0,
+            "hours": hours
+        })
+    except Exception as e:
+        return fail(str(e))
+
+# --- Quality Monitoring ---
+
+def _get_user_aliases() -> dict:
+    """Load user aliases from users.json"""
+    aliases = {}
+    try:
+        users_data = load_json(USERS_FILE) or {}
+        for client in users_data.get("clients", []):
+            email = client.get("email", "")
+            alias = client.get("alias", "")
+            if email:
+                # Use alias if set, otherwise extract name from email (user_01 from user_01@...)
+                if alias:
+                    aliases[email] = alias
+                else:
+                    # Extract name before @ or use full email if no @
+                    aliases[email] = email.split("@")[0] if "@" in email else email
+    except:
+        pass
+    return aliases
+
+
+def _analyze_user_sessions(cursor, email: str, cutoff_ts: int) -> dict:
+    """
+    Analyze VPN sessions for a user.
+
+    A SESSION = continuous VPN activity (connections with < 5 min gaps).
+    When there's a gap of > 5 minutes, a new session starts.
+
+    PROBLEMATIC PATTERN = Multiple short sessions (VPN drops and reconnects).
+    - If a session lasts < 2 minutes and is followed by another session within 2 minutes,
+      that's a "problematic reconnect" - the VPN dropped and user had to reconnect.
+
+    Returns: {
+        'total_sessions': int,
+        'problematic_reconnects': int (short sessions followed by quick reconnect),
+        'avg_session_duration': int (seconds),
+        'total_connections': int
+    }
+    """
+    cursor.execute("""
+        SELECT timestamp FROM connection_events
+        WHERE email = ? AND action = 'connect' AND timestamp >= ?
+        ORDER BY timestamp ASC
+    """, (email, cutoff_ts))
+
+    timestamps = [row[0] for row in cursor.fetchall()]
+    total_connections = len(timestamps)
+
+    if total_connections < 2:
+        return {
+            'total_sessions': 1 if total_connections == 1 else 0,
+            'problematic_reconnects': 0,
+            'avg_session_duration': 0,
+            'total_connections': total_connections
+        }
+
+    # Group into sessions (gap > 5 min = new session)
+    SESSION_GAP_THRESHOLD = 300  # 5 minutes
+    SHORT_SESSION_THRESHOLD = 120  # 2 minutes
+    FAST_RECONNECT_THRESHOLD = 120  # 2 minutes between sessions = problematic
+
+    sessions = []  # List of (start_ts, end_ts, connection_count)
+    current_session_start = timestamps[0]
+    current_session_end = timestamps[0]
+    current_conn_count = 1
+
+    for i in range(1, len(timestamps)):
+        gap = timestamps[i] - timestamps[i-1]
+
+        if gap > SESSION_GAP_THRESHOLD:
+            # End current session, start new one
+            sessions.append((current_session_start, current_session_end, current_conn_count))
+            current_session_start = timestamps[i]
+            current_session_end = timestamps[i]
+            current_conn_count = 1
+        else:
+            # Continue current session
+            current_session_end = timestamps[i]
+            current_conn_count += 1
+
+    # Don't forget the last session
+    sessions.append((current_session_start, current_session_end, current_conn_count))
+
+    # Count problematic reconnects
+    # A problematic reconnect = short session followed by quick reconnect
+    problematic = 0
+    session_durations = []
+
+    for i, (start, end, count) in enumerate(sessions):
+        duration = end - start
+        session_durations.append(duration)
+
+        # Check if this is a problematic pattern:
+        # Short session (< 2 min) followed by quick reconnect (< 2 min gap)
+        if i < len(sessions) - 1:
+            next_start = sessions[i + 1][0]
+            gap_to_next = next_start - end
+
+            # Short session + quick reconnect = problem
+            if duration < SHORT_SESSION_THRESHOLD and gap_to_next < FAST_RECONNECT_THRESHOLD:
+                problematic += 1
+
+    avg_duration = sum(session_durations) / len(session_durations) if session_durations else 0
+
+    return {
+        'total_sessions': len(sessions),
+        'problematic_reconnects': problematic,
+        'avg_session_duration': round(avg_duration),
+        'total_connections': total_connections
+    }
+
+
+@app.get("/api/quality/overview")
+def api_quality_overview():
+    """
+    Get quality overview statistics.
+
+    METHODOLOGY (Stats API based):
+    - Disconnect Event: User went offline for > 5 minutes then came back online.
+      This indicates VPN dropped and user noticed and reconnected.
+    - Stability: 100% - (disconnect_events / max_expected * 100)
+      where max_expected = users * days * 2 (max 2 disconnects per user per day = 0% stability)
+    - Problem User: User with > 2 disconnect events per day on average.
+    """
+    if not HAS_QUALITY_MONITOR:
+        return fail("Quality monitoring not available")
+
+    try:
+        days = safe_int(request.args.get("days"), 7)
+        cutoff_ts = int(time.time()) - (days * 86400)
+
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+        cursor = conn.cursor()
+
+        # Get unique users from online_status_log (users being monitored)
+        cursor.execute("""
+            SELECT DISTINCT email FROM online_status_log
+            WHERE timestamp >= ?
+        """, (cutoff_ts,))
+        monitored_users = [row[0] for row in cursor.fetchall()]
+
+        # Fallback to connection_events if no online_status_log data yet
+        if not monitored_users:
+            cursor.execute("""
+                SELECT DISTINCT email FROM connection_events
+                WHERE timestamp >= ? AND action = 'connect'
+            """, (cutoff_ts,))
+            monitored_users = [row[0] for row in cursor.fetchall()]
+
+        total_users = len(monitored_users)
+
+        # Count disconnect events from Stats API monitoring
+        cursor.execute("""
+            SELECT email, COUNT(*) as disconnect_count
+            FROM disconnect_events
+            WHERE timestamp >= ?
+            GROUP BY email
+        """, (cutoff_ts,))
+
+        user_disconnects = {row[0]: row[1] for row in cursor.fetchall()}
+        total_disconnects = sum(user_disconnects.values())
+
+        # Count problem users (> 2 disconnects per day)
+        problem_users = 0
+        for email, count in user_disconnects.items():
+            disconnects_per_day = count / days if days > 0 else count
+            if disconnects_per_day > 2:
+                problem_users += 1
+
+        # Calculate stability
+        # Formula: 100% = no disconnects, 0% = 2+ disconnects per user per day
+        stability = 100
+        if total_users > 0 and days > 0:
+            max_expected = total_users * days * 2  # 2 disconnects/user/day = 0%
+            if max_expected > 0:
+                stability = max(0, round(100 - (total_disconnects / max_expected * 100)))
+
+        # Also get session count for reference (from old method)
+        cursor.execute("""
+            SELECT COUNT(DISTINCT email || '-' || (timestamp / 300))
+            FROM connection_events
+            WHERE timestamp >= ? AND action = 'connect'
+        """, (cutoff_ts,))
+        approx_sessions = cursor.fetchone()[0] or 0
+
+        conn.close()
+
+        return ok({
+            "period_days": days,
+            "total_users": total_users,
+            "stability_percent": stability,
+            "problem_users": problem_users,
+            "total_disconnect_events": total_disconnects,
+            "total_sessions": approx_sessions,
+            "avg_disconnects_per_user": round(total_disconnects / total_users, 1) if total_users > 0 else 0,
+            "methodology": "stats_api_monitoring"
+        })
+
+    except Exception as e:
+        return fail(str(e))
+
+@app.get("/api/quality/users")
+def api_quality_users():
+    """
+    Get quality statistics for all users.
+
+    METHODOLOGY (Stats API based):
+    - Disconnect Events: Count from disconnect_events table (offline > 5 min then back online).
+    - Disconnects per day: disconnect_events / period_days.
+    - Stability: 100% - (disconnects / max_expected * 100), where max = days * 2.
+    - Last seen: Timestamp from online_status_log or connection_events.
+    - Name: User's alias or username extracted from email.
+    """
+    if not HAS_QUALITY_MONITOR:
+        return fail("Quality monitoring not available")
+
+    try:
+        days = safe_int(request.args.get("days"), 7)
+        sort_by = request.args.get("sort", "problems")  # problems, sessions, stability
+        cutoff_ts = int(time.time()) - (days * 86400)
+
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+        cursor = conn.cursor()
+
+        # Get user aliases
+        aliases = _get_user_aliases()
+
+        # Get unique users from online_status_log (monitored users)
+        cursor.execute("""
+            SELECT DISTINCT email FROM online_status_log
+            WHERE timestamp >= ?
+        """, (cutoff_ts,))
+        monitored_emails = set(row[0] for row in cursor.fetchall())
+
+        # Also get users from connection_events (fallback)
+        cursor.execute("""
+            SELECT DISTINCT email FROM connection_events
+            WHERE timestamp >= ? AND action = 'connect'
+        """, (cutoff_ts,))
+        connection_emails = set(row[0] for row in cursor.fetchall())
+
+        # Combine all emails
+        all_emails = monitored_emails | connection_emails
+
+        # Get disconnect events per user
+        cursor.execute("""
+            SELECT email, COUNT(*) as disconnect_count
+            FROM disconnect_events
+            WHERE timestamp >= ?
+            GROUP BY email
+        """, (cutoff_ts,))
+        user_disconnects = {row[0]: row[1] for row in cursor.fetchall()}
+
+        users = []
+        for email in all_emails:
+            # Get disconnect count for this user
+            disconnect_count = user_disconnects.get(email, 0)
+
+            # Get last seen from online_status_log first
+            cursor.execute("""
+                SELECT MAX(timestamp) FROM online_status_log
+                WHERE email = ? AND status = 'online'
+            """, (email,))
+            last_seen = cursor.fetchone()[0]
+
+            # Fallback to connection_events
+            if not last_seen:
+                cursor.execute("""
+                    SELECT MAX(timestamp) FROM connection_events
+                    WHERE email = ? AND action = 'connect'
+                """, (email,))
+                last_seen = cursor.fetchone()[0] or 0
+
+            # Calculate disconnects per day
+            disconnects_per_day = round(disconnect_count / days, 1) if days > 0 else disconnect_count
+
+            # Calculate stability for this user
+            # 0 disconnects = 100%, 2+ per day = 0%
+            max_expected = days * 2
+            stability = 100
+            if max_expected > 0:
+                stability = max(0, round(100 - (disconnect_count / max_expected * 100)))
+
+            # Get approximate session count (from old method, for reference)
+            analysis = _analyze_user_sessions(cursor, email, cutoff_ts)
+
+            users.append({
+                "name": aliases.get(email, email.split("@")[0] if "@" in email else email),
+                "email": email,
+                "disconnect_events": disconnect_count,
+                "disconnects_per_day": disconnects_per_day,
+                "total_sessions": analysis['total_sessions'],
+                "avg_session_duration": analysis['avg_session_duration'],
+                "stability_percent": stability,
+                "last_seen": last_seen,
+                # Legacy fields for backward compatibility
+                "problematic_reconnects": disconnect_count,
+                "problems_per_day": disconnects_per_day
+            })
+
+        conn.close()
+
+        # Sort users (worst first by default)
+        if sort_by == "problems":
+            users.sort(key=lambda x: x["disconnect_events"], reverse=True)
+        elif sort_by == "sessions":
+            users.sort(key=lambda x: x["total_sessions"], reverse=True)
+        elif sort_by == "stability":
+            users.sort(key=lambda x: x["stability_percent"])
+
+        return ok({"users": users})
+
+    except Exception as e:
+        return fail(str(e))
+
+@app.get("/api/quality/sessions")
+def api_quality_sessions():
+    """Get session history for a specific user"""
+    if not HAS_QUALITY_MONITOR:
+        return fail("Quality monitoring not available")
+
+    try:
+        email = request.args.get("email", "").strip()
+        if not email:
+            return fail("email parameter required")
+
+        limit = safe_int(request.args.get("limit"), 50)
+
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH))
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+                session_start,
+                session_end,
+                duration_seconds,
+                reconnect_count,
+                total_traffic_mb,
+                avg_speed_mbps,
+                quality_score,
+                ip_address
+            FROM user_sessions
+            WHERE email = ?
+            ORDER BY session_start DESC
+            LIMIT ?
+        """, (email, limit))
+
+        sessions = []
+        for row in cursor.fetchall():
+            start, end, duration, reconnects, traffic, speed, quality, ip = row
+            sessions.append({
+                "session_start": start,
+                "session_end": end,
+                "duration": duration or 0,
+                "reconnects": reconnects or 0,
+                "traffic_mb": round(traffic, 2) if traffic else 0,
+                "avg_speed_mbps": round(speed, 2) if speed else 0,
+                "quality_score": quality or 0,
+                "ip_address": ip
+            })
+
+        conn.close()
+
+        return ok({"sessions": sessions})
+
+    except Exception as e:
+        return fail(str(e))
+
+@app.get("/api/quality/timeline")
+def api_quality_timeline():
+    """Get connection event timeline for a user, including online/offline status and disconnect events"""
+    if not HAS_QUALITY_MONITOR:
+        return fail("Quality monitoring not available")
+
+    try:
+        email = request.args.get("email", "").strip()
+        if not email:
+            return fail("email parameter required")
+
+        period = request.args.get("period", "24h")
+
+        # Parse period
+        if period.endswith("h"):
+            hours = int(period[:-1])
+            cutoff_ts = int(time.time()) - (hours * 3600)
+        elif period.endswith("d"):
+            days = int(period[:-1])
+            cutoff_ts = int(time.time()) - (days * 86400)
+        else:
+            cutoff_ts = int(time.time()) - (24 * 3600)
+
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH))
+        cursor = conn.cursor()
+
+        timeline = []
+
+        # Get online/offline status changes from Stats API monitoring
+        cursor.execute("""
+            SELECT timestamp, status, online_count
+            FROM online_status_log
+            WHERE email = ? AND timestamp >= ?
+            ORDER BY timestamp ASC
+        """, (email, cutoff_ts))
+
+        for row in cursor.fetchall():
+            timestamp, status, online_count = row
+            timeline.append({
+                "timestamp": timestamp,
+                "event": status,  # 'online' or 'offline'
+                "ip": None,
+                "source": "stats_api",
+                "online_count": online_count
+            })
+
+        # Get disconnect events (problems!)
+        cursor.execute("""
+            SELECT timestamp, offline_duration
+            FROM disconnect_events
+            WHERE email = ? AND timestamp >= ?
+            ORDER BY timestamp ASC
+        """, (email, cutoff_ts))
+
+        for row in cursor.fetchall():
+            timestamp, offline_duration = row
+            timeline.append({
+                "timestamp": timestamp,
+                "event": "disconnect_detected",
+                "ip": None,
+                "source": "stats_api",
+                "offline_duration": offline_duration,
+                "is_problem": True
+            })
+
+        # Also get connection_events from access.log for context
+        cursor.execute("""
+            SELECT timestamp, action, ip_address, source
+            FROM connection_events
+            WHERE email = ? AND timestamp >= ?
+            ORDER BY timestamp ASC
+        """, (email, cutoff_ts))
+
+        for row in cursor.fetchall():
+            timestamp, action, ip, source = row
+            timeline.append({
+                "timestamp": timestamp,
+                "event": action,
+                "ip": ip,
+                "source": source
+            })
+
+        conn.close()
+
+        # Sort all events by timestamp
+        timeline.sort(key=lambda x: x["timestamp"])
+
+        return ok({"timeline": timeline})
+
+    except Exception as e:
+        return fail(str(e))
+
+
+@app.get("/api/users/analytics")
+def api_users_analytics():
+    """Get detailed user analytics (activity by day of week, sessions, traffic categories)"""
+    import sqlite3
+    from collections import defaultdict
+    from pathlib import Path
+    
+    email = request.args.get("email", "").strip()
+    if not email:
+        return fail("email_required")
+    
+    period_days = safe_int(request.args.get("days"), 30)
+    
+    # Check cache
+    cache_key = f"analytics_{email}_{period_days}"
+    cached = get_cached(cache_key, ttl=CACHE_TTL.get("user_stats", 300))
+    if cached is not None:
+        return jsonify(cached)
+    
+    
+    result = {
+        "email": email,
+        "period_days": period_days,
+        "activity_by_weekday": [0] * 7,  # Mon-Sun
+        "avg_session_duration": 0,
+        "total_sessions": 0,
+        "avg_speed_mbps": 0,
+        "traffic_categories": {},
+        "history_events": [],
+    }
+    
+    try:
+        # Get activity by weekday from quality.db
+        quality_db = Path(__file__).parent / "data" / "quality.db"
+        if quality_db.exists():
+            conn = sqlite3.connect(str(quality_db))
+            cursor = conn.cursor()
+            
+            cutoff = int((dt.datetime.utcnow() - dt.timedelta(days=period_days)).timestamp())
+            
+            # Get sessions data
+            cursor.execute("""
+                SELECT session_start, session_end, duration_seconds, total_traffic_mb, avg_speed_mbps
+                FROM user_sessions
+                WHERE email = ? AND session_start >= ?
+                ORDER BY session_start DESC
+            """, (email, cutoff))
+            
+            sessions = cursor.fetchall()
+            
+            # Calculate stats
+            weekday_counts = [0] * 7
+            total_duration = 0
+            total_sessions = len(sessions)
+            total_speed = 0
+            speed_count = 0
+            
+            for session in sessions:
+                start_ts = session[0]
+                duration = session[2]
+                speed = session[4]
+                
+                # Get weekday (0=Monday, 6=Sunday)
+                dt_obj = dt.datetime.fromtimestamp(start_ts)
+                weekday = dt_obj.weekday()
+                weekday_counts[weekday] += 1
+                
+                if duration:
+                    total_duration += duration
+                if speed and speed > 0:
+                    total_speed += speed
+                    speed_count += 1
+            
+            result["activity_by_weekday"] = weekday_counts
+            result["total_sessions"] = total_sessions
+            result["avg_session_duration"] = round(total_duration / total_sessions) if total_sessions > 0 else 0
+            result["avg_speed_mbps"] = round(total_speed / speed_count, 1) if speed_count > 0 else 0
+            
+            conn.close()
+        
+        # Get traffic categories from user stats
+        user_stats = _calculate_user_alltime_stats()
+        if email in user_stats:
+            stats = user_stats[email]
+            domains = stats.get("top3Domains", [])  # Now returns top 10
+            
+            # Categorize domains
+            categories = defaultdict(int)
+            
+            video_domains = ["youtube", "youtu.be", "vimeo", "twitch", "netflix", "hulu"]
+            social_domains = ["facebook", "instagram", "twitter", "tiktok", "vk.com", "ok.ru"]
+            messenger_domains = ["telegram", "whatsapp", "viber", "signal", "discord"]
+            google_domains = ["google", "googleapis", "gstatic", "googleusercontent"]
+            apple_domains = ["apple.com", "icloud", "itunes", "akamai"]
+            ai_domains = ["anthropic", "openai", "claude", "chatgpt", "cursor"]
+            
+            for domain_data in domains:
+                domain = domain_data.get("domain", "").lower()
+                traffic = domain_data.get("trafficBytes", 0)
+                
+                categorized = False
+                
+                if any(v in domain for v in video_domains):
+                    categories["video"] += traffic
+                    categorized = True
+                if any(s in domain for s in social_domains):
+                    categories["social"] += traffic
+                    categorized = True
+                if any(m in domain for m in messenger_domains):
+                    categories["messengers"] += traffic
+                    categorized = True
+                if any(g in domain for g in google_domains):
+                    categories["google"] += traffic
+                    categorized = True
+                if any(a in domain for a in apple_domains):
+                    categories["apple"] += traffic
+                    categorized = True
+                if any(ai in domain for ai in ai_domains):
+                    categories["ai"] += traffic
+                    categorized = True
+                
+                if not categorized:
+                    categories["other"] += traffic
+            
+            # Convert to percentage
+            total_traffic = sum(categories.values())
+            if total_traffic > 0:
+                result["traffic_categories"] = {
+                    k: {"bytes": v, "percent": round((v / total_traffic) * 100, 1)}
+                    for k, v in sorted(categories.items(), key=lambda x: x[1], reverse=True)
+                }
+        
+        # Get recent history events
+        try:
+            events = []
+            if os.path.exists(EVENTS_PATH):
+                with open(EVENTS_PATH, "r", encoding="utf-8") as f:
+                    for ln in f:
+                        try:
+                            ev = json.loads(ln.strip())
+                            if ev.get("email") == email or ev.get("user") == email:
+                                events.append(ev)
+                        except:
+                            pass
+            
+            # Get last 10 events
+            result["history_events"] = list(reversed(events))[:10]
+        except:
+            pass
+        
+        set_cached(cache_key, result)
+        return ok(result)
+        
+    except Exception as e:
+        return fail(str(e))
+
+@app.get("/api/quality/stats")
+
+def api_quality_stats():
+    """Get daily quality statistics based on disconnect events"""
+    if not HAS_QUALITY_MONITOR:
+        return fail("Quality monitoring not available")
+
+    try:
+        days = safe_int(request.args.get("days"), 7)
+        cutoff_ts = int(time.time()) - (days * 86400)
+
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH))
+        cursor = conn.cursor()
+
+        # Get daily disconnect events from Stats API monitoring
+        cursor.execute("""
+            SELECT
+                date(timestamp, 'unixepoch') as date,
+                COUNT(*) as disconnect_count,
+                COUNT(DISTINCT email) as affected_users,
+                AVG(offline_duration) as avg_offline_duration
+            FROM disconnect_events
+            WHERE timestamp >= ?
+            GROUP BY date(timestamp, 'unixepoch')
+            ORDER BY date DESC
+        """, (cutoff_ts,))
+
+        daily_stats = []
+        for row in cursor.fetchall():
+            date, disconnects, affected, avg_duration = row
+
+            # Get total users monitored on this date
+            day_start = int(dt.datetime.strptime(date, "%Y-%m-%d").timestamp())
+            day_end = day_start + 86400
+
+            cursor.execute("""
+                SELECT COUNT(DISTINCT email) FROM online_status_log
+                WHERE timestamp >= ? AND timestamp < ?
+            """, (day_start, day_end))
+            total_users = cursor.fetchone()[0] or 1
+
+            # Calculate stability for this day
+            # 0 disconnects = 100%, 2*users disconnects = 0%
+            max_expected = total_users * 2
+            stability = max(0, round(100 - (disconnects / max_expected * 100))) if max_expected > 0 else 100
+
+            daily_stats.append({
+                "date": date,
+                "disconnect_events": disconnects,
+                "affected_users": affected,
+                "total_users": total_users,
+                "avg_offline_duration": round(avg_duration / 60, 1) if avg_duration else 0,  # in minutes
+                "stability_percent": stability,
+                # Legacy fields
+                "total_reconnects": disconnects,
+                "avg_quality": stability,
+                "problem_users": affected
+            })
+
+        # If no disconnect data yet, try to get from daily_quality_stats (legacy)
+        if not daily_stats:
+            cutoff_date = (dt.datetime.utcnow() - dt.timedelta(days=days)).strftime("%Y-%m-%d")
+            cursor.execute("""
+                SELECT
+                    date,
+                    SUM(total_reconnects) as reconnects,
+                    AVG(quality_score) as avg_quality,
+                    COUNT(DISTINCT email) as users
+                FROM daily_quality_stats
+                WHERE date >= ?
+                GROUP BY date
+                ORDER BY date DESC
+            """, (cutoff_date,))
+
+            for row in cursor.fetchall():
+                date, reconnects, quality, users = row
+                daily_stats.append({
+                    "date": date,
+                    "disconnect_events": reconnects or 0,
+                    "affected_users": 0,
+                    "total_users": users,
+                    "avg_offline_duration": 0,
+                    "stability_percent": round(quality) if quality else 100,
+                    "total_reconnects": reconnects or 0,
+                    "avg_quality": round(quality) if quality else 100,
+                    "problem_users": 0
+                })
+
+        conn.close()
+
+        return ok({"daily_stats": daily_stats})
+
+    except Exception as e:
+        return fail(str(e))
+
+
+# ==================== Online Monitoring via Stats API ====================
+
+XRAY_API_SERVER = "127.0.0.1:10085"
+ONLINE_POLL_INTERVAL = 60  # seconds
+OFFLINE_THRESHOLD = 300  # 5 minutes - consider this a disconnect
+
+# In-memory state for tracking online status
+_online_state: Dict[str, bool] = {}  # {email: was_online}
+_offline_since: Dict[str, int] = {}  # {email: timestamp when went offline}
+_online_monitor_lock = threading.Lock()
+
+
+def poll_online_users() -> Dict[str, int]:
+    """
+    Poll Xray Stats API for online status of all users.
+    Returns dict {email: online_count}
+    """
+    clients = get_xray_clients()
+    online_status = {}
+
+    for client in clients:
+        email = client.get("email", "")
+        if not email:
+            continue
+
+        try:
+            result = subprocess.run(
+                ['xray', 'api', 'statsonline',
+                 f'-server={XRAY_API_SERVER}',
+                 f'-email={email}'],
+                capture_output=True, text=True, timeout=5
+            )
+
+            if result.returncode == 0:
+                try:
+                    data = json.loads(result.stdout)
+                    value = data.get('stat', {}).get('value', 0)
+                    online_status[email] = int(value)
+                except (json.JSONDecodeError, ValueError):
+                    online_status[email] = 0
+            else:
+                online_status[email] = 0
+
+        except subprocess.TimeoutExpired:
+            online_status[email] = 0
+        except Exception:
+            online_status[email] = 0
+
+    return online_status
+
+
+def record_online_status(email: str, timestamp: int, status: str, online_count: int = 0):
+    """Record status change to database"""
+    if not HAS_QUALITY_MONITOR:
+        return
+
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO online_status_log (timestamp, email, status, online_count)
+            VALUES (?, ?, ?, ?)
+        """, (timestamp, email, status, online_count))
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error recording online status: {e}")
+
+
+def record_disconnect_event(email: str, timestamp: int, offline_duration: int):
+    """Record a disconnect event to database"""
+    if not HAS_QUALITY_MONITOR:
+        return
+
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO disconnect_events (timestamp, email, offline_duration, detected_by)
+            VALUES (?, ?, ?, 'stats_api')
+        """, (timestamp, email, offline_duration))
+
+        conn.commit()
+        conn.close()
+
+        # Also record as event
+        append_event({
+            "type": "CONNECTION",
+            "severity": "WARN",
+            "action": "disconnect_detected",
+            "user": email,
+            "message": f"User {email} was offline for {offline_duration // 60} min"
+        })
+    except Exception as e:
+        print(f"Error recording disconnect event: {e}")
+
+
+def online_monitoring_loop():
+    """
+    Background loop that polls Xray Stats API every minute
+    and tracks online/offline transitions.
+    """
+    global _online_state, _offline_since
+
+    print("Online monitoring loop started")
+
+    while True:
+        try:
+            current_status = poll_online_users()
+            timestamp = int(time.time())
+
+            with _online_monitor_lock:
+                for email, online_count in current_status.items():
+                    is_online = online_count > 0
+                    was_online = _online_state.get(email)
+
+                    # Track state transitions
+                    if was_online is not None:
+                        if was_online and not is_online:
+                            # User went offline
+                            _offline_since[email] = timestamp
+                            record_online_status(email, timestamp, 'offline', 0)
+
+                        elif not was_online and is_online:
+                            # User came back online
+                            record_online_status(email, timestamp, 'online', online_count)
+
+                            # Check if offline duration > threshold
+                            offline_start = _offline_since.get(email)
+                            if offline_start:
+                                offline_duration = timestamp - offline_start
+                                if offline_duration >= OFFLINE_THRESHOLD:
+                                    # This is a disconnect event!
+                                    record_disconnect_event(email, timestamp, offline_duration)
+                                del _offline_since[email]
+
+                    else:
+                        # First time seeing this user
+                        if is_online:
+                            record_online_status(email, timestamp, 'online', online_count)
+                        else:
+                            record_online_status(email, timestamp, 'offline', 0)
+                            _offline_since[email] = timestamp
+
+                    _online_state[email] = is_online
+
+        except Exception as e:
+            print(f"Error in online monitoring loop: {e}")
+
+        time.sleep(ONLINE_POLL_INTERVAL)
+
+
+def start_online_monitoring():
+    """Start the online monitoring background thread"""
+    if not HAS_QUALITY_MONITOR:
+        print("Online monitoring not started: quality_monitor not available")
+        return
+
+    thread = threading.Thread(target=online_monitoring_loop, daemon=True)
+    thread.start()
+    print("Online monitoring thread started")
+
+
+# ==================== End Online Monitoring ====================
+
+
+# ==================== Device Monitoring ====================
+# Tracks individual devices (by IP) for per-device disconnect history
+
+DEVICE_POLL_INTERVAL = 30  # seconds
+DEVICE_OFFLINE_THRESHOLD = 300  # 5 minutes without activity = device offline
+
+# In-memory state for device tracking
+_device_last_seen: Dict[tuple, int] = {}  # {(email, ip): timestamp}
+_device_online: Dict[tuple, bool] = {}  # {(email, ip): is_online}
+_device_monitor_lock = threading.Lock()
+
+# Regex to extract IP from access.log: "from 217.15.56.212:65417"
+ACCESS_LOG_IP_RE = re.compile(r"from\s+(?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):\d+")
+
+
+def parse_access_log_for_devices(minutes: int = 10) -> List[Dict[str, Any]]:
+    """
+    Parse access.log for recent connections with IP addresses.
+    Returns list of {email, ip, timestamp} dicts.
+    """
+    if not os.path.exists(ACCESS_LOG):
+        return []
+
+    cutoff_ts = time.time() - (minutes * 60)
+    connections = []
+
+    try:
+        lines = _tail_file(ACCESS_LOG, 3000)  # Read more lines for device tracking
+        for line in lines:
+            # Extract timestamp
+            m = TS_RE.search(line)
+            if not m:
+                continue
+            try:
+                ts = dt.datetime(
+                    int(m.group("y")), int(m.group("m")), int(m.group("d")),
+                    int(m.group("h")), int(m.group("mi")), int(m.group("s"))
+                ).timestamp()
+                if ts < cutoff_ts:
+                    continue
+            except (ValueError, TypeError):
+                continue
+
+            # Extract email
+            em = EMAIL_RE1.search(line) or EMAIL_RE2.search(line)
+            if not em:
+                continue
+            email = (em.group("email") or "").strip()
+            if not email:
+                continue
+
+            # Extract IP
+            ip_match = ACCESS_LOG_IP_RE.search(line)
+            if not ip_match:
+                continue
+            ip = ip_match.group("ip")
+
+            connections.append({
+                "email": email,
+                "ip": ip,
+                "timestamp": int(ts)
+            })
+
+    except Exception as e:
+        print(f"Error parsing access log for devices: {e}")
+
+    return connections
+
+
+def upsert_device(email: str, ip: str, timestamp: int):
+    """Insert or update device record in database"""
+    if not HAS_QUALITY_MONITOR:
+        return
+
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+        cursor = conn.cursor()
+
+        # Check if device exists
+        cursor.execute("""
+            SELECT id, total_connections FROM user_devices
+            WHERE email = ? AND ip_address = ?
+        """, (email, ip))
+        row = cursor.fetchone()
+
+        if row:
+            # Update existing device
+            cursor.execute("""
+                UPDATE user_devices
+                SET last_seen = ?, is_online = 1, total_connections = total_connections + 1
+                WHERE email = ? AND ip_address = ?
+            """, (timestamp, email, ip))
+        else:
+            # Create new device
+            cursor.execute("""
+                INSERT INTO user_devices (email, ip_address, first_seen, last_seen, is_online, total_connections)
+                VALUES (?, ?, ?, ?, 1, 1)
+            """, (email, ip, timestamp, timestamp))
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error upserting device: {e}")
+
+
+def mark_device_offline(email: str, ip: str, timestamp: int):
+    """Mark device as offline in database"""
+    if not HAS_QUALITY_MONITOR:
+        return
+
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE user_devices
+            SET is_online = 0
+            WHERE email = ? AND ip_address = ?
+        """, (email, ip))
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error marking device offline: {e}")
+
+
+def record_device_event(email: str, ip: str, timestamp: int, event_type: str, offline_duration: int = None):
+    """Record device event (online, offline, disconnect) to database"""
+    if not HAS_QUALITY_MONITOR:
+        return
+
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO device_events (timestamp, email, ip_address, event_type, offline_duration)
+            VALUES (?, ?, ?, ?, ?)
+        """, (timestamp, email, ip, event_type, offline_duration))
+
+        # If disconnect event, update device's disconnect count and quality score
+        if event_type == 'disconnect':
+            cursor.execute("""
+                UPDATE user_devices
+                SET disconnect_count = disconnect_count + 1,
+                    quality_score = MAX(0, quality_score - 5)
+                WHERE email = ? AND ip_address = ?
+            """, (email, ip))
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error recording device event: {e}")
+
+
+def device_monitoring_loop():
+    """
+    Background loop that monitors devices by parsing access.log.
+    Tracks each (email, ip) pair separately.
+    """
+    global _device_last_seen, _device_online
+
+    print("Device monitoring loop started")
+
+    while True:
+        try:
+            # Parse recent connections from access.log
+            connections = parse_access_log_for_devices(minutes=10)
+            now_ts = int(time.time())
+
+            # Group connections by (email, ip) and get latest timestamp
+            device_activity: Dict[tuple, int] = {}
+            for conn in connections:
+                key = (conn['email'], conn['ip'])
+                if key not in device_activity or conn['timestamp'] > device_activity[key]:
+                    device_activity[key] = conn['timestamp']
+
+            with _device_monitor_lock:
+                # Process activity for each device
+                for (email, ip), last_activity in device_activity.items():
+                    key = (email, ip)
+                    old_last_seen = _device_last_seen.get(key)
+                    was_online = _device_online.get(key, False)
+
+                    # Update last seen
+                    _device_last_seen[key] = last_activity
+
+                    # Check if device was offline and came back
+                    if old_last_seen is not None:
+                        gap = last_activity - old_last_seen
+                        if gap > DEVICE_OFFLINE_THRESHOLD and not was_online:
+                            # Device was offline > 5 min and came back online
+                            # This is a DISCONNECT EVENT!
+                            record_device_event(email, ip, last_activity, 'disconnect', gap)
+                            record_device_event(email, ip, last_activity, 'online')
+
+                            # Log event
+                            append_event({
+                                "type": "CONNECTION",
+                                "severity": "WARN",
+                                "action": "device_reconnect",
+                                "user": email,
+                                "ip": ip,
+                                "message": f"Device {ip} for {email} was offline {gap // 60} min, reconnected"
+                            })
+                        elif not was_online:
+                            # Device came back online (short gap)
+                            record_device_event(email, ip, last_activity, 'online')
+
+                    else:
+                        # First time seeing this device
+                        record_device_event(email, ip, last_activity, 'online')
+
+                    # Update device in database
+                    upsert_device(email, ip, last_activity)
+                    _device_online[key] = True
+
+                # Check for devices that went offline
+                for key, last_seen in list(_device_last_seen.items()):
+                    if now_ts - last_seen > DEVICE_OFFLINE_THRESHOLD:
+                        if _device_online.get(key, False):
+                            email, ip = key
+                            # Device went offline
+                            mark_device_offline(email, ip, now_ts)
+                            record_device_event(email, ip, now_ts, 'offline')
+                            _device_online[key] = False
+
+        except Exception as e:
+            print(f"Error in device monitoring loop: {e}")
+
+        time.sleep(DEVICE_POLL_INTERVAL)
+
+
+def start_device_monitoring():
+    """Start the device monitoring background thread"""
+    if not HAS_QUALITY_MONITOR:
+        print("Device monitoring not started: quality_monitor not available")
+        return
+
+    thread = threading.Thread(target=device_monitoring_loop, daemon=True)
+    thread.start()
+    print("Device monitoring thread started")
+
+
+def get_user_devices(email: str = None) -> List[Dict[str, Any]]:
+    """Get devices for a user or all users"""
+    if not HAS_QUALITY_MONITOR:
+        return []
+
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+        cursor = conn.cursor()
+
+        if email:
+            cursor.execute("""
+                SELECT email, ip_address, first_seen, last_seen, is_online,
+                       total_connections, disconnect_count, quality_score, device_name
+                FROM user_devices
+                WHERE email = ?
+                ORDER BY last_seen DESC
+            """, (email,))
+        else:
+            cursor.execute("""
+                SELECT email, ip_address, first_seen, last_seen, is_online,
+                       total_connections, disconnect_count, quality_score, device_name
+                FROM user_devices
+                ORDER BY email, last_seen DESC
+            """)
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        devices = []
+        for row in rows:
+            devices.append({
+                "email": row[0],
+                "ip": row[1],
+                "first_seen": row[2],
+                "last_seen": row[3],
+                "is_online": bool(row[4]),
+                "total_connections": row[5],
+                "disconnect_count": row[6],
+                "quality_score": row[7],
+                "device_name": row[8]
+            })
+
+        return devices
+    except Exception as e:
+        print(f"Error getting user devices: {e}")
+        return []
+
+
+def get_devices_by_user() -> Dict[str, List[Dict[str, Any]]]:
+    """Get all devices grouped by user email"""
+    devices = get_user_devices()
+    result: Dict[str, List[Dict]] = {}
+    for device in devices:
+        email = device['email']
+        if email not in result:
+            result[email] = []
+        result[email].append(device)
+    return result
+
+
+def get_tcp_connections_per_ip() -> Dict[str, int]:
+    """
+    Parse ss output to count TCP connections per source IP on port 443.
+    Returns: {"217.15.56.212": 60, "185.75.180.146": 11, ...}
+    """
+    # Cache TCP connections (subprocess is expensive)
+    cache_key = "tcp_connections_map"
+    cached = get_cached(cache_key, ttl=10)
+    if cached is not None:
+        return cached
+
+    try:
+        result = subprocess.run(
+            ['ss', '-tnp', 'sport = :443'],
+            capture_output=True, text=True, timeout=5
+        )
+
+        if result.returncode != 0:
+            result_to_cache = {}
+            set_cached(cache_key, result_to_cache)
+            return result_to_cache
+
+        ip_counts: Dict[str, int] = {}
+
+        # Parse ss output
+        # Format: ESTAB 0 0 [::ffff:185.235.130.184]:443 [::ffff:217.15.56.212]:31079 users:(("xray",...))
+        for line in result.stdout.strip().split('\n'):
+            if 'xray' not in line:
+                continue
+
+            # Extract peer address (5th column)
+            parts = line.split()
+            if len(parts) < 5:
+                continue
+
+            peer = parts[4]  # Peer address:port
+
+            # Handle IPv4-mapped IPv6 format: [::ffff:1.2.3.4]:port
+            if '::ffff:' in peer:
+                # Extract IPv4 from [::ffff:1.2.3.4]:port
+                match = re.search(r'\[::ffff:(\d+\.\d+\.\d+\.\d+)\]', peer)
+                if match:
+                    ip = match.group(1)
+                    ip_counts[ip] = ip_counts.get(ip, 0) + 1
+            elif peer.startswith('['):
+                # Pure IPv6
+                match = re.search(r'\[([^\]]+)\]', peer)
+                if match:
+                    ip = match.group(1)
+                    ip_counts[ip] = ip_counts.get(ip, 0) + 1
+            else:
+                # Plain IPv4: 1.2.3.4:port
+                ip = peer.rsplit(':', 1)[0]
+                ip_counts[ip] = ip_counts.get(ip, 0) + 1
+
+        result_to_cache = ip_counts
+        set_cached(cache_key, result_to_cache)
+        return result_to_cache
+    except subprocess.TimeoutExpired:
+        print("Timeout getting TCP connections")
+        result_to_cache = {}
+        set_cached(cache_key, result_to_cache)
+        return result_to_cache
+    except Exception as e:
+        print(f"Error getting TCP connections: {e}")
+        result_to_cache = {}
+        set_cached(cache_key, result_to_cache)
+        return result_to_cache
+
+
+def get_xray_online_ips(email: str) -> Dict[str, int]:
+    """
+    Get online IPs for a user from X-Ray Stats API.
+    Returns: {"217.15.56.212": 1769460019, ...}  (IP -> last_seen timestamp)
+    """
+    try:
+        result = subprocess.run(
+            ['xray', 'api', 'statsonlineiplist',
+             f'-server={XRAY_API_SERVER}',
+             f'-email={email}'],
+            capture_output=True, text=True, timeout=5
+        )
+
+        if result.returncode != 0:
+            return {}
+
+        data = json.loads(result.stdout)
+        ips = data.get('ips', {})
+
+        # Convert timestamps - API returns either int or {"seconds": int, "nanos": int}
+        result_ips = {}
+        for ip, ts_data in ips.items():
+            if isinstance(ts_data, dict):
+                result_ips[ip] = ts_data.get('seconds', 0)
+            else:
+                result_ips[ip] = int(ts_data)
+
+        return result_ips
+    except (subprocess.TimeoutExpired, json.JSONDecodeError):
+        return {}
+    except Exception as e:
+        print(f"Error getting online IPs for {email}: {e}")
+        return {}
+
+
+def estimate_devices_behind_ip(tcp_connections: int, threshold: int) -> int:
+    """
+    Estimate number of devices behind a single IP based on TCP connections.
+
+    Heuristic:
+    - < threshold: 1 device
+    - threshold - 2*threshold: 2 devices
+    - etc.
+    """
+    if tcp_connections < threshold:
+        return 1
+    return min(5, 1 + (tcp_connections // threshold))
+
+
+def estimate_devices_with_heuristics(email: str, tcp_conns_map: Dict[str, int] = None) -> Dict[str, Any]:
+    """
+    Combine X-Ray online IPs + TCP connections for device estimation.
+
+    Returns:
+    {
+        "min_devices": 2,           # Unique IPs (certain)
+        "estimated_devices": 3,     # Estimate with heuristics
+        "sharing_suspected": True,  # Flag if heuristics triggered
+        "details": [
+            {
+                "ip": "217.15.56.212",
+                "tcp_connections": 60,
+                "last_seen": 1769460019,
+                "suspected_multi_device": True,
+                "estimated_behind_nat": 2
+            }
+        ]
+    }
+    """
+    # Get settings for thresholds
+    settings = read_json(SETTINGS_PATH, {})
+    device_settings = settings.get('device_detection', {})
+    threshold_warning = device_settings.get('tcp_threshold_warning', 30)
+    threshold_multiple = device_settings.get('tcp_threshold_multiple', 50)
+    enabled = device_settings.get('enabled', True)
+
+    # Get online IPs from X-Ray API
+    online_ips = get_xray_online_ips(email)
+
+    if not online_ips:
+        return {
+            "min_devices": 0,
+            "estimated_devices": 0,
+            "sharing_suspected": False,
+            "details": []
+        }
+
+    # Get TCP connections if not provided
+    if tcp_conns_map is None:
+        tcp_conns_map = get_tcp_connections_per_ip()
+
+    details = []
+    total_estimated = 0
+    sharing_suspected = False
+
+    for ip, last_seen in online_ips.items():
+        tcp_conns = tcp_conns_map.get(ip, 0)
+
+        # Estimate devices behind this IP
+        if enabled and tcp_conns >= threshold_multiple:
+            estimated = estimate_devices_behind_ip(tcp_conns, threshold_multiple)
+            suspected = True
+            sharing_suspected = True
+        else:
+            estimated = 1
+            suspected = tcp_conns >= threshold_warning if enabled else False
+
+        total_estimated += estimated
+
+        details.append({
+            "ip": ip,
+            "tcp_connections": tcp_conns,
+            "last_seen": last_seen,
+            "suspected_multi_device": suspected,
+            "estimated_behind_nat": estimated
+        })
+
+    # Sort by TCP connections descending
+    details.sort(key=lambda x: x['tcp_connections'], reverse=True)
+
+    return {
+        "min_devices": len(online_ips),
+        "estimated_devices": total_estimated,
+        "sharing_suspected": sharing_suspected,
+        "details": details
+    }
+
+
+# ==================== End Device Monitoring ====================
+
 
 # --- Backups ---
 
@@ -4360,7 +7160,7 @@ def _update_live_buffer():
                     "buffer": live_buffer,
                     "source": live_source,
                     "trafficAvailable": live_traffic_available,
-                    "updatedAt": now_utc_iso(),
+                    "last_update": now_utc_iso(),
                 })
             except Exception:
                 pass
@@ -4404,7 +7204,7 @@ def _update_live_buffer():
                 "buffer": live_buffer,
                 "source": live_source,
                 "trafficAvailable": live_traffic_available,
-                "updatedAt": now_utc_iso(),
+                "last_update": now_utc_iso(),
             })
         except Exception:
             pass
@@ -4429,7 +7229,7 @@ def _get_live_now() -> Dict[str, Any]:
         online_users = set()
         conns_values = []
         traffic_values = []
-        
+
         # Aggregate from buffer
         for metric_name, metric_data in live_buffer.items():
             for point in metric_data:
@@ -4440,17 +7240,47 @@ def _get_live_now() -> Dict[str, Any]:
                         conns_values.append(point.get("value", 0))
                     elif metric_name == "traffic":
                         traffic_values.append(point.get("value", 0))
-        
+
         # Use last value (most recent) instead of sum
         current_conns = conns_values[-1] if conns_values else 0
         current_traffic = traffic_values[-1] if traffic_values else 0
-        
+
+        # Get device information for online users
+        user_devices_info = {}
+        user_quality_info = {}
+        devices_by_user = get_devices_by_user()
+
+        for email in online_users:
+            devices = devices_by_user.get(email, [])
+            online_device_count = sum(1 for d in devices if d.get("is_online"))
+            total_devices = len(devices)
+
+            # Use Stats API online count if available, otherwise use device tracking
+            user_devices_info[email] = max(online_device_count, 1)  # At least 1 if user is online
+
+            # Calculate quality info
+            if devices:
+                avg_quality = sum(d.get("quality_score", 100) for d in devices) // len(devices)
+                total_disconnects = sum(d.get("disconnect_count", 0) for d in devices)
+            else:
+                avg_quality = 100
+                total_disconnects = 0
+
+            user_quality_info[email] = {
+                "quality": avg_quality,
+                "disconnects": total_disconnects,
+                "devices": total_devices
+            }
+
         return {
             "onlineUsers": list(online_users),  # Return list of user IDs
             "onlineUsersCount": len(online_users),
             "conns": current_conns,
             "trafficBytes": current_traffic,
             "trafficAvailable": live_traffic_available,
+            "timestamp": int(time.time()),  # Current Unix timestamp
+            "userDevices": user_devices_info,  # {email: device_count}
+            "userQuality": user_quality_info,  # {email: {quality, disconnects, devices}}
         }
 
 @app.get("/api/live/now")
@@ -4753,6 +7583,189 @@ def bootstrap():
     health_thread = threading.Thread(target=health_checker, daemon=True)
     health_thread.start()
 
+    # Start metrics recorder (every 60 seconds)
+    def metrics_recorder():
+        import sqlite3
+
+        # Initialize database
+        db_path = os.path.join(DATA_DIR, "metrics.db")
+
+        def init_db():
+            conn = sqlite3.connect(db_path, timeout=10)
+            cursor = conn.cursor()
+
+            # 1-minute metrics table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS metrics_1m (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp INTEGER NOT NULL,
+                    cpu_percent REAL NOT NULL,
+                    ram_percent REAL NOT NULL,
+                    ram_used_gb REAL NOT NULL,
+                    ram_total_gb REAL NOT NULL
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_metrics_1m_ts ON metrics_1m(timestamp)")
+
+            # 5-minute aggregated metrics
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS metrics_5m (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp INTEGER NOT NULL,
+                    cpu_percent_avg REAL NOT NULL,
+                    ram_percent_avg REAL NOT NULL,
+                    ram_used_gb_avg REAL NOT NULL,
+                    ram_total_gb REAL NOT NULL
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_metrics_5m_ts ON metrics_5m(timestamp)")
+
+            # 30-minute aggregated metrics
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS metrics_30m (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp INTEGER NOT NULL,
+                    cpu_percent_avg REAL NOT NULL,
+                    ram_percent_avg REAL NOT NULL,
+                    ram_used_gb_avg REAL NOT NULL,
+                    ram_total_gb REAL NOT NULL
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_metrics_30m_ts ON metrics_30m(timestamp)")
+
+            conn.commit()
+            conn.close()
+
+        def record_metrics():
+            try:
+                resources = get_system_resources()
+                now_ts = int(dt.datetime.utcnow().timestamp())
+
+                cpu = resources.get("cpu", 0)
+                ram = resources.get("ram", 0)
+                ram_used = resources.get("ram_used_gb", 0)
+                ram_total = resources.get("ram_total_gb", 4.0)
+
+                conn = sqlite3.connect(db_path, timeout=10)
+                cursor = conn.cursor()
+
+                # Insert 1-minute record
+                cursor.execute("""
+                    INSERT INTO metrics_1m (timestamp, cpu_percent, ram_percent, ram_used_gb, ram_total_gb)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (now_ts, cpu, ram, ram_used, ram_total))
+
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                try:
+                    append_event({
+                        "type": "METRICS",
+                        "severity": "ERROR",
+                        "action": "record_failed",
+                        "error": type(e).__name__,
+                        "message": f"Failed to record metrics: {str(e)[:200]}"
+                    })
+                except Exception:
+                    pass
+
+        def aggregate_metrics():
+            """Aggregate 1m data to 5m and 30m tables"""
+            try:
+                conn = sqlite3.connect(db_path, timeout=10)
+                cursor = conn.cursor()
+                now_ts = int(dt.datetime.utcnow().timestamp())
+
+                # Aggregate to 5m (if we have 5+ minutes of data)
+                bucket_5m = (now_ts // 300) * 300  # Round to 5-minute boundary
+                cursor.execute("""
+                    INSERT OR REPLACE INTO metrics_5m (timestamp, cpu_percent_avg, ram_percent_avg, ram_used_gb_avg, ram_total_gb)
+                    SELECT
+                        ? as timestamp,
+                        AVG(cpu_percent) as cpu_avg,
+                        AVG(ram_percent) as ram_avg,
+                        AVG(ram_used_gb) as ram_used_avg,
+                        MAX(ram_total_gb) as ram_total
+                    FROM metrics_1m
+                    WHERE timestamp >= ? AND timestamp < ?
+                    HAVING COUNT(*) > 0
+                """, (bucket_5m, bucket_5m - 300, bucket_5m))
+
+                # Aggregate to 30m (if we have 30+ minutes of data)
+                bucket_30m = (now_ts // 1800) * 1800  # Round to 30-minute boundary
+                cursor.execute("""
+                    INSERT OR REPLACE INTO metrics_30m (timestamp, cpu_percent_avg, ram_percent_avg, ram_used_gb_avg, ram_total_gb)
+                    SELECT
+                        ? as timestamp,
+                        AVG(cpu_percent_avg) as cpu_avg,
+                        AVG(ram_percent_avg) as ram_avg,
+                        AVG(ram_used_gb_avg) as ram_used_avg,
+                        MAX(ram_total_gb) as ram_total
+                    FROM metrics_5m
+                    WHERE timestamp >= ? AND timestamp < ?
+                    HAVING COUNT(*) > 0
+                """, (bucket_30m, bucket_30m - 1800, bucket_30m))
+
+                # Clean up old 1m data (keep 24 hours)
+                cutoff_1m = now_ts - 86400
+                cursor.execute("DELETE FROM metrics_1m WHERE timestamp < ?", (cutoff_1m,))
+
+                # Clean up old 5m data (keep 7 days)
+                cutoff_5m = now_ts - 7 * 86400
+                cursor.execute("DELETE FROM metrics_5m WHERE timestamp < ?", (cutoff_5m,))
+
+                # Clean up old 30m data (keep 30 days)
+                cutoff_30m = now_ts - 30 * 86400
+                cursor.execute("DELETE FROM metrics_30m WHERE timestamp < ?", (cutoff_30m,))
+
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+
+        # Initialize DB on startup
+        try:
+            init_db()
+        except Exception:
+            pass
+
+        # Record metrics loop
+        record_count = 0
+        while True:
+            try:
+                record_metrics()
+                record_count += 1
+
+                # Aggregate every 5 minutes
+                if record_count % 5 == 0:
+                    aggregate_metrics()
+            except Exception:
+                pass
+            time.sleep(60)  # Record every minute
+
+    metrics_thread = threading.Thread(target=metrics_recorder, daemon=True)
+    metrics_thread.start()
+
+    # Start quality monitoring thread
+    if HAS_QUALITY_MONITOR:
+        try:
+            quality_monitor.start_monitoring()
+            print("Quality monitoring started")
+        except Exception as e:
+            print(f"Warning: Failed to start quality monitoring: {e}")
+
+    # Start online monitoring thread (polls Stats API)
+    try:
+        start_online_monitoring()
+    except Exception as e:
+        print(f"Warning: Failed to start online monitoring: {e}")
+
+    # Start device monitoring thread (tracks devices by IP)
+    try:
+        start_device_monitoring()
+    except Exception as e:
+        print(f"Warning: Failed to start device monitoring: {e}")
+
 bootstrap()
 
 # Shutdown handler
@@ -4793,5 +7806,856 @@ def signal_handler(signum, frame):
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
+
+
+# =============================================================================
+# IP ANALYTICS MODULE - 5 ENDPOINTS
+# =============================================================================
+
+@app.route("/api/ip-analytics/sharing-timeline")
+def ip_analytics_sharing_timeline():
+    from collections import defaultdict
+    import sqlite3
+    conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    target_ip = request.args.get('ip')
+    
+    all_clients = get_xray_clients()
+    email_to_alias = {client.get("email", ""): client.get("alias", "") for client in all_clients}
+    
+    if not target_ip:
+        cursor.execute("""
+            SELECT 
+                ip_address,
+                COUNT(DISTINCT email) as users_count,
+                MIN(first_seen) as first_seen,
+                MAX(last_seen) as last_seen,
+                SUM(total_connections) as total_connections
+            FROM user_devices
+            WHERE ip_address IS NOT NULL AND ip_address != ''
+            GROUP BY ip_address
+            HAVING users_count > 1
+            ORDER BY users_count DESC, total_connections DESC
+        """)
+        
+        shared_ips = []
+        for row in cursor.fetchall():
+            ip, users_count, first_seen, last_seen, total_conns = row
+            
+            cursor.execute("""
+                SELECT DISTINCT email 
+                FROM user_devices 
+                WHERE ip_address = ?
+            """, (ip,))
+            users = [email_to_alias.get(r[0], r[0].split("@")[0]) for r in cursor.fetchall()]
+            
+            shared_ips.append({
+                "ip": ip,
+                "users_count": users_count,
+                "users": users,
+                "first_seen": first_seen,
+                "last_seen": last_seen,
+                "total_connections": total_conns or 0
+            })
+        
+        conn.close()
+        return jsonify({"shared_ips": shared_ips})
+    
+    else:
+        cursor.execute("""
+            SELECT 
+                email,
+                MIN(first_seen) as first_seen,
+                MAX(last_seen) as last_seen,
+                SUM(total_connections) as total_connections
+            FROM user_devices
+            WHERE ip_address = ?
+            GROUP BY email
+            ORDER BY first_seen ASC
+        """, (target_ip,))
+        
+        users_data = []
+        total_connections_all = 0
+        
+        for row in cursor.fetchall():
+            email, first_seen, last_seen, total_conns = row
+            total_connections_all += total_conns or 0
+        
+        cursor.execute("""
+            SELECT 
+                email,
+                MIN(first_seen) as first_seen,
+                MAX(last_seen) as last_seen,
+                SUM(total_connections) as total_connections
+            FROM user_devices
+            WHERE ip_address = ?
+            GROUP BY email
+            ORDER BY first_seen ASC
+        """, (target_ip,))
+        
+        for row in cursor.fetchall():
+            email, first_seen, last_seen, total_conns = row
+            alias = email_to_alias.get(email, email.split("@")[0])
+            
+            cursor.execute("""
+                SELECT timestamp
+                FROM connection_events
+                WHERE email = ? AND ip_address = ?
+                ORDER BY timestamp ASC
+            """, (email, target_ip))
+            
+            all_timestamps = [r[0] for r in cursor.fetchall()]
+            
+            date_connections = defaultdict(list)
+            for ts in all_timestamps:
+                date_obj = dt.datetime.utcfromtimestamp(ts)
+                date_str = date_obj.strftime("%Y-%m-%d")
+                date_connections[date_str].append(ts)
+            
+            daily_usage = []
+            for date_str in sorted(date_connections.keys()):
+                timestamps = date_connections[date_str]
+                first_ts = min(timestamps)
+                last_ts = max(timestamps)
+                
+                first_time = dt.datetime.utcfromtimestamp(first_ts).strftime("%H:%M")
+                last_time = dt.datetime.utcfromtimestamp(last_ts).strftime("%H:%M")
+                
+                daily_usage.append({
+                    "date": date_str,
+                    "connections": len(timestamps),
+                    "time_range": f"{first_time}-{last_time}",
+                    "start_timestamp": first_ts,
+                    "end_timestamp": last_ts
+                })
+            
+            users_data.append({
+                "email": email,
+                "alias": alias,
+                "first_seen": first_seen,
+                "last_seen": last_seen,
+                "total_connections": total_conns or 0,
+                "usage_percent": round((total_conns or 0) / total_connections_all * 100, 1) if total_connections_all > 0 else 0,
+                "daily_usage": daily_usage
+            })
+        
+        overlaps = []
+        for i, user1 in enumerate(users_data):
+            for user2 in users_data[i+1:]:
+                time_overlap = not (user1["last_seen"] < user2["first_seen"] or user2["last_seen"] < user1["first_seen"])
+                
+                if time_overlap:
+                    overlaps.append({
+                        "user1": user1["alias"],
+                        "user2": user2["alias"],
+                        "time_overlap": True
+                    })
+        
+        conn.close()
+        return jsonify({
+            "ip": target_ip,
+            "users": users_data,
+            "overlaps": overlaps
+        })
+
+
+@app.route("/api/ip-analytics/concurrent-matrix")
+def ip_analytics_concurrent_matrix():
+    from collections import defaultdict
+    import sqlite3
+    conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    
+    all_clients = get_xray_clients()
+    email_to_alias = {client.get("email", ""): client.get("alias", "") for client in all_clients}
+    
+    cursor.execute("""
+        SELECT DISTINCT email
+        FROM user_devices
+        WHERE ip_address IS NOT NULL AND ip_address != ''
+        ORDER BY email
+    """)
+    
+    all_users = [row[0] for row in cursor.fetchall()]
+    
+    matrix = {}
+    for user1 in all_users:
+        alias1 = email_to_alias.get(user1, user1.split("@")[0])
+        matrix[alias1] = {}
+        
+        for user2 in all_users:
+            if user1 == user2:
+                continue
+                
+            alias2 = email_to_alias.get(user2, user2.split("@")[0])
+            
+            cursor.execute("""
+                SELECT COUNT(DISTINCT ud1.ip_address)
+                FROM user_devices ud1
+                JOIN user_devices ud2 ON ud1.ip_address = ud2.ip_address
+                WHERE ud1.email = ? AND ud2.email = ?
+                AND ud1.ip_address IS NOT NULL AND ud1.ip_address != ''
+            """, (user1, user2))
+            
+            shared_count = cursor.fetchone()[0]
+            if shared_count > 0:
+                matrix[alias1][alias2] = shared_count
+    
+    conn.close()
+    return jsonify({"matrix": matrix, "users": [email_to_alias.get(u, u.split("@")[0]) for u in all_users]})
+
+
+@app.route("/api/ip-analytics/quality-leaderboard")
+def ip_analytics_quality_leaderboard():
+    from collections import defaultdict
+    import sqlite3
+    conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT 
+            ip_address,
+            ROUND(AVG(quality_score), 1) as avg_quality,
+            SUM(disconnect_count) as total_disconnects,
+            SUM(total_connections) as total_connections,
+            COUNT(DISTINCT email) as users_count
+        FROM user_devices
+        WHERE ip_address IS NOT NULL AND ip_address != ''
+        GROUP BY ip_address
+        ORDER BY avg_quality DESC, total_connections DESC
+        LIMIT 50
+    """)
+    
+    leaderboard = []
+    for row in cursor.fetchall():
+        ip, avg_quality, total_disconnects, total_connections, users_count = row
+        leaderboard.append({
+            "ip": ip,
+            "avg_quality": avg_quality or 0,
+            "total_disconnects": total_disconnects or 0,
+            "total_connections": total_connections or 0,
+            "users_count": users_count
+        })
+    
+    conn.close()
+    return jsonify({"leaderboard": leaderboard})
+
+
+@app.route("/api/ip-analytics/user-movement")
+def ip_analytics_user_movement():
+    email = request.args.get('email')
+    if not email:
+        return jsonify({"error": "email parameter required"}), 400
+    
+    import sqlite3
+    conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    
+    all_clients = get_xray_clients()
+    email_to_alias = {client.get("email", ""): client.get("alias", "") for client in all_clients}
+    alias = email_to_alias.get(email, email.split("@")[0])
+    
+    cursor.execute("""
+        SELECT timestamp, ip_address, action
+        FROM connection_events
+        WHERE email = ?
+        ORDER BY timestamp ASC
+    """, (email,))
+    
+    events = cursor.fetchall()
+    
+    movements = []
+    previous_ip = None
+    
+    for timestamp, ip_address, action in events:
+        if action == 'connect' and ip_address:
+            if previous_ip and previous_ip != ip_address:
+                movements.append({
+                    "from_ip": previous_ip,
+                    "to_ip": ip_address,
+                    "timestamp": timestamp
+                })
+            previous_ip = ip_address
+    
+    cursor.execute("""
+        SELECT 
+            ip_address,
+            MIN(first_seen) as first_seen,
+            MAX(last_seen) as last_seen,
+            SUM(total_connections) as total_connections
+        FROM user_devices
+        WHERE email = ? AND ip_address IS NOT NULL AND ip_address != ''
+        GROUP BY ip_address
+        ORDER BY first_seen ASC
+    """, (email,))
+    
+    unique_ips = []
+    for row in cursor.fetchall():
+        ip, first_seen, last_seen, total_conns = row
+        unique_ips.append({
+            "ip": ip,
+            "first_seen": first_seen,
+            "last_seen": last_seen,
+            "total_connections": total_conns or 0
+        })
+    
+    mobility_score = len(unique_ips)
+    
+    conn.close()
+    return jsonify({
+        "email": email,
+        "alias": alias,
+        "movements": movements,
+        "unique_ips": unique_ips,
+        "mobility_score": mobility_score
+    })
+
+
+@app.route("/api/ip-analytics/time-heatmap")
+def ip_analytics_time_heatmap():
+    email = request.args.get('email')
+    ip = request.args.get('ip')
+    
+    if not email and not ip:
+        return jsonify({"error": "email or ip parameter required"}), 400
+    
+    import sqlite3
+    from collections import defaultdict
+    conn = sqlite3.connect(str(quality_monitor.QUALITY_DB_PATH), timeout=10)
+    cursor = conn.cursor()
+    
+    heatmap = [[0 for _ in range(24)] for _ in range(7)]
+    
+    if email:
+        cursor.execute("""
+            SELECT timestamp, ip_address
+            FROM connection_events
+            WHERE email = ? AND action = 'connect'
+        """, (email,))
+    else:
+        cursor.execute("""
+            SELECT timestamp, ip_address
+            FROM connection_events
+            WHERE ip_address = ? AND action = 'connect'
+        """, (ip,))
+    
+    ip_connections = defaultdict(int)
+    
+    for row in cursor.fetchall():
+        timestamp, ip_addr = row
+        dt_obj = dt.datetime.utcfromtimestamp(timestamp)
+        
+        day_of_week = dt_obj.weekday()
+        hour = dt_obj.hour
+        
+        heatmap[day_of_week][hour] += 1
+        
+        if email and ip_addr:
+            ip_connections[ip_addr] += 1
+    
+    ip_breakdown = []
+    if email:
+        sorted_ips = sorted(ip_connections.items(), key=lambda x: x[1], reverse=True)[:10]
+        ip_breakdown = [{"ip": ip_addr, "connections": count} for ip_addr, count in sorted_ips]
+    
+    conn.close()
+    return jsonify({
+        "heatmap": heatmap,
+        "ip_breakdown": ip_breakdown if email else None,
+        "filter": {"email": email} if email else {"ip": ip}
+    })
+
+# =============================================================================
+# END IP ANALYTICS MODULE
+# =============================================================================
+
+
 if __name__ == "__main__":
     app.run(host=APP_HOST, port=APP_PORT, debug=False)
+
+@app.get("/api/users/traffic-calendar")
+def api_users_traffic_calendar():
+    """Get daily traffic for user over last 2 months for calendar heatmap"""
+    email = request.args.get("email", "").strip()
+    if not email:
+        return fail("email_required")
+    
+    months = safe_int(request.args.get("months"), 2)
+    if months > 12:
+        months = 12
+    
+    try:
+        # Get usage data from CSV files
+        usage_dir = load_settings()["collector"].get("usage_dir", USAGE_DIR)
+        
+        # Calculate date range
+        end_date = dt.datetime.utcnow().date()
+        start_date = end_date - dt.timedelta(days=months * 31)
+        
+        daily_traffic = {}
+        
+        # Parse CSV files
+        if os.path.isdir(usage_dir):
+            for fname in sorted(glob.glob(os.path.join(usage_dir, "usage_*.csv"))):
+                try:
+                    with open(fname, "r", encoding="utf-8") as f:
+                        reader = csv_module.DictReader(f)
+                        for row in reader:
+                            user_field = (row.get("user") or row.get("email") or "").strip()
+                            if user_field != email:
+                                continue
+                            
+                            date_str = row.get("date", "").strip()
+                            if not date_str:
+                                continue
+                            
+                            try:
+                                traffic_bytes = int(float(row.get("total_bytes") or row.get("traffic_bytes") or 0))
+                            except:
+                                traffic_bytes = 0
+                            
+                            if traffic_bytes > 0:
+                                daily_traffic[date_str] = daily_traffic.get(date_str, 0) + traffic_bytes
+                except:
+                    continue
+        
+        # Convert to list format
+        calendar_data = []
+        for date_str, traffic in sorted(daily_traffic.items()):
+            try:
+                date_obj = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
+                if start_date <= date_obj <= end_date:
+                    calendar_data.append({
+                        "date": date_str,
+                        "traffic_bytes": traffic
+                    })
+            except:
+                continue
+        
+        return ok({
+            "email": email,
+            "months": months,
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+            "calendar_data": calendar_data
+        })
+    except Exception as e:
+        return fail(str(e))
+
+
+@app.get("/api/users/ip-history-old")
+def api_users_ip_history_old():
+    """Get connection history for specific IP (for sparkline chart)"""
+    import sqlite3
+    from pathlib import Path
+    
+    email = request.args.get("email", "").strip()
+    ip = request.args.get("ip", "").strip()
+    days = safe_int(request.args.get("days"), 60)
+    
+    if not email or not ip:
+        return fail("email_and_ip_required")
+    
+    try:
+        quality_db = Path(__file__).parent / "data" / "quality.db"
+        if not quality_db.exists():
+            return ok({"daily_connections": []})
+        
+        conn = sqlite3.connect(str(quality_db))
+        cursor = conn.cursor()
+        
+        cutoff = int((dt.datetime.utcnow() - dt.timedelta(days=days)).timestamp())
+        
+        # Get daily connection counts for this IP
+        cursor.execute("""
+            SELECT 
+                date(timestamp, 'unixepoch') as date,
+                COUNT(*) as connections
+            FROM connection_events
+            WHERE email = ? AND ip_address = ? AND timestamp >= ? AND action = 'connect'
+            GROUP BY date
+            ORDER BY date ASC
+        """, (email, ip, cutoff))
+        
+        rows = cursor.fetchall()
+        
+        # Check if this IP was used by other users
+        cursor.execute("""
+            SELECT DISTINCT email, MIN(timestamp) as first_seen
+            FROM connection_events
+            WHERE ip_address = ? AND email != ?
+            GROUP BY email
+        """, (ip, email))
+        
+        other_users = []
+        for row in cursor.fetchall():
+            other_email, first_ts = row
+            other_users.append({
+                "email": other_email,
+                "first_seen": first_ts
+            })
+        
+        conn.close()
+        
+        daily_data = [{"date": row[0], "connections": row[1]} for row in rows]
+        
+        return ok({
+            "email": email,
+            "ip": ip,
+            "daily_connections": daily_data,
+            "other_users": other_users,
+            "shared_ip": len(other_users) > 0
+        })
+        
+    except Exception as e:
+        return fail(str(e))
+
+@app.get("/api/users/disconnect-days")
+def api_users_disconnect_days():
+    """Get days with REAL disconnects from device_events table"""
+    import sqlite3
+    from pathlib import Path
+    
+    email = request.args.get("email", "").strip()
+    if not email:
+        return fail("email_required")
+    
+    days = safe_int(request.args.get("days"), 60)
+    
+    try:
+        quality_db = Path(__file__).parent / "data" / "quality.db"
+        if not quality_db.exists():
+            return ok({"disconnect_days": {}})
+        
+        conn = sqlite3.connect(str(quality_db))
+        cursor = conn.cursor()
+        
+        cutoff = int((dt.datetime.utcnow() - dt.timedelta(days=days)).timestamp())
+        
+        # Use device_events table for accurate disconnect count
+        cursor.execute("""SELECT date(timestamp, 'unixepoch'), COUNT(*) FROM device_events WHERE email = ? AND timestamp >= ? AND event_type = 'disconnect' GROUP BY date(timestamp, 'unixepoch') ORDER BY date(timestamp, 'unixepoch') ASC""", (email, cutoff))
+        
+        disconnect_days = {row[0]: row[1] for row in cursor.fetchall()}
+        conn.close()
+        
+        return ok({"email": email, "disconnect_days": disconnect_days})
+        
+    except Exception as e:
+        return fail(str(e))
+
+@app.get("/api/users/ip-history")
+def api_users_ip_history():
+    """Get extended connection history for specific IP"""
+    import sqlite3
+    from pathlib import Path
+    from collections import defaultdict
+    
+    email = request.args.get("email", "").strip()
+    ip = request.args.get("ip", "").strip()
+    days = safe_int(request.args.get("days"), 60)
+    
+    if not email or not ip:
+        return fail("email_and_ip_required")
+    
+    try:
+        quality_db = Path(__file__).parent / "data" / "quality.db"
+        if not quality_db.exists():
+            return ok({
+                "daily_connections": [],
+                "last_7_active_days": [],
+                "other_users": [],
+                "shared_ip": False,
+                "total_traffic_bytes": 0
+            })
+        
+        conn = sqlite3.connect(str(quality_db))
+        cursor = conn.cursor()
+        
+        cutoff = int((dt.datetime.utcnow() - dt.timedelta(days=days)).timestamp())
+        
+        # Get daily connection counts
+        cursor.execute("""
+            SELECT 
+                date(timestamp, 'unixepoch') as date,
+                COUNT(*) as connections
+            FROM connection_events
+            WHERE email = ? AND ip_address = ? AND timestamp >= ? AND action = 'connect'
+            GROUP BY date
+            ORDER BY date ASC
+        """, (email, ip, cutoff))
+        
+        daily_data = [{"date": row[0], "connections": row[1]} for row in cursor.fetchall()]
+        
+        # Get all connect timestamps for this IP
+        cursor.execute("""
+            SELECT timestamp
+            FROM connection_events
+            WHERE email = ? AND ip_address = ? AND action = 'connect'
+            ORDER BY timestamp DESC
+        """, (email, ip))
+        
+        all_timestamps = [row[0] for row in cursor.fetchall()]
+        
+        # Group by date
+        date_timestamps = defaultdict(list)
+        for ts in all_timestamps:
+            date_obj = dt.datetime.utcfromtimestamp(ts)
+            date_str = date_obj.strftime("%Y-%m-%d")
+            date_timestamps[date_str].append(ts)
+        
+        # Get last 7 active days with sessions (gaps >60 min = new session)
+        sorted_dates = sorted(date_timestamps.keys(), reverse=True)[:7]
+        last_7_days = []
+        
+        for date_str in reversed(sorted_dates):
+            timestamps = sorted(date_timestamps[date_str])
+            
+            # Split into sessions (gap >60 min = new session)
+            sessions = []
+            if timestamps:
+                current_session = [timestamps[0]]
+                
+                for i in range(1, len(timestamps)):
+                    gap = timestamps[i] - timestamps[i-1]
+                    if gap > 3600:  # 60 minutes
+                        # Save current session
+                        sessions.append(current_session)
+                        current_session = [timestamps[i]]
+                    else:
+                        current_session.append(timestamps[i])
+                
+                # Save last session
+                sessions.append(current_session)
+            
+            # Format sessions
+            session_ranges = []
+            for session in sessions:
+                start_time = dt.datetime.utcfromtimestamp(session[0]).strftime("%H:%M")
+                end_time = dt.datetime.utcfromtimestamp(session[-1]).strftime("%H:%M")
+                session_ranges.append({
+                    "start": session[0],
+                    "end": session[-1],
+                    "range": f"{start_time}-{end_time}",
+                    "connections": len(session)
+                })
+            
+            last_7_days.append({
+                "date": date_str,
+                "sessions": session_ranges,
+                "total_connections": len(timestamps),
+                # For backward compatibility
+                "first_connection": timestamps[0] if timestamps else 0,
+                "last_connection": timestamps[-1] if timestamps else 0,
+                "time_range": f"{dt.datetime.utcfromtimestamp(timestamps[0]).strftime('%H:%M')}-{dt.datetime.utcfromtimestamp(timestamps[-1]).strftime('%H:%M')}" if timestamps else ""
+            })
+        
+        # Get other users who used this IP
+        cursor.execute("""
+            SELECT DISTINCT email, MIN(timestamp) as first_seen, MAX(timestamp) as last_seen
+            FROM connection_events
+            WHERE ip_address = ? AND email != ?
+            GROUP BY email
+        """, (ip, email))
+        
+        # Get all users to resolve aliases
+        all_clients = get_xray_clients()
+        email_to_alias = {client.get("email", ""): client.get("alias", "") for client in all_clients}
+        
+        other_users = []
+        for row in cursor.fetchall():
+            other_email, first_ts, last_ts = row
+            alias = email_to_alias.get(other_email, other_email.split("@")[0])
+            
+            # Check concurrent usage (same days)
+            cursor.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT DISTINCT date(timestamp, 'unixepoch') as date
+                    FROM connection_events
+                    WHERE ip_address = ? AND email = ?
+                    INTERSECT
+                    SELECT DISTINCT date(timestamp, 'unixepoch') as date
+                    FROM connection_events  
+                    WHERE ip_address = ? AND email = ?
+                )
+            """, (ip, email, ip, other_email))
+            
+            same_time_days = cursor.fetchone()[0] or 0
+            
+            other_users.append({
+                "email": other_email,
+                "alias": alias,
+                "first_seen": first_ts,
+                "last_seen": last_ts,
+                "same_time_days": same_time_days,
+                "concurrent": same_time_days > 0
+            })
+        
+        # Estimate traffic for this IP
+        total_traffic_bytes = 0
+        try:
+            user_stats_all = _calculate_user_alltime_stats()
+            user_total_traffic = user_stats_all.get(email, {}).get("totalTrafficBytes", 0)
+            cursor.execute("SELECT COUNT(*) FROM connection_events WHERE email = ? AND action = 'connect' AND timestamp >= ?", (email, cutoff))
+            total_conns = cursor.fetchone()[0] or 1
+            ip_conns = sum(d["connections"] for d in daily_data)
+            if total_conns > 0 and ip_conns > 0:
+                total_traffic_bytes = int(user_total_traffic * (ip_conns / total_conns))
+        except:
+            pass
+
+        conn.close()
+        
+        return ok({
+            "email": email,
+            "ip": ip,
+            "daily_connections": daily_data,
+            "last_7_active_days": last_7_days,
+            "other_users": other_users,
+            "shared_ip": len(other_users) > 0,
+            "total_traffic_bytes": total_traffic_bytes,
+        })
+        
+    except Exception as e:
+        return fail(str(e))
+
+@app.get("/api/users/ip-histories-batch")
+@app.get("/api/users/ip-histories-batch")
+def api_users_ip_histories_batch():
+    """Batch load IP histories for multiple IPs at once (OPTIMIZED - uses analytical tables)"""
+    import sqlite3
+    from pathlib import Path
+
+    email = request.args.get("email", "").strip()
+    ips_param = request.args.get("ips", "").strip()
+
+    if not email or not ips_param:
+        return fail("email_and_ips_required")
+
+    ips = [ip.strip() for ip in ips_param.split(",") if ip.strip()]
+    if not ips:
+        return fail("ips_list_empty")
+
+    # Limit number of IPs to prevent abuse
+    if len(ips) > 50:
+        return fail("too_many_ips_requested_max_50")
+
+    days = safe_int(request.args.get("days"), 60)
+
+    conn = None
+    try:
+        quality_db = Path(__file__).parent / "data" / "quality.db"
+        if not quality_db.exists():
+            return ok({"histories": {}})
+
+        conn = sqlite3.connect(str(quality_db))
+        cursor = conn.cursor()
+        cutoff_date = (dt.datetime.utcnow() - dt.timedelta(days=days)).strftime('%Y-%m-%d')
+
+        # Get email to alias mapping
+        all_clients = get_xray_clients()
+        email_to_alias = {c.get("email", ""): c.get("alias", "") for c in all_clients}
+
+        # Get total traffic for proportional calculation
+        user_stats_all = _calculate_user_alltime_stats()
+        user_total_traffic = user_stats_all.get(email, {}).get("totalTrafficBytes", 0)
+
+        # Get total user connections for traffic proportion
+        cursor.execute("""
+            SELECT SUM(total_connections)
+            FROM user_ip_daily_stats
+            WHERE email = ? AND date >= ?
+        """, (email, cutoff_date))
+        total_user_conns = cursor.fetchone()[0] or 1
+
+        histories = {}
+
+        for ip in ips:
+            # 1. Daily connections - from user_ip_daily_stats
+            cursor.execute("""
+                SELECT date, total_connections
+                FROM user_ip_daily_stats
+                WHERE email = ? AND ip_address = ? AND date >= ?
+                ORDER BY date ASC
+            """, (email, ip, cutoff_date))
+            daily_data = [{"date": r[0], "connections": r[1]} for r in cursor.fetchall()]
+
+            # 2. Last 7 active days with sessions - from user_ip_sessions
+            cursor.execute("""
+                SELECT date, session_start, session_end, connection_count
+                FROM user_ip_sessions
+                WHERE email = ? AND ip_address = ?
+                ORDER BY date DESC
+                LIMIT 7
+            """, (email, ip))
+
+            sessions_rows = cursor.fetchall()
+            last_7_days = []
+            for date, start, end, count in sessions_rows:
+                start_time = dt.datetime.utcfromtimestamp(start).strftime("%H:%M")
+                end_time = dt.datetime.utcfromtimestamp(end).strftime("%H:%M")
+
+                last_7_days.append({
+                    "date": date,
+                    "sessions": [{
+                        "start": start,
+                        "end": end,
+                        "range": f"{start_time}-{end_time}",
+                        "connections": count
+                    }],
+                    "total_connections": count,
+                    "first_connection": start,
+                    "last_connection": end,
+                    "time_range": f"{start_time}-{end_time}"
+                })
+
+            # 3. Other users - from shared_ip_analysis
+            cursor.execute("""
+                SELECT user2_email, same_time_days, concurrent_days, first_concurrent, last_concurrent
+                FROM shared_ip_analysis
+                WHERE ip_address = ? AND user1_email = ?
+                UNION
+                SELECT user1_email, same_time_days, concurrent_days, first_concurrent, last_concurrent
+                FROM shared_ip_analysis
+                WHERE ip_address = ? AND user2_email = ?
+            """, (ip, email, ip, email))
+
+            other_users = []
+            for other_email, same_days, concurrent_days, first_seen, last_seen in cursor.fetchall():
+                alias = email_to_alias.get(other_email, other_email.split("@")[0])
+                other_users.append({
+                    "email": other_email,
+                    "alias": alias,
+                    "first_seen": first_seen,
+                    "last_seen": last_seen,
+                    "same_time_days": same_days,
+                    "concurrent": concurrent_days > 0
+                })
+
+            # 4. Traffic estimation (proportional)
+            ip_conns = sum(d["connections"] for d in daily_data)
+            traffic_bytes = int(user_total_traffic * (ip_conns / total_user_conns)) if total_user_conns > 0 else 0
+
+            histories[ip] = {
+                "daily_connections": daily_data,
+                "last_7_active_days": last_7_days,
+                "other_users": other_users,
+                "shared_ip": len(other_users) > 0,
+                "total_traffic_bytes": traffic_bytes
+            }
+
+        return ok({"email": email, "histories": histories})
+
+    except sqlite3.Error as db_error:
+        print(f"Database error in ip_histories_batch: {db_error}")
+        return fail("database_error")
+    except Exception as e:
+        print(f"Error in ip_histories_batch: {e}")
+        import traceback
+        traceback.print_exc()
+        return fail(str(e))
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
