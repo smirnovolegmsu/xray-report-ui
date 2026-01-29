@@ -2227,9 +2227,8 @@ def api_users_stats():
         return jsonify(cached)
     """Get all-time statistics for all users"""
     try:
-        # Get online users
-        now_data = _get_live_now()
-        online_users_set = set(now_data.get("onlineUsers", []))
+        # Get user statuses from recent sessions
+        user_statuses_map = _get_user_statuses_from_sessions()
         
         # Calculate all-time stats
         alltime_stats = _calculate_user_alltime_stats()
@@ -2256,7 +2255,9 @@ def api_users_stats():
                 "top3Domains": user_stat["top3Domains"],
                 "firstSeenAt": user_stat.get("firstSeenAt"),
                 "lastSeenAt": user_stat.get("lastSeenAt"),
-                "isOnline": email in online_users_set
+                "isOnline": user_statuses_map.get(email, {}).get("isOnline", False),
+                "userStatus": user_statuses_map.get(email, {}).get("status", "offline"),
+                "minutesSinceLastSession": user_statuses_map.get(email, {}).get("minutesSince")
             })
         
         return ok({"users": users_stats})
@@ -8659,3 +8660,632 @@ def api_users_ip_histories_batch():
                 conn.close()
             except:
                 pass
+
+@app.get("/api/users/<string:email>/partners")
+def api_users_partners(email):
+    """Get user's partners (people who used VPN at the same time) with detailed time overlap analysis"""
+    import sqlite3
+    from pathlib import Path
+
+    conn = None
+    try:
+        quality_db = Path(__file__).parent / "data" / "quality.db"
+        if not quality_db.exists():
+            return ok({"partners": [], "top_partners": []})
+
+        conn = sqlite3.connect(str(quality_db))
+        cursor = conn.cursor()
+
+        # Get email to alias mapping
+        all_clients = get_xray_clients()
+        email_to_alias = {c.get("email", ""): c.get("alias", "") for c in all_clients}
+
+        # Get partners for this user (where user is either user1 or user2)
+        cursor.execute("""
+            SELECT
+                CASE
+                    WHEN user1_email = ? THEN user2_email
+                    ELSE user1_email
+                END as partner_email,
+                total_concurrent_minutes,
+                concurrent_days_count,
+                CASE
+                    WHEN user1_email = ? THEN user1_total_minutes
+                    ELSE user2_total_minutes
+                END as user_total_minutes,
+                CASE
+                    WHEN user1_email = ? THEN user2_total_minutes
+                    ELSE user1_total_minutes
+                END as partner_total_minutes,
+                CASE
+                    WHEN user1_email = ? THEN user1_overlap_percent
+                    ELSE user2_overlap_percent
+                END as user_overlap_percent,
+                CASE
+                    WHEN user1_email = ? THEN user2_overlap_percent
+                    ELSE user1_overlap_percent
+                END as partner_overlap_percent,
+                shared_ips_count,
+                first_seen,
+                last_seen
+            FROM user_pair_summary
+            WHERE user1_email = ? OR user2_email = ?
+            ORDER BY total_concurrent_minutes DESC
+        """, (email, email, email, email, email, email, email))
+
+        partners = []
+        for row in cursor.fetchall():
+            partner_email = row[0]
+            partner_alias = email_to_alias.get(partner_email, partner_email.split("@")[0])
+
+            # Get detailed breakdown by IP for this partner
+            cursor.execute("""
+                SELECT
+                    ip_address,
+                    concurrent_minutes,
+                    concurrent_days,
+                    CASE
+                        WHEN user1_email = ? THEN user1_minutes_on_ip
+                        ELSE user2_minutes_on_ip
+                    END as user_minutes,
+                    CASE
+                        WHEN user1_email = ? THEN user2_minutes_on_ip
+                        ELSE user1_minutes_on_ip
+                    END as partner_minutes,
+                    first_concurrent,
+                    last_concurrent
+                FROM user_pair_by_ip
+                WHERE (user1_email = ? AND user2_email = ?)
+                   OR (user1_email = ? AND user2_email = ?)
+                ORDER BY concurrent_minutes DESC
+            """, (email, email, email, partner_email, partner_email, email))
+
+            ip_details = []
+            for ip_row in cursor.fetchall():
+                ip_details.append({
+                    "ip": ip_row[0],
+                    "concurrentMinutes": ip_row[1],
+                    "concurrentHours": round(ip_row[1] / 60, 1),
+                    "concurrentDays": ip_row[2],
+                    "userMinutes": ip_row[3],
+                    "partnerMinutes": ip_row[4],
+                    "firstSeen": ip_row[5],
+                    "lastSeen": ip_row[6]
+                })
+
+            partners.append({
+                "email": partner_email,
+                "alias": partner_alias,
+                "totalConcurrentMinutes": row[1],
+                "totalConcurrentHours": round(row[1] / 60, 1),
+                "concurrentDaysCount": row[2],
+                "userTotalMinutes": row[3],
+                "partnerTotalMinutes": row[4],
+                "userOverlapPercent": round(row[5], 1),
+                "partnerOverlapPercent": round(row[6], 1),
+                "sharedIpsCount": row[7],
+                "firstSeen": row[8],
+                "lastSeen": row[9],
+                "ipDetails": ip_details
+            })
+
+        # Get top 2 partners for badges
+        top_partners = partners[:2] if len(partners) >= 2 else partners
+
+        return ok({
+            "email": email,
+            "partners": partners[:5],  # Top 5 for detailed view
+            "topPartners": top_partners,  # Top 2 for badges
+            "totalPartnersCount": len(partners)
+        })
+
+    except sqlite3.Error as db_error:
+        print(f"Database error in api_users_partners: {db_error}")
+        return fail("database_error")
+    except Exception as e:
+        print(f"Error in api_users_partners: {e}")
+        import traceback
+        traceback.print_exc()
+        return fail(str(e))
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+@app.get("/api/users/<string:email>/last-session")
+def api_users_last_session(email):
+    """Get user's last VPN session details"""
+    import sqlite3
+    from pathlib import Path
+    import time
+
+    # Normalize email (strip domain if present)
+    email = email.split("@")[0] if "@" in email else email
+
+    conn = None
+    try:
+        quality_db = Path(__file__).parent / "data" / "quality.db"
+        if not quality_db.exists():
+            return ok({"lastSession": None})
+
+        conn = sqlite3.connect(str(quality_db))
+        cursor = conn.cursor()
+
+        # Get last session from user_ip_sessions
+        cursor.execute("""
+            SELECT
+                ip_address,
+                session_start,
+                session_end,
+                connection_count,
+                date
+            FROM user_ip_sessions
+            WHERE email = ?
+            ORDER BY session_end DESC
+            LIMIT 1
+        """, (email,))
+
+        row = cursor.fetchone()
+        if not row:
+            return ok({"lastSession": None})
+
+        ip_address, session_start, session_end, connection_count, date = row
+
+        # Calculate duration
+        duration_seconds = session_end - session_start
+        duration_minutes = duration_seconds // 60
+
+        # Calculate time since last session
+        now = int(time.time())
+        minutes_since = (now - session_end) // 60
+
+        # Get traffic for this session from daily stats
+        cursor.execute("""
+            SELECT total_traffic_bytes
+            FROM user_ip_daily_stats
+            WHERE email = ? AND ip_address = ? AND date = ?
+        """, (email, ip_address, date))
+
+        traffic_row = cursor.fetchone()
+        traffic_bytes = traffic_row[0] if traffic_row and traffic_row[0] else 0
+
+        # Check CSV files for more recent activity
+        import glob
+        import csv as csv_module
+        import datetime as dt
+        
+        usage_dir = load_settings()["collector"].get("usage_dir", USAGE_DIR)
+        last_csv_date = None
+        last_csv_traffic = 0
+        
+        if os.path.isdir(usage_dir):
+            for fname in sorted(glob.glob(os.path.join(usage_dir, "usage_*.csv")), reverse=True):
+                try:
+                    with open(fname, "r", encoding="utf-8") as f:
+                        reader = csv_module.DictReader(f)
+                        for row in reader:
+                            user_field = (row.get("user") or row.get("email") or "").strip()
+                            if user_field != email:
+                                continue
+                            
+                            date_str = row.get("date", "").strip()
+                            try:
+                                traffic = int(float(row.get("total_bytes") or row.get("upload") or 0))
+                                if traffic > 0 and date_str:
+                                    last_csv_date = date_str
+                                    last_csv_traffic = traffic
+                                    break
+                            except:
+                                continue
+                    
+                    if last_csv_date:
+                        break
+                except:
+                    continue
+        
+        # If CSV has more recent data, update minutesSince
+        if last_csv_date:
+            try:
+                csv_date = dt.datetime.strptime(last_csv_date, "%Y-%m-%d")
+                today = dt.datetime.utcnow().date()
+                
+                # Only update if CSV date is NOT today (to avoid future timestamps)
+                if csv_date.date() != today:
+                    # Set to end of day for past dates
+                    csv_timestamp = int(csv_date.replace(hour=23, minute=59, second=59).timestamp())
+                    
+                    if csv_timestamp > session_end:
+                        # CSV has more recent activity, update the response
+                        minutes_since = (now - csv_timestamp) // 60
+                        print(f"Updated minutesSince for {email} from CSV: {minutes_since} (date: {last_csv_date})")
+            except Exception as e:
+                print(f"Error parsing CSV date: {e}")
+        
+        return ok({
+            "lastSession": {
+                "ipAddress": ip_address,
+                "sessionStart": session_start,
+                "sessionEnd": session_end,
+                "durationMinutes": duration_minutes,
+                "minutesSince": minutes_since,
+                "trafficBytes": traffic_bytes,
+                "connectionCount": connection_count
+            }
+        })
+
+    except sqlite3.Error as db_error:
+        print(f"Database error in api_users_last_session: {db_error}")
+        return fail("database_error")
+    except Exception as e:
+        print(f"Error in api_users_last_session: {e}")
+        import traceback
+        traceback.print_exc()
+        return fail(str(e))
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+@app.get("/api/users/<string:email>/recent-sessions")
+def api_users_recent_sessions(email):
+    """Get user's recent VPN sessions with online status"""
+    import sqlite3
+    from pathlib import Path
+    import time
+
+    # Normalize email (strip domain if present)
+    email = email.split("@")[0] if "@" in email else email
+
+    conn = None
+    try:
+        quality_db = Path(__file__).parent / "data" / "quality.db"
+        if not quality_db.exists():
+            return ok({"sessions": [], "status": "offline"})
+
+        conn = sqlite3.connect(str(quality_db))
+        cursor = conn.cursor()
+
+        # Get recent sessions (last 60 minutes or top 10 most recent)
+        now = int(time.time())
+        cutoff = now - (60 * 60)  # 60 minutes ago
+
+        cursor.execute("""
+            SELECT
+                ip_address,
+                session_start,
+                session_end,
+                connection_count,
+                date
+            FROM user_ip_sessions
+            WHERE email = ? AND session_end >= ?
+            ORDER BY session_end DESC
+            LIMIT 50
+        """, (email, cutoff))
+
+        rows = cursor.fetchall()
+
+        sessions = []
+        min_minutes_since = None
+
+        for row in rows:
+            ip_address, session_start, session_end, connection_count, date = row
+
+            # Calculate duration
+            duration_minutes = (session_end - session_start) // 60
+
+            # Calculate time since session ended
+            minutes_since = (now - session_end) // 60
+
+            if min_minutes_since is None or minutes_since < min_minutes_since:
+                min_minutes_since = minutes_since
+
+            # Get traffic for this session
+            cursor.execute("""
+                SELECT total_traffic_bytes
+                FROM user_ip_daily_stats
+                WHERE email = ? AND ip_address = ? AND date = ?
+            """, (email, ip_address, date))
+
+            traffic_row = cursor.fetchone()
+            traffic_bytes = traffic_row[0] if traffic_row and traffic_row[0] else 0
+
+            sessions.append({
+                "ipAddress": ip_address,
+                "sessionStart": session_start,
+                "sessionEnd": session_end,
+                "durationMinutes": duration_minutes,
+                "minutesSince": minutes_since,
+                "trafficBytes": traffic_bytes,
+                "connectionCount": connection_count
+            })
+
+        # Calculate status based on most recent session
+        # online: ≤5 min, recent: 5-30 min, offline: >30 min
+        status = "offline"
+        if min_minutes_since is not None:
+            if min_minutes_since <= 5:
+                status = "online"
+            elif min_minutes_since <= 30:
+                status = "recent"
+            else:
+                status = "offline"
+
+        return ok({
+            "sessions": sessions,
+            "status": status,
+            "mostRecentMinutes": min_minutes_since
+        })
+
+    except sqlite3.Error as db_error:
+        print(f"Database error in api_users_recent_sessions: {db_error}")
+        return fail("database_error")
+    except Exception as e:
+        print(f"Error in api_users_recent_sessions: {e}")
+        import traceback
+        traceback.print_exc()
+        return fail(str(e))
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+def _get_user_statuses_from_sessions():
+    """
+    Get user online statuses based on recent sessions from quality.db
+    Returns: dict with {email: {"status": "online"|"recent"|"offline", "minutesSince": int}}
+    """
+    import sqlite3
+    from pathlib import Path
+    import time
+
+    try:
+        quality_db = Path(__file__).parent / "data" / "quality.db"
+        if not quality_db.exists():
+            return {}
+
+        conn = sqlite3.connect(str(quality_db))
+        cursor = conn.cursor()
+
+        # Get most recent session for each user
+        now = int(time.time())
+
+        cursor.execute("""
+            SELECT email, MAX(session_end) as last_session
+            FROM user_ip_sessions
+            GROUP BY email
+        """)
+
+        user_statuses = {}
+
+        for row in cursor.fetchall():
+            email, last_session = row
+            if last_session:
+                minutes_since = (now - last_session) // 60
+
+                # Determine status based on time since last activity
+                if minutes_since <= 5:
+                    status = "online"
+                elif minutes_since <= 30:
+                    status = "recent"
+                else:
+                    status = "offline"
+
+                user_statuses[email] = {
+                    "status": status,
+                    "minutesSince": minutes_since,
+                    "isOnline": status in ["online", "recent"]  # For backward compatibility
+                }
+
+        conn.close()
+        
+        # Check CSV files for more recent activity for each user
+        import glob
+        import csv as csv_module
+        import datetime as dt
+        
+        usage_dir = load_settings()["collector"].get("usage_dir", USAGE_DIR)
+        csv_dates = {}  # {email: last_date_with_traffic}
+        
+        if os.path.isdir(usage_dir):
+            # Go through CSV files in reverse order (newest first)
+            for fname in sorted(glob.glob(os.path.join(usage_dir, "usage_*.csv")), reverse=True):
+                try:
+                    with open(fname, "r", encoding="utf-8") as f:
+                        reader = csv_module.DictReader(f)
+                        for row in reader:
+                            user_field = (row.get("user") or row.get("email") or "").strip()
+                            if user_field in csv_dates:
+                                continue  # Already found more recent date
+                            
+                            date_str = row.get("date", "").strip()
+                            try:
+                                traffic = int(float(row.get("total_bytes") or row.get("upload") or 0))
+                                if traffic > 0 and date_str:
+                                    csv_dates[user_field] = date_str
+                            except:
+                                continue
+                except:
+                    continue
+        
+        # Update user_statuses with CSV data if more recent
+        for email, date_str in csv_dates.items():
+            try:
+                csv_date = dt.datetime.strptime(date_str, "%Y-%m-%d")
+                today = dt.datetime.utcnow().date()
+                
+                # Skip if CSV date is today (to avoid future timestamps)
+                if csv_date.date() == today:
+                    continue
+                
+                # Set to end of day for past dates
+                csv_timestamp = int(csv_date.replace(hour=23, minute=59, second=59).timestamp())
+                
+                # Check if this is more recent than quality.db data
+                existing = user_statuses.get(email, {})
+                existing_minutes = existing.get("minutesSince", 999999)
+                csv_minutes = (now - csv_timestamp) // 60
+                
+                if csv_minutes < existing_minutes:
+                    # CSV has more recent data
+                    if csv_minutes <= 5:
+                        status = "online"
+                    elif csv_minutes <= 30:
+                        status = "recent"
+                    else:
+                        status = "offline"
+                    
+                    user_statuses[email] = {
+                        "status": status,
+                        "minutesSince": csv_minutes,
+                        "isOnline": status in ["online", "recent"]
+                    }
+            except:
+                continue
+        
+        return user_statuses
+
+    except Exception as e:
+        print(f"Error getting user statuses: {e}")
+        import traceback
+        traceback.print_exc()
+        return {}
+
+@app.get("/api/users/<string:email>/device-detection")
+def api_users_device_detection(email):
+    """Analyze usage distribution by simultaneous IP count"""
+    import sqlite3
+    from pathlib import Path
+    import time
+
+    # Normalize email
+    email = email.split("@")[0] if "@" in email else email
+
+    conn = None
+    try:
+        quality_db = Path(__file__).parent / "data" / "quality.db"
+        if not quality_db.exists():
+            return ok({
+                "usageDistribution": {},
+                "totalMinutes": 0
+            })
+
+        conn = sqlite3.connect(str(quality_db))
+        cursor = conn.cursor()
+
+        # Get sessions from last 60 days
+        now = int(time.time())
+        cutoff = now - (60 * 24 * 60 * 60)
+
+        cursor.execute("""
+            SELECT
+                ip_address,
+                session_start,
+                session_end
+            FROM user_ip_sessions
+            WHERE email = ? AND session_end >= ?
+            ORDER BY session_start ASC
+        """, (email, cutoff))
+
+        rows = cursor.fetchall()
+
+        if len(rows) == 0:
+            return ok({
+                "usageDistribution": {},
+                "totalMinutes": 0,
+                "maxSimultaneousIPs": 0
+            })
+
+        # Create timeline events
+        events = []
+        for ip, start, end in rows:
+            events.append((start, 'start', ip))
+            events.append((end, 'end', ip))
+        
+        events.sort()  # Sort by time
+        
+        # Track active IPs and calculate time distribution
+        active_ips = set()
+        last_time = None
+        time_by_ip_count = {str(i): 0 for i in range(1, 10)}  # 1-9
+        time_by_ip_count['10+'] = 0
+        max_simultaneous = 0
+        
+        for event_time, event_type, ip in events:
+            if last_time is not None and len(active_ips) > 0:
+                # Record time with previous IP count
+                duration_seconds = event_time - last_time
+                ip_count = len(active_ips)
+                
+                # Track max
+                if ip_count > max_simultaneous:
+                    max_simultaneous = ip_count
+                
+                # Add to appropriate bucket
+                if ip_count < 10:
+                    time_by_ip_count[str(ip_count)] += duration_seconds
+                else:
+                    time_by_ip_count['10+'] += duration_seconds
+            
+            # Update active IPs
+            if event_type == 'start':
+                active_ips.add(ip)
+            else:
+                active_ips.discard(ip)
+            
+            last_time = event_time
+        
+        # Convert seconds to minutes and calculate percentages
+        total_seconds = sum(time_by_ip_count.values())
+        total_minutes = total_seconds // 60
+        
+        distribution = {}
+        for ip_count_str, seconds in time_by_ip_count.items():
+            if seconds > 0:
+                minutes = seconds // 60
+                percentage = round((seconds / total_seconds) * 100, 1) if total_seconds > 0 else 0
+                distribution[ip_count_str] = {
+                    "minutes": minutes,
+                    "hours": round(minutes / 60, 1),
+                    "percentage": percentage
+                }
+        
+        # Calculate suspicious usage (2+ IPs)
+        suspicious_seconds = sum(
+            seconds for ip_count_str, seconds in time_by_ip_count.items()
+            if ip_count_str != '1' and seconds > 0
+        )
+        suspicious_minutes = suspicious_seconds // 60
+        suspicious_percentage = round((suspicious_seconds / total_seconds) * 100, 1) if total_seconds > 0 else 0
+        
+        return ok({
+            "usageDistribution": distribution,
+            "totalMinutes": total_minutes,
+            "maxSimultaneousIPs": max_simultaneous,
+            "suspiciousMinutes": suspicious_minutes,
+            "suspiciousPercentage": suspicious_percentage,
+            "totalSessions": len(rows)
+        })
+
+    except sqlite3.Error as db_error:
+        print(f"Database error in api_users_device_detection: {db_error}")
+        return fail("database_error")
+    except Exception as e:
+        print(f"Error in api_users_device_detection: {e}")
+        import traceback
+        traceback.print_exc()
+        return fail(str(e))
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+

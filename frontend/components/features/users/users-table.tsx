@@ -314,10 +314,22 @@ export function UsersTable({ searchQuery, filter, onFilterCountsChange }: UsersT
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {userStats?.isOnline && (
-                          <Badge variant="default" className="gap-1 bg-green-600">
+                        {userStats?.userStatus && (
+                          <Badge
+                            variant={userStats.userStatus === "online" ? "default" : userStats.userStatus === "recent" ? "secondary" : "outline"}
+                            className={`gap-1 text-white ${
+                              userStats.userStatus === "online" ? "bg-green-600" :
+                              userStats.userStatus === "recent" ? "bg-yellow-500" :
+                              "bg-gray-500"
+                            }`}
+                          >
                             <div className="w-2 h-2 rounded-full bg-white"></div>
-                            {lang === 'ru' ? 'Онлайн' : 'Online'}
+                            {userStats.userStatus === "online"
+                              ? (lang === "ru" ? "Онлайн" : "Online")
+                              : userStats.userStatus === "recent"
+                              ? (lang === "ru" ? "Недавно" : "Recent")
+                              : (lang === "ru" ? "Оффлайн" : "Offline")
+                            }
                           </Badge>
                         )}
                         {isInactive && (

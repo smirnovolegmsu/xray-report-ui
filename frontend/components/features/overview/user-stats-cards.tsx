@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Globe, TrendingUp, TrendingDown } from 'lucide-react';
+import { Users, Globe, TrendingUp, TrendingDown, Smartphone, Wifi } from 'lucide-react';
 import { ResponsiveLine } from '@nivo/line';
 import { formatBytes, calculateChange } from '@/lib/utils';
 import NumberFlow from '@number-flow/react';
@@ -12,6 +12,7 @@ import { defaultNumberFlowConfig } from '@/lib/number-flow-config';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useAppStore } from '@/lib/store';
 import { useDashboard, useLiveNow } from '@/lib/swr';
+import { apiClient } from '@/lib/api';
 
 interface UserStatsCard {
   uuid: string;
@@ -34,6 +35,7 @@ interface UserStatsCard {
 export function UserStatsCards() {
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [mounted, setMounted] = useState(false);
+  const [userStatuses, setUserStatuses] = useState<Map<string, string>>(new Map());
   const lang = useAppStore((state) => state.lang);
 
   // Use SWR for data fetching
@@ -43,6 +45,27 @@ export function UserStatsCards() {
   // Ensure component is mounted before accessing store
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // Load user statuses from API
+  useEffect(() => {
+    const loadStatuses = async () => {
+      try {
+        const response = await apiClient.getUserStats();
+        if (response.data?.ok && response.data.users) {
+          const statusMap = new Map<string, string>();
+          response.data.users.forEach((user: any) => {
+            if (user.email && user.userStatus) {
+              statusMap.set(user.email, user.userStatus);
+            }
+          });
+          setUserStatuses(statusMap);
+        }
+      } catch (error) {
+        console.error("Failed to load user statuses:", error);
+      }
+    };
+    loadStatuses();
   }, []);
 
   // Process dashboard data into users list
@@ -95,6 +118,32 @@ export function UserStatsCards() {
     return onlineSet;
   }, [liveData, users]);
 
+  // Get device counts and quality info from live data
+  const userDevices = useMemo(() => {
+    return liveData?.now?.userDevices || {};
+  }, [liveData]);
+
+  const userQuality = useMemo(() => {
+    return liveData?.now?.userQuality || {};
+  }, [liveData]);
+
+  // Get device count for a user
+  const getUserDeviceCount = useCallback((user: UserStatsCard): number => {
+    return userDevices[user.email] || userDevices[user.uuid] || 0;
+  }, [userDevices]);
+
+  // Get quality info for a user
+  const getUserQualityInfo = useCallback((user: UserStatsCard) => {
+    return userQuality[user.email] || userQuality[user.uuid] || null;
+  }, [userQuality]);
+
+  // Get quality color based on score
+  const getQualityColor = useCallback((score: number): string => {
+    if (score >= 80) return 'text-green-600 dark:text-green-400';
+    if (score >= 50) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-red-600 dark:text-red-400';
+  }, []);
+
   const formatConns = useCallback((conns: number): string => {
     if (conns >= 1000) {
       return `${(conns / 1000).toFixed(0)} тыс.`;
@@ -136,9 +185,15 @@ export function UserStatsCards() {
       : users.filter(u => u.uuid === selectedUser);
   }, [users, selectedUser, mounted]);
 
+  const getUserStatus = useCallback((user: UserStatsCard): string => {
+    const status = userStatuses.get(user.email) || userStatuses.get(user.uuid);
+    return status || "offline";
+  }, [userStatuses]);
+
   const isUserOnline = useCallback((user: UserStatsCard): boolean => {
-    return onlineUsers.has(user.email) || onlineUsers.has(user.uuid);
-  }, [onlineUsers]);
+    const status = getUserStatus(user);
+    return status === "online" || status === "recent";
+  }, [getUserStatus]);
 
   if (loading) {
     return (
@@ -190,19 +245,50 @@ export function UserStatsCards() {
               {/* User Header */}
               <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
                 <h4 className="font-semibold text-sm truncate min-w-0 flex-1">{user.alias || user.email}</h4>
-                <Badge 
-                  variant="outline"
-                  className={`h-5 px-1.5 text-[10px] font-medium shrink-0 ${
-                    isUserOnline(user)
-                      ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
-                      : 'bg-gray-500/15 text-gray-600 dark:text-gray-400 border-gray-500/30'
-                  }`}
-                >
-                  {isUserOnline(user) 
-                    ? (lang === 'ru' ? 'Онлайн' : 'Online')
-                    : (lang === 'ru' ? 'Офлайн' : 'Offline')
-                  }
-                </Badge>
+                <div className="flex items-center gap-1 shrink-0">
+                  {/* Quality Indicator */}
+                  {getUserQualityInfo(user) && (
+                    <Badge
+                      variant="outline"
+                      className={`h-5 px-1.5 text-[10px] font-medium border-0 ${
+                        getUserQualityInfo(user)!.quality >= 80
+                          ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+                          : getUserQualityInfo(user)!.quality >= 50
+                            ? 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400'
+                            : 'bg-red-500/15 text-red-600 dark:text-red-400'
+                      }`}
+                      title={`${lang === 'ru' ? 'Качество' : 'Quality'}: ${getUserQualityInfo(user)!.quality}%, ${lang === 'ru' ? 'разрывов' : 'disconnects'}: ${getUserQualityInfo(user)!.disconnects}`}
+                    >
+                      <Wifi className="w-2.5 h-2.5 mr-0.5" />
+                      {getUserQualityInfo(user)!.quality}%
+                    </Badge>
+                  )}
+                  {/* Online Status Badge */}
+                  <Badge
+                    variant="outline"
+                    className={`h-5 px-1.5 text-[10px] font-medium ${
+                      getUserStatus(user) === "online"
+                        ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
+                        : getUserStatus(user) === "recent"
+                        ? 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/30'
+                        : 'bg-gray-500/15 text-gray-600 dark:text-gray-400 border-gray-500/30'
+                    }`}
+                  >
+                    {getUserStatus(user) === "online" ? (
+                      <>
+                        {getUserDeviceCount(user) > 1 && (
+                          <Smartphone className="w-2.5 h-2.5 mr-0.5" />
+                        )}
+                        {lang === 'ru' ? 'Онлайн' : 'Online'}
+                        {getUserDeviceCount(user) > 1 && ` (${getUserDeviceCount(user)})`}
+                      </>
+                    ) : getUserStatus(user) === "recent" ? (
+                      lang === 'ru' ? 'Недавно' : 'Recent'
+                    ) : (
+                      lang === 'ru' ? 'Офлайн' : 'Offline'
+                    )}
+                  </Badge>
+                </div>
               </div>
 
               {/* Stats Badges - using grid for alignment */}

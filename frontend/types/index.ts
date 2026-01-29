@@ -50,6 +50,11 @@ export interface Settings {
     usage_dir: string;
     enabled: boolean;
   };
+  device_detection?: {
+    enabled: boolean;
+    tcp_threshold_warning: number;   // Show warning at this many TCP connections
+    tcp_threshold_multiple: number;  // Estimate 2+ devices at this threshold
+  };
 }
 
 // ==================== DASHBOARD TYPES ====================
@@ -493,4 +498,256 @@ export interface VersionResponse {
     backend: string;
     api: string;
   };
+}
+
+// ==================== QUALITY MONITORING TYPES ====================
+
+export interface QualityOverview {
+  period_days: number;
+  total_users: number;
+  avg_quality_score: number;
+  problem_users: number;
+  total_reconnects: number;
+  avg_reconnects_per_user: number;
+}
+
+export interface QualityUser {
+  email: string;
+  quality_score: number;
+  total_sessions: number;
+  total_reconnects: number;
+  avg_session_duration: number;  // seconds
+  avg_speed_mbps: number;
+  last_seen: number;  // Unix timestamp
+}
+
+export interface QualitySession {
+  session_start: number;  // Unix timestamp
+  session_end: number | null;  // Unix timestamp or null if active
+  duration: number;  // seconds
+  reconnects: number;
+  traffic_mb: number;
+  avg_speed_mbps: number;
+  quality_score: number;
+  ip_address: string | null;
+}
+
+export interface QualityTimelineEvent {
+  timestamp: number;  // Unix timestamp
+  event: 'connect' | 'disconnect';
+  ip: string | null;
+  source: 'log' | 'stats_api' | 'timeout' | 'inferred';
+}
+
+export interface QualityDailyStat {
+  date: string;  // YYYY-MM-DD
+  total_reconnects: number;
+  avg_quality: number;
+  problem_users: number;
+}
+
+export interface QualityOverviewResponse {
+  ok: boolean;
+  period_days: number;
+  total_users: number;
+  avg_quality_score: number;
+  problem_users: number;
+  total_reconnects: number;
+  avg_reconnects_per_user: number;
+}
+
+export interface QualityUsersResponse {
+  ok: boolean;
+  users: QualityUser[];
+}
+
+export interface QualitySessionsResponse {
+  ok: boolean;
+  sessions: QualitySession[];
+}
+
+export interface QualityTimelineResponse {
+  ok: boolean;
+  timeline: QualityTimelineEvent[];
+}
+
+export interface QualityStatsResponse {
+  ok: boolean;
+  daily_stats: QualityDailyStat[];
+}
+
+// ==================== DEVICE MONITORING TYPES ====================
+
+export interface UserDevice {
+  email: string;
+  ip: string;
+  first_seen: number;  // Unix timestamp
+  last_seen: number;   // Unix timestamp
+  is_online: boolean;
+  total_connections: number;
+  disconnect_count: number;
+  quality_score: number;
+  device_name: string | null;
+}
+
+// Online IP detail with heuristic estimation for devices behind NAT
+export interface OnlineDeviceDetail {
+  ip: string;
+  tcp_connections: number;
+  last_seen: number;  // Unix timestamp
+  suspected_multi_device: boolean;
+  estimated_behind_nat: number;
+}
+
+export interface UserDevicesInfo {
+  email: string;
+  devices: UserDevice[];
+  total_devices: number;
+  online_devices: number;
+  total_disconnects: number;
+  avg_quality: number;
+  // Heuristic-based device estimation
+  min_devices: number;           // Unique IPs (certain)
+  estimated_devices: number;     // Estimate with heuristics
+  sharing_suspected: boolean;    // True if heuristics triggered
+  online_details: OnlineDeviceDetail[];  // Per-IP details
+}
+
+export interface UserDevicesResponse {
+  ok: boolean;
+  users: UserDevicesInfo[];
+}
+
+export interface SingleUserDevicesResponse {
+  ok: boolean;
+  email: string;
+  devices: UserDevice[];
+}
+
+export interface DeviceRenameResponse {
+  ok: boolean;
+  email: string;
+  ip: string;
+  name: string;
+}
+
+// Extended LiveNowData with device info
+export interface LiveNowDataExtended extends LiveNowData {
+  userDevices?: Record<string, number>;  // {email: device_count}
+  userQuality?: Record<string, {
+    quality: number;
+    disconnects: number;
+    devices: number;
+  }>;
+}
+
+// ==================== USER ANALYTICS TYPES ====================
+
+export interface TrafficCategory {
+  bytes: number;
+  percent: number;
+}
+
+export interface UserAnalytics {
+  email: string;
+  period_days: number;
+  activity_by_weekday: number[];  // [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
+  avg_session_duration: number;   // seconds
+  total_sessions: number;
+  avg_speed_mbps: number;
+  traffic_categories: Record<string, TrafficCategory>;
+  history_events: Event[];
+}
+
+export interface UserAnalyticsResponse {
+  ok: boolean;
+  email: string;
+  period_days: number;
+  activity_by_weekday: number[];
+  avg_session_duration: number;
+  total_sessions: number;
+  avg_speed_mbps: number;
+  traffic_categories: Record<string, TrafficCategory>;
+  history_events: Event[];
+}
+
+// ==================== TRAFFIC CALENDAR TYPES ====================
+
+export interface TrafficCalendarDay {
+  date: string;  // YYYY-MM-DD
+  traffic_bytes: number;
+}
+
+export interface TrafficCalendarResponse {
+  ok: boolean;
+  email: string;
+  months: number;
+  start_date: string;
+  end_date: string;
+  calendar_data: TrafficCalendarDay[];
+}
+
+// ==================== IP HISTORY TYPES ====================
+
+export interface IpHistoryDay {
+  date: string;
+  connections: number;
+}
+
+export interface IpActiveDay {
+  date: string;
+  first_connection: number;
+  last_connection: number;
+  time_range: string;  // "10:45-18:30"
+  total_connections: number;
+}
+
+export interface IpOtherUser {
+  email: string;
+  alias: string;
+  first_seen: number;
+  last_seen: number;
+  same_time_days: number;
+  concurrent: boolean;
+}
+
+export interface IpHistoryResponse {
+  ok: boolean;
+  email: string;
+  ip: string;
+  daily_connections: IpHistoryDay[];
+  last_7_active_days: IpActiveDay[];
+  other_users: IpOtherUser[];
+  shared_ip: boolean;
+  total_traffic_bytes: number;
+}
+
+export interface DisconnectDaysResponse {
+  ok: boolean;
+  email: string;
+  disconnect_days: Record<string, number>;  // { "2026-01-28": 5, ... }
+}
+
+export interface IpHistoriesBatchResponse {
+  ok: boolean;
+  email: string;
+  histories: Record<string, IpHistoryResponse>;
+}
+
+export interface IpSession {
+  start: number;
+  end: number;
+  range: string;  // "10:45-12:30"
+  connections: number;
+}
+
+// Update IpActiveDay to include sessions
+export interface IpActiveDayV2 {
+  date: string;
+  sessions: IpSession[];  // Multiple sessions per day
+  total_connections: number;
+  // Backward compatibility
+  first_connection: number;
+  last_connection: number;
+  time_range: string;
 }

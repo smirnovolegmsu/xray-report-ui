@@ -198,6 +198,72 @@ export const apiClient = {
   // Ports Status
   getPortsStatus: () => api.get<PortsStatusResponse>('/ports/status'),
 
+  // Diagnostics
+  runDiagnostics: () => api.get<ApiResponse>('/diagnostics/run'),
+
+  getLastDiagnostics: () => api.get<ApiResponse>('/diagnostics/last'),
+
+  getDiagnosticsHistory: (limit?: number) =>
+    api.get<ApiResponse>('/diagnostics/history', { params: { limit } }),
+
+  getDiagnosticsStats: (days: number) =>
+    api.get<ApiResponse>('/diagnostics/stats', { params: { days } }),
+
+  getDiagnosticsAutoRun: () =>
+    api.get<ApiResponse>('/diagnostics/auto-run'),
+
+  setDiagnosticsAutoRun: (hours: number) =>
+    api.post<ApiResponse>('/diagnostics/auto-run', { hours }),
+
+  // Quality Monitoring
+  getQualityOverview: (days?: number) =>
+    api.get<ApiResponse>('/quality/overview', { params: { days } }),
+
+  getQualityUsers: (params?: { days?: number; sort?: 'quality' | 'reconnects' | 'speed' }) =>
+    api.get<ApiResponse>('/quality/users', { params }),
+
+  getQualitySessions: (email: string, limit?: number) =>
+    api.get<ApiResponse>('/quality/sessions', { params: { email, limit } }),
+
+  getQualityTimeline: (email: string, period?: string) =>
+    api.get<ApiResponse>('/quality/timeline', { params: { email, period } }),
+
+  getQualityStats: (days?: number) =>
+    api.get<ApiResponse>('/quality/stats', { params: { days } }),
+  // Device Monitoring
+  getUserDevices: (email?: string) =>
+    api.get<ApiResponse>('/users/devices', { params: email ? { email } : {} }),
+
+  getUserAnalytics: (email: string, days?: number) =>
+    api.get<UserAnalyticsResponse>('/users/analytics', { params: { email, days } }),
+
+  getTrafficCalendar: (email: string, months?: number) =>
+    api.get<TrafficCalendarResponse>('/users/traffic-calendar', { params: { email, months } }),
+
+  getIpHistory: (email: string, ip: string, days?: number) =>
+    api.get<IpHistoryResponse>('/users/ip-history', { params: { email, ip, days } }),
+
+  getIpHistoriesBatch: (email: string, ips: string[], days?: number) =>
+    api.get<IpHistoriesBatchResponse>('/users/ip-histories-batch', { 
+      params: { email, ips: ips.join(','), days } 
+    }),
+
+
+  getDisconnectDays: (email: string, days?: number) =>
+    api.get<DisconnectDaysResponse>('/users/disconnect-days', { params: { email, days } }),
+
+  getUserPartners: (email: string) =>
+    api.get<any>(`/users/${email}/partners`),
+
+  getUserLastSession: (email: string) =>
+    api.get<any>(`/users/${email}/last-session`),
+
+  getUserRecentSessions: (email: string) =>
+    api.get<any>(`/users/${email}/recent-sessions`),
+
+  getUserDeviceDetection: (email: string) =>
+    api.get<any>(`/users/${email}/device-detection`),
+
   // Generic request method
   request: <T = any>(url: string, options?: any) => api.get<T>(url, options),
 };

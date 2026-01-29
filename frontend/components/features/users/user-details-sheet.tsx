@@ -122,6 +122,11 @@ export function UserDetailsSheet({
   const [calendarData, setCalendarData] = useState<TrafficCalendarResponse | null>(null);
   const [disconnectDays, setDisconnectDays] = useState<DisconnectDaysResponse | null>(null);
   const [ipHistories, setIpHistories] = useState<Map<string, IpHistoryResponse>>(new Map());
+  const [partners, setPartners] = useState<any>(null);
+  const [recentSessions, setRecentSessions] = useState<any[]>([]);
+  const [lastSession, setLastSession] = useState<any>(null);
+  const [userStatus, setUserStatus] = useState<string>("offline");
+const [deviceDetection, setDeviceDetection] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const { lang } = useAppStore();
 
@@ -136,6 +141,9 @@ export function UserDetailsSheet({
       setCalendarData(null);
       setDisconnectDays(null);
       setIpHistories(new Map());
+      setPartners(null);
+      setRecentSessions([]);
+      setUserStatus("offline");
       setLoading(true);
     }
   }, [open, user.uuid]);
@@ -143,12 +151,16 @@ export function UserDetailsSheet({
   const loadStats = async () => {
     try {
       setLoading(true);
-      const [statsResponse, devicesResponse, analyticsResponse, calendarResponse, disconnectsResponse] = await Promise.all([
+      const [statsResponse, devicesResponse, analyticsResponse, calendarResponse, disconnectsResponse, partnersResponse, recentSessionsResponse, lastSessionResponse, deviceDetectionResponse] = await Promise.all([
         apiClient.getUserStats(user.uuid),
         apiClient.getUserDevices(user.email),
         apiClient.getUserAnalytics(user.email, 30),
         apiClient.getTrafficCalendar(user.email, 2),
         apiClient.getDisconnectDays(user.email, 60),
+        apiClient.getUserPartners(user.email),
+        apiClient.getUserRecentSessions(user.email),
+        apiClient.getUserLastSession(user.email),
+        apiClient.getUserDeviceDetection(user.email),
       ]);
 
       const userData = statsResponse.data.users?.find((u: any) => u.email === user.email);
@@ -218,6 +230,31 @@ export function UserDetailsSheet({
 
       if (disconnectsResponse.data?.ok) {
         setDisconnectDays(disconnectsResponse.data);
+      }
+
+      if (partnersResponse.data?.ok) {
+        setPartners(partnersResponse.data);
+        console.log('🤝 Partners loaded:', partnersResponse.data);
+      }
+
+      if (recentSessionsResponse.data?.ok) {
+        const sessions = recentSessionsResponse.data.sessions || [];
+        const status = recentSessionsResponse.data.status || "offline";
+        setRecentSessions(sessions);
+        setUserStatus(status);
+        console.log("🔌 Recent sessions loaded:", { sessions: sessions.length, status });
+      }
+
+      // Handle lastSession for offline users
+      if (lastSessionResponse.data?.ok && lastSessionResponse.data.lastSession) {
+        setLastSession(lastSessionResponse.data.lastSession);
+        console.log("📋 Last session loaded:", lastSessionResponse.data.lastSession);
+      }
+
+      // Handle device detection
+      if (deviceDetectionResponse.data?.ok) {
+        setDeviceDetection(deviceDetectionResponse.data);
+        console.log("🔍 Device detection loaded:", deviceDetectionResponse.data);
       }
     } catch (error) {
       toast.error(handleApiError(error));
@@ -458,6 +495,29 @@ export function UserDetailsSheet({
                   <p className="text-xs text-muted-foreground font-mono">
                     {user.email}
                   </p>
+                  {/* Total VPN time */}
+                  {partners && partners.partners && partners.partners.length > 0 && partners.partners[0].userTotalMinutes > 0 && (
+                    <div className="mt-0.5">
+                      <span className="text-[9px] text-muted-foreground">
+                        VPN: {Math.round(partners.partners[0].userTotalMinutes / 60)}{lang === 'ru' ? 'ч' : 'h'}
+                      </span>
+                    </div>
+                  )}
+                  {/* Partner badges - Top 2 */}
+                  {partners && partners.topPartners && partners.topPartners.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {partners.topPartners.slice(0, 2).map((partner: any, idx: number) => {
+                        const userTotalHours = Math.round(partner.userTotalMinutes / 60);
+                        const concurrentHours = Math.round(partner.totalConcurrentMinutes / 60);
+                        return (
+                          <Badge key={idx} variant="outline" className="text-[9px] h-4 px-1.5 bg-purple-500/10 border-purple-500/20 text-purple-700 dark:text-purple-300">
+                            <Users className="w-2.5 h-2.5 mr-0.5" />
+                            {Math.round(partner.userOverlapPercent)}% {lang === 'ru' ? 'с' : 'with'} {partner.alias} ({concurrentHours}{lang === 'ru' ? 'ч' : 'h'}/{userTotalHours}{lang === 'ru' ? 'ч' : 'h'})
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
               {stats && (
@@ -489,6 +549,89 @@ export function UserDetailsSheet({
                 <Trash2 className="w-3 h-3" />
               </Button>
             </div>
+
+            {/* Recent Sessions Info with Status */}
+            {(recentSessions.length > 0 || lastSession) && (
+              <div className="mt-2 p-2 rounded-lg border bg-muted/30 space-y-2">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1">
+                    <Activity className="w-3 h-3 text-blue-500" />
+                    <h4 className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      {recentSessions.length > 0 
+                        ? (lang === 'ru' ? 'Активные сессии' : 'Active Sessions')
+                        : (lang === 'ru' ? 'Последняя сессия' : 'Last Session')
+                      }
+                    </h4>
+                  </div>
+                  {/* Status Badge */}
+                  <Badge
+                    variant={userStatus === 'online' ? 'default' : userStatus === 'recent' ? 'secondary' : 'outline'}
+                    className={`text-[8px] px-1.5 py-0 h-4 ${
+                      userStatus === 'online'
+                        ? 'bg-green-500 text-white'
+                        : userStatus === 'recent'
+                        ? 'bg-yellow-500 text-white'
+                        : 'bg-gray-400 text-white'
+                    }`}
+                  >
+                    {userStatus === 'online'
+                      ? lang === 'ru' ? 'Онлайн' : 'Online'
+                      : userStatus === 'recent'
+                      ? lang === 'ru' ? 'Недавно' : 'Recent'
+                      : lang === 'ru' ? 'Оффлайн' : 'Offline'}
+                  </Badge>
+                </div>
+
+                {/* Show all sessions */}
+                <div className="space-y-2">
+                  {(recentSessions.length > 0 ? recentSessions : lastSession ? [lastSession] : []).map((session: any, idx: number) => (
+                    <div key={idx} className="p-1.5 rounded bg-background/50 border border-border/50">
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px]">
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-2.5 h-2.5 text-muted-foreground" />
+                          <span className="font-mono">{session.ipAddress}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Timer className="w-2.5 h-2.5 text-muted-foreground" />
+                          <span>{session.durationMinutes}{lang === 'ru' ? 'м' : 'm'}</span>
+                        </div>
+                        <div className="flex items-center gap-1 col-span-2">
+                          <Clock className="w-2.5 h-2.5 text-muted-foreground" />
+                          <span>
+                            {formatTimestampFull(session.sessionStart)} - {formatTimestampFull(session.sessionEnd)}
+                          </span>
+                        </div>
+                        {session.trafficBytes > 0 && (
+                          <div className="flex items-center gap-1">
+                            <HardDrive className="w-2.5 h-2.5 text-muted-foreground" />
+                            <span>{formatBytes(session.trafficBytes)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <AlertCircle className={`w-2.5 h-2.5 ${
+                            session.minutesSince <= 5 ? 'text-green-500' :
+                            session.minutesSince <= 30 ? 'text-yellow-500' :
+                            'text-orange-500'
+                          }`} />
+                          <span className={
+                            session.minutesSince <= 5 ? 'text-green-700 dark:text-green-400' :
+                            session.minutesSince <= 30 ? 'text-yellow-700 dark:text-yellow-400' :
+                            'text-orange-700 dark:text-orange-400'
+                          }>
+                            {session.minutesSince < 60
+                              ? `${session.minutesSince}${lang === 'ru' ? 'м назад' : 'm ago'}`
+                              : `${Math.round(session.minutesSince / 60)}${lang === 'ru' ? 'ч назад' : 'h ago'}`
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                </div>
+              </div>
+            )}
+
           </div>
 
           {loading ? (
@@ -515,14 +658,36 @@ export function UserDetailsSheet({
                         <CalendarClock className="w-3.5 h-3.5 text-green-500 shrink-0" />
                         <div className="min-w-0 flex-1">
                           <p className="text-[9px] text-muted-foreground">{lang === 'ru' ? 'Последнее' : 'Last'}</p>
-                          <p className="text-[10px] font-medium truncate">{formatDateTimeFull(stats.lastSeenAt)}</p>
+                          <p className="text-[10px] font-medium truncate">
+                            {recentSessions.length > 0 
+                              ? formatDateTimeFull(new Date(recentSessions[0].sessionEnd * 1000).toISOString())
+                              : lastSession 
+                              ? formatDateTimeFull(new Date(lastSession.sessionEnd * 1000).toISOString())
+                              : formatDateTimeFull(stats.lastSeenAt)
+                            }
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 p-2 rounded bg-muted/50">
                         <Timer className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                         <div className="min-w-0 flex-1">
                           <p className="text-[9px] text-muted-foreground">{lang === 'ru' ? 'С последнего' : 'Since'}</p>
-                          <p className="text-[10px] font-medium">{stats.lastSeenAt ? formatDaysSince(getDaysSince(stats.lastSeenAt)) : '—'}</p>
+                          <p className="text-[10px] font-medium">
+                            {recentSessions.length > 0
+                              ? recentSessions[0].minutesSince < 60
+                                ? `${recentSessions[0].minutesSince}${lang === 'ru' ? 'м назад' : 'm ago'}`
+                                : recentSessions[0].minutesSince < 1440
+                                ? `${Math.round(recentSessions[0].minutesSince / 60)}${lang === 'ru' ? 'ч назад' : 'h ago'}`
+                                : formatDaysSince(Math.floor(recentSessions[0].minutesSince / 1440))
+                              : lastSession
+                              ? lastSession.minutesSince < 60
+                                ? `${lastSession.minutesSince}${lang === 'ru' ? 'м назад' : 'm ago'}`
+                                : lastSession.minutesSince < 1440
+                                ? `${Math.round(lastSession.minutesSince / 60)}${lang === 'ru' ? 'ч назад' : 'h ago'}`
+                                : formatDaysSince(Math.floor(lastSession.minutesSince / 1440))
+                              : stats.lastSeenAt ? formatDaysSince(getDaysSince(stats.lastSeenAt)) : '—'
+                            }
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -557,6 +722,73 @@ export function UserDetailsSheet({
                             <span className="text-[9px] text-muted-foreground">{lang === 'ru' ? 'Сессия' : 'Session'}</span>
                           </div>
                           <p className="text-xs font-bold">{formatDuration(analytics.avg_session_duration)}</p>
+                        </div>
+                      )}
+                      {/* Usage Profile - Distribution by IP Count */}
+                      {deviceDetection && deviceDetection.usageDistribution && Object.keys(deviceDetection.usageDistribution).length > 0 && (
+                        <div className="p-2 rounded bg-blue-500/5 border border-blue-500/10">
+                          <div className="flex items-center gap-1 mb-1">
+                            <Smartphone className="w-3 h-3 text-blue-500" />
+                            <span className="text-[9px] text-muted-foreground">
+                              {lang === 'ru' ? 'Профиль использования' : 'Usage profile'}
+                            </span>
+                          </div>
+                          
+                          {/* Suspicious percentage - prominent */}
+                          {deviceDetection.suspiciousPercentage > 0 && (
+                            <div className="mb-1">
+                              <p className={`text-base font-bold ${
+                                deviceDetection.suspiciousPercentage < 5
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : deviceDetection.suspiciousPercentage < 20
+                                  ? 'text-orange-600 dark:text-orange-400'
+                                  : 'text-red-600 dark:text-red-400'
+                              }`}>
+                                {deviceDetection.suspiciousPercentage}% {lang === 'ru' ? 'подозрительно' : 'suspicious'}
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Distribution bars */}
+                          <div className="space-y-1">
+                            {Object.entries(deviceDetection.usageDistribution)
+                              .sort((a, b) => {
+                                const numA = a[0] === '10+' ? 10 : parseInt(a[0]);
+                                const numB = b[0] === '10+' ? 10 : parseInt(b[0]);
+                                return numA - numB;
+                              })
+                              .map(([ipCount, data]: [string, any]) => (
+                                <div key={ipCount} className="text-[8px]">
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-muted-foreground">
+                                      {ipCount === '1' 
+                                        ? (lang === 'ru' ? '1 IP' : '1 IP')
+                                        : `${ipCount} IP`
+                                      }
+                                    </span>
+                                    <span className="font-medium">{data.percentage}%</span>
+                                  </div>
+                                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full ${
+                                        ipCount === '1' 
+                                          ? 'bg-green-500'
+                                          : parseInt(ipCount) <= 2 || ipCount === '10+'
+                                          ? 'bg-orange-500'
+                                          : 'bg-red-500'
+                                      }`}
+                                      style={{ width: `${data.percentage}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              ))
+                            }
+                          </div>
+                          
+                          {/* Total time */}
+                          <div className="mt-1 text-[8px] text-muted-foreground">
+                            {lang === 'ru' ? 'Всего:' : 'Total:'} {Math.round(deviceDetection.totalMinutes / 60)}ч
+                          </div>
                         </div>
                       )}
                     </div>
@@ -909,6 +1141,84 @@ export function UserDetailsSheet({
                   </p>
                 )}
               </div>
+
+              {/* Partners Section */}
+              {partners && partners.partners && partners.partners.length > 0 && (
+                <div className="p-4 border-t space-y-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-purple-500" />
+                    <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      {lang === 'ru' ? 'Напарники' : 'Partners'}
+                    </h3>
+                    <Badge variant="secondary" className="text-[8px] h-4 px-1">
+                      {partners.totalPartnersCount}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2">
+                    {partners.partners.slice(0, 5).map((partner: any, idx: number) => (
+                      <div key={idx} className="p-2.5 rounded-lg border bg-muted/30 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center text-[9px] font-medium text-purple-700 dark:text-purple-300 shrink-0">
+                              {idx + 1}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-medium truncate">{partner.alias}</p>
+                              <p className="text-[9px] text-muted-foreground font-mono truncate">{partner.email}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[11px] font-bold text-purple-700 dark:text-purple-300">
+                              {Math.round(partner.userOverlapPercent)}%
+                            </p>
+                            <p className="text-[9px] text-muted-foreground">
+                              {partner.totalConcurrentHours}{lang === 'ru' ? 'ч' : 'h'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 text-[9px] text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>{partner.concurrentDaysCount} {lang === 'ru' ? 'дн' : 'd'}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            <span>{partner.sharedIpsCount} IP</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatTimestampFull(partner.lastSeen)}</span>
+                          </div>
+                        </div>
+                        {/* IP Details */}
+                        {partner.ipDetails && partner.ipDetails.length > 0 && (
+                          <details className="group">
+                            <summary className="cursor-pointer text-[9px] text-purple-600 dark:text-purple-400 hover:underline list-none flex items-center gap-1">
+                              <span className="group-open:rotate-90 transition-transform">▶</span>
+                              {lang === 'ru' ? 'Детали по IP' : 'IP Details'} ({partner.ipDetails.length})
+                            </summary>
+                            <div className="mt-2 space-y-1.5 pl-3">
+                              {partner.ipDetails.slice(0, 3).map((ipDetail: any, ipIdx: number) => (
+                                <div key={ipIdx} className="flex items-center justify-between text-[9px] p-1.5 rounded bg-muted/50">
+                                  <span className="font-mono">{ipDetail.ip}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">
+                                      {ipDetail.concurrentHours}{lang === 'ru' ? 'ч' : 'h'}
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                      {ipDetail.concurrentDays}{lang === 'ru' ? 'дн' : 'd'}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Footer - Minimal */}
               <div className="p-4 pt-2">
